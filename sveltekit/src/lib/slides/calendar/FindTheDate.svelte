@@ -160,7 +160,7 @@
 	const yearOptions: number[] = $derived(
 		today.getMonth() < 7 // before August
 			? [todayYear - 1, todayYear, todayYear + 1]
-			: [todayYear, todayYear + 1, todayYear - 1]
+			: [todayYear, todayYear + 1, todayYear + 2]
 	);
 
 	const setCheck = (check: Check) => {
