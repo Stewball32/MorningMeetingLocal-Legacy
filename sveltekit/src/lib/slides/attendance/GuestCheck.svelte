@@ -154,8 +154,8 @@
 		}
 	};
 
-	const youtubeId = '0gzKRGcmnFs';
-	const youtubeStart = 206;
+	const youtubeId = 'batjBLqr8ck';
+	const youtubeStart = 201;
 	const youtubeEnd = 223;
 	const youtubeParam = `?rel=0&enablejsapi=1&autoplay=0&start=${youtubeStart}&end=${youtubeEnd}`;
 	const youtubeEmbeddedUrl = `https://www.youtube.com/embed/${youtubeId}${youtubeParam}`;
@@ -261,7 +261,7 @@
 {:else if !hasGuests}
 	<div class="flex h-full w-full flex-col items-center justify-center">
 		<h1 class="text-size-9 my-[2%] text-center font-black">No Guests Today!</h1>
-		<h2 class="text-size-4 my-[5%]">There are now guests today.</h2>
+		<h2 class="text-size-4 my-[5%]">There are no guests today.</h2>
 	</div>
 {:else if hasGuests}
 	<div class="flex h-full w-full flex-col items-center justify-start">
@@ -342,6 +342,7 @@
 			<Combobox
 				ids={{ root: 'avatar-combobox' }}
 				classes="shadow z-10 w-1/3 w-[35%] h-2/5"
+				contentClasses="max-h-64 overflow-auto"
 				allowCustomValue={false}
 				data={avatarComboboxArray}
 				value={selectedAvatarId}
