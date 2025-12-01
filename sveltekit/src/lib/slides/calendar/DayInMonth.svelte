@@ -46,7 +46,7 @@
 	let buttonTodayChosenClass = $derived(isToday && todayChosen ? 'z-2 outline-3 ' : '');
 	let buttonClass = $derived(`${getDayClass(day)} ${buttonTodayChosenClass} ${baseBtnClass}`);
 
-	let baseDayClass = 'text-size-1 pl-[2%] leading-none absolute right-[0%] top-0 rounded-bl-lg';
+	let baseDayClass = 'text-size-0 pl-[2%] leading-none absolute z-10 right-[0%] top-0 rounded-bl-lg';
 	let dayHoverClass = $derived(currentHoverDay == day ? 'font-bold' : '');
 	let dayTodayChosenClass = $derived(
 		isToday && todayChosen ? 'bg-black text-white font-black' : 'bg-white text-black font-normal '
@@ -55,10 +55,10 @@
 
 	let inPastClass = $derived(inPast ? 'opacity-75' : 'opacity-25');
 
-	let baseHolidayClass = 'm-0 h-full rounded-full p-0';
+	let baseHolidayClass = 'm-0 max-h-full max-w-full overflow-hidden p-0';
 	let holidayClass = $derived(`${baseHolidayClass} ${inPastClass}`);
 
-	const baseAstronomyClass = 'flex absolute left-[2%] top-0 h-[25%] overflow-hidden';
+	const baseAstronomyClass = 'flex absolute z-10 left-[2%] top-0 h-[25%] overflow-hidden';
 	let astronomyClass = $derived(`${baseAstronomyClass} ${inPastClass}`);
 
 	let holidayIndex = $state(0);
@@ -114,16 +114,14 @@
 				(e.currentTarget as HTMLImageElement).src = '/defaults/calendar.png';
 			}}
 		/>
-		<div class="absolute flex h-full w-[98%] flex-col items-center justify-center p-0">
 			<span
-				class="text-size-1 absolute line-clamp-2 w-full text-pretty text-center leading-none max-lg:pb-[1%]"
+				class="text-size-00 absolute bottom-0 bg-slate-100/60  w-full line-clamp-3 text-wrap max-h-4/5 text-center leading-none max-lg:pb-[1%]"
 			>
 				{holidays[holidayIndex].name}
 			</span>
-		</div>
 		{#if !holidays.every((h) => !h.school || h.school == 'full')}
-			<span class="text-size-00 z-3 absolute bottom-0 truncate px-[2%] font-thin leading-none">
-				({holidays.some((h) => h.school === 'none') ? 'No School!' : 'Short Day!'})
+			<span class="text-size-00 bg-slate-100/60 z-1 text-error-700-300 font-black rounded-b-lg absolute top-0 truncate  px-[2%] leading-none">
+				{holidays.some((h) => h.school === 'none') ? 'No School!' : 'Short Day!'}
 			</span>
 		{/if}
 	{/if}
