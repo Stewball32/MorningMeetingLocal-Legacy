@@ -280,20 +280,20 @@
 			event.preventDefault();
 			if (
 				[
-					resultSelected === undefined,
+					oneSelected === undefined,
 					twoSelected === undefined,
 					resultSelected === undefined
 				].every((e) => e)
 			)
 				return pageLeft();
-			else if (resultSelected === answers.result) resultSelected = undefined;
-			else if (twoSelected === answers.two) twoSelected = undefined;
-			else if (oneSelected === answers.one) oneSelected = undefined;
+			else if (resultSelected !== undefined) resultSelected = undefined;
+			else if (twoSelected !== undefined) twoSelected = undefined;
+			else if (oneSelected !== undefined) oneSelected = undefined;
 		} else if (event.key === 'ArrowRight') {
 			event.preventDefault();
 			if (
 				[
-					resultSelected === answers.one,
+					oneSelected === answers.one,
 					twoSelected === answers.two,
 					resultSelected === answers.result
 				].every((e) => e)
