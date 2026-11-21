@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { PageData } from './$types';
-	import { pb, updateClassDaily } from '$lib/pb';
+	import { pb, updateClassDaily } from '#lib/pb/index.ts';
 	import type {
 		ClassDaily,
 		IconRecord,
@@ -9,12 +9,12 @@
 		StudentDaily,
 		Teacher,
 		TeacherDaily
-	} from '$lib/pb/types';
+	} from '#lib/pb/types.ts';
 	import { onDestroy, onMount } from 'svelte';
 	import type { RecordSubscription } from 'pocketbase';
-	import { updateSound } from '$lib/sounds';
-	import Attendance from '$lib/slides/attendance/+slide.svelte';
-	import Calendar from '$lib/slides/calendar/+slide.svelte';
+	import { updateSound } from '#lib/sounds.ts';
+	import Attendance from '#lib/slides/attendance/+slide.svelte';
+	import Calendar from '#lib/slides/calendar/+slide.svelte';
 
 	let { data }: { data: PageData } = $props();
 

@@ -1,10 +1,10 @@
 <script lang="ts">
-	import type { Student, StudentDaily, Teacher, TeacherDaily } from '$lib/pb/types';
+	import type { Student, StudentDaily, Teacher, TeacherDaily } from '#lib/pb/types.ts';
 	import { onMount } from 'svelte';
 	import type { ClassProps } from './_types';
-	import { getPronounPresent, getPronounSubject, makeSearchParams } from '$lib';
-	import PersonBar from '$lib/slides/attendance/PersonBar.svelte';
-	import PersonButton from '$lib/buttons/PersonButton.svelte';
+	import { getPronounPresent, getPronounSubject, makeSearchParams } from '#lib';
+	import PersonBar from '#lib/slides/attendance/PersonBar.svelte';
+	import PersonButton from '#lib/buttons/PersonButton.svelte';
 
 	interface WhoIsHereProps {
 		from?: 'left' | 'right';

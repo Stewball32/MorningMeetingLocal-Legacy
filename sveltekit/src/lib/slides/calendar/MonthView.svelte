@@ -1,11 +1,11 @@
 <script lang="ts">
-	import type { ClassDaily } from '$lib/pb/types';
+	import type { ClassDaily } from '#lib/pb/types.ts';
 	import { onMount } from 'svelte';
 	import type { Weekday, AstronomyData } from './_types';
-	import { updateSound } from '$lib/sounds';
-	import ResetSlide from '$lib/slides/ResetSlide.svelte';
-	import { getHolidayMap as getObservationMap } from '$lib/pb/calendar';
-	import type { Holiday } from '$lib/pb/calendar';
+	import { updateSound } from '#lib/sounds.ts';
+	import ResetSlide from '#lib/slides/ResetSlide.svelte';
+	import { getHolidayMap as getObservationMap } from '#lib/pb/calendar.ts';
+	import type { Holiday } from '#lib/pb/calendar.ts';
 	import DayInMonth from './DayInMonth.svelte';
 	import { MoonPhase } from 'astronomy-engine';
 	import { getZodiacSign } from './zodiac';

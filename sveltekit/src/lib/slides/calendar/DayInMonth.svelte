@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Holiday } from '$lib/pb/calendar';
+	import type { Holiday } from '#lib/pb/calendar.ts';
 	import type { AstronomyData } from './_types';
 	import { MoonPhase } from 'astronomy-engine';
 	import { onDestroy, onMount } from 'svelte';

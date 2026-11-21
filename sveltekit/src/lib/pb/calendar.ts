@@ -1,5 +1,5 @@
-import { getPbImageUrl, pb } from '$lib/pb';
-import type { CalendarObservance } from '$lib/pb/types';
+import { getPbImageUrl, pb } from '#lib/pb/index.ts';
+import type { CalendarObservance } from '#lib/pb/types.ts';
 import Holidays, { type HolidaysTypes } from 'date-holidays';
 
 export interface Holiday extends HolidaysTypes.Holiday {

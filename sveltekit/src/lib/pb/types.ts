@@ -3,8 +3,8 @@ import type {
 	ClassProps as ClassAttendanceProps,
 	TeacherProps as TeacherAttendanceProps,
 	StudentProps as StudentAttendanceProps
-} from '$lib/slides/attendance/_types';
-import type { ClassProps as ClassCalendarProps } from '$lib/slides/calendar/_types';
+} from '#lib/slides/attendance/_types.ts';
+import type { ClassProps as ClassCalendarProps } from '#lib/slides/calendar/_types.ts';
 
 export interface ClassDaily extends RecordModel {
 	date: string; // YYYY-MM-DD

@@ -22,8 +22,9 @@
 		"@eslint/js": "^10.0.1",
 		"@skeletonlabs/skeleton": "^3.2.2",
 		"@skeletonlabs/skeleton-svelte": "^1.5.3",
-		"@sveltejs/adapter-node": "^5.5.8",
-		"@sveltejs/kit": "^2.70.4",
+		"@sveltejs/adapter-node": "^6.0.0",
+		"@sveltejs/kit": "^3.0.0",
+		"@sveltejs/load-config": "^0.2.2",
 		"@sveltejs/vite-plugin-svelte": "^7.3.1",
 		"@tailwindcss/forms": "^0.5.11",
 		"@tailwindcss/vite": "^4.3.5",
@@ -51,5 +52,9 @@
 		"astronomy-engine": "^2.1.19",
 		"date-holidays": "^3.39.2",
 		"pocketbase": "^0.29.0"
+	},
+	"imports": {
+		"#lib": "./src/lib/index.ts",
+		"#lib/*": "./src/lib/*"
 	}
 }

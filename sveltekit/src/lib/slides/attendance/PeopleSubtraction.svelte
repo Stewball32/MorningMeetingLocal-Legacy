@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { Student, Teacher } from '$lib/pb/types';
-	import PersonButton from '$lib/buttons/PersonButton.svelte';
+	import type { Student, Teacher } from '#lib/pb/types.ts';
+	import PersonButton from '#lib/buttons/PersonButton.svelte';
 	import { Popover } from '@skeletonlabs/skeleton-svelte';
 
 	import Cross from '@lucide/svelte/icons/x';
 	import type { ClassProps, MathClassProps } from './_types';
 	import { on } from 'svelte/events';
-	import { updateSound } from '$lib/sounds';
-	import ResetSlide from '$lib/slides/ResetSlide.svelte';
+	import { updateSound } from '#lib/sounds.ts';
+	import ResetSlide from '#lib/slides/ResetSlide.svelte';
 
 	interface PeopleMathProps {
 		from?: 'left' | 'right';

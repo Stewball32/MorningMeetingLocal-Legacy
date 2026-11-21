@@ -1,4 +1,4 @@
-import { PUBLIC_POCKETBASE_URL } from '$env/static/public';
+import { PUBLIC_POCKETBASE_URL } from '$app/env/public';
 import PocketBase from 'pocketbase';
 import type {
 	ClassDaily,
@@ -10,7 +10,7 @@ import type {
 	Teacher,
 	TeacherDaily
 } from './types';
-import { getCurrentISOString, isISOString } from '$lib';
+import { getCurrentISOString, isISOString } from '#lib';
 
 function createInstance() {
 	return new PocketBase(PUBLIC_POCKETBASE_URL);

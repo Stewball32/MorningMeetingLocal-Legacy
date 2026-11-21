@@ -1,15 +1,19 @@
+import adapter from '@sveltejs/adapter-node';
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 import { svelteTesting } from '@testing-library/svelte/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-	plugins: [tailwindcss(), sveltekit()],
-
-  preview: {
-    host: '0.0.0.0',
-    allowedHosts: ['meet.lan']
-  },
+	plugins: [
+		tailwindcss(),
+		sveltekit({
+			preprocess: vitePreprocess(),
+			adapter: adapter()
+		})
+	],
+	preview: { host: '0.0.0.0', allowedHosts: ['meet.lan'] },
 	test: {
 		projects: [
 			{

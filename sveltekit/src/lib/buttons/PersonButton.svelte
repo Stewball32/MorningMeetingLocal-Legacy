@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { PUBLIC_POCKETBASE_URL } from '$env/static/public';
-	import type { Student, StudentDaily, Teacher, TeacherDaily } from '$lib/pb/types';
+	import { PUBLIC_POCKETBASE_URL } from '$app/env/public';
+	import type { Student, StudentDaily, Teacher, TeacherDaily } from '#lib/pb/types.ts';
 	import Button from './+button.svelte';
 
 	interface Props {

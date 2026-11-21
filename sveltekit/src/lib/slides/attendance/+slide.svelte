@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { updateClassDaily, updatePersonDaily } from '$lib/pb';
+	import { updateClassDaily, updatePersonDaily } from '#lib/pb/index.ts';
 	import type {
 		ClassDaily,
 		IconRecord,
@@ -8,9 +8,9 @@
 		StudentDaily,
 		Teacher,
 		TeacherDaily
-	} from '$lib/pb/types';
+	} from '#lib/pb/types.ts';
 	import { onMount } from 'svelte';
-	import WhoIsHere from '$lib/slides/attendance/WhoIsHere.svelte';
+	import WhoIsHere from '#lib/slides/attendance/WhoIsHere.svelte';
 	import type { ClassProps, MathClassProps } from './_types';
 	import PeopleAddition from './PeopleAddition.svelte';
 	import PeopleSubtraction from './PeopleSubtraction.svelte';

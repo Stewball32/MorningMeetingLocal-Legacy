@@ -2,7 +2,7 @@
 	import Maximize from '@lucide/svelte/icons/maximize';
 	import Minimize from '@lucide/svelte/icons/minimize';
 	import X from '@lucide/svelte/icons/x';
-	import { slideStyle } from '$lib';
+	import { slideStyle } from '#lib';
 	import { onDestroy, onMount } from 'svelte';
 
 	let { children } = $props();

@@ -1,9 +1,9 @@
 <script lang="ts">
-	import type { ClassDaily } from '$lib/pb/types';
+	import type { ClassDaily } from '#lib/pb/types.ts';
 	import type { Check, Month, Weekday } from './_types';
 	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
-	import { updateSound } from '$lib/sounds';
-	import ResetSlide from '$lib/slides/ResetSlide.svelte';
+	import { updateSound } from '#lib/sounds.ts';
+	import ResetSlide from '#lib/slides/ResetSlide.svelte';
 
 	interface FindTheDateProps {
 		classDaily: ClassDaily;

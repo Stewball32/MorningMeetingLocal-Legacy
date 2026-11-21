@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { IconRecord, GuestDaily } from '$lib/pb/types';
+	import type { IconRecord, GuestDaily } from '#lib/pb/types.ts';
 	import { onMount } from 'svelte';
 	import type { ClassProps } from './_types';
 	import { Combobox, Modal, Popover } from '@skeletonlabs/skeleton-svelte';
@@ -7,9 +7,9 @@
 	import UserRoundPlus from '@lucide/svelte/icons/user-round-plus';
 	import Trash from '@lucide/svelte/icons/trash-2';
 	import TvMinimalPlay from '@lucide/svelte/icons/tv-minimal-play';
-	import { createGuestDaily, deleteGuestDaily, getGuestDailiesRange, getPbImageUrl } from '$lib/pb';
-	import GuestButton from '$lib/buttons/GuestButton.svelte';
-	import SampleButton from '$lib/buttons/+button.svelte';
+	import { createGuestDaily, deleteGuestDaily, getGuestDailiesRange, getPbImageUrl } from '#lib/pb/index.ts';
+	import GuestButton from '#lib/buttons/GuestButton.svelte';
+	import SampleButton from '#lib/buttons/+button.svelte';
 
 	interface GuestCheckProps {
 		hasGuests?: boolean;

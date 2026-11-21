@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { Student, StudentDaily, Teacher, TeacherDaily } from '$lib/pb/types';
-	import PersonButton from '$lib/buttons/PersonButton.svelte';
+	import type { Student, StudentDaily, Teacher, TeacherDaily } from '#lib/pb/types.ts';
+	import PersonButton from '#lib/buttons/PersonButton.svelte';
 
 	interface PersonBarProps {
 		people: Student[] | Teacher[];

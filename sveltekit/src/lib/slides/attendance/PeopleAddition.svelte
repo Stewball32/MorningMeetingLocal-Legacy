@@ -1,16 +1,16 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { IconRecord, GuestDaily, Student, Teacher } from '$lib/pb/types';
-	import PersonButton from '$lib/buttons/PersonButton.svelte';
+	import type { IconRecord, GuestDaily, Student, Teacher } from '#lib/pb/types.ts';
+	import PersonButton from '#lib/buttons/PersonButton.svelte';
 	import { Popover, Switch } from '@skeletonlabs/skeleton-svelte';
 
 	// import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Hash from '@lucide/svelte/icons/hash';
 	import GripHorizontal from '@lucide/svelte/icons/grip-horizontal';
 	import type { ClassProps, MathClassProps } from './_types';
-	import GuestButton from '$lib/buttons/GuestButton.svelte';
-	import { updateSound } from '$lib/sounds';
-	import ResetSlide from '$lib/slides/ResetSlide.svelte';
+	import GuestButton from '#lib/buttons/GuestButton.svelte';
+	import { updateSound } from '#lib/sounds.ts';
+	import ResetSlide from '#lib/slides/ResetSlide.svelte';
 
 	interface PeopleMathProps {
 		from?: 'left' | 'right';

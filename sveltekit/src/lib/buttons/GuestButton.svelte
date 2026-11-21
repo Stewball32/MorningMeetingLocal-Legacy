@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { PUBLIC_POCKETBASE_URL } from '$env/static/public';
-	import { getGuestAvatar } from '$lib/pb';
-	import type { IconRecord, GuestDaily } from '$lib/pb/types';
+	import { PUBLIC_POCKETBASE_URL } from '$app/env/public';
+	import { getGuestAvatar } from '#lib/pb/index.ts';
+	import type { IconRecord, GuestDaily } from '#lib/pb/types.ts';
 	import { onMount } from 'svelte';
 	import Button from './+button.svelte';
 

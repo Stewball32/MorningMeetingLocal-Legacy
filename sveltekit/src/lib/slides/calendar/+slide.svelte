@@ -7,7 +7,7 @@
 		StudentDaily,
 		Teacher,
 		TeacherDaily
-	} from '$lib/pb/types';
+	} from '#lib/pb/types.ts';
 	import NavArrows from '../NavArrows.svelte';
 	import FindTheDate from './FindTheDate.svelte';
 	import MonthView from './MonthView.svelte';

@@ -1,4 +1,4 @@
-import { getCurrentISOString } from '$lib';
+import { getCurrentISOString } from '#lib';
 import {
 	getAllStudents,
 	getAllTeachers,
@@ -7,7 +7,7 @@ import {
 	getGuestDailiesDate,
 	getStudentDailyMap,
 	getTeacherDailyMap
-} from '$lib/pb';
+} from '#lib/pb/index.ts';
 import type { PageLoad } from './$types';
 
 export const load = (async ({ params, url }) => {

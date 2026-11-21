@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ClassDaily } from '$lib/pb/types';
+	import type { ClassDaily } from '#lib/pb/types.ts';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 
