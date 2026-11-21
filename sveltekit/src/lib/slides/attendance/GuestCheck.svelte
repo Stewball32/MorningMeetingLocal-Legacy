@@ -1,13 +1,26 @@
 <script lang="ts">
 	import type { IconRecord, GuestDaily } from '#lib/pb/types.ts';
 	import { onMount } from 'svelte';
+	import { fade, fly } from 'svelte/transition';
+	import type { HTMLAttributes } from 'svelte/elements';
 	import type { ClassProps } from './_types';
-	import { Combobox, Modal, Popover } from '@skeletonlabs/skeleton-svelte';
+	import {
+		Combobox,
+		Dialog,
+		Popover,
+		Portal,
+		useListCollection
+	} from '@skeletonlabs/skeleton-svelte';
 	import Undo from '@lucide/svelte/icons/undo';
 	import UserRoundPlus from '@lucide/svelte/icons/user-round-plus';
 	import Trash from '@lucide/svelte/icons/trash-2';
 	import TvMinimalPlay from '@lucide/svelte/icons/tv-minimal-play';
-	import { createGuestDaily, deleteGuestDaily, getGuestDailiesRange, getPbImageUrl } from '#lib/pb/index.ts';
+	import {
+		createGuestDaily,
+		deleteGuestDaily,
+		getGuestDailiesRange,
+		getPbImageUrl
+	} from '#lib/pb/index.ts';
 	import GuestButton from '#lib/buttons/GuestButton.svelte';
 	import SampleButton from '#lib/buttons/+button.svelte';
 
@@ -29,6 +42,13 @@
 		value: string;
 		emoji: string;
 	}
+
+	// Skeleton 5 types each part's `element` attributes for its default tag (div, ul, li);
+	// the v3 markup rendered span, nav and button there instead.
+	type AnyTagAttributes = HTMLAttributes<any>;
+
+	// Skeleton 5's .btn squeezes direct child icons to --btn-size; icons get their v3 24px size
+	// back with w-6 / size-6. (The v3 .btn padding/line-height is restored app-wide in app.css.)
 
 	let {
 		hasGuests = $bindable(undefined),
@@ -59,6 +79,35 @@
 			emoji: avatar.emoji
 		});
 	});
+
+	// Skeleton 3's Combobox filtered its own list: typing kept the items whose label contains the
+	// text (case-insensitive) and every open/close showed the whole list again. Skeleton 5 leaves
+	// filtering to the app, so do the same here. Input changes while the list is closed (the first
+	// keystroke, or the input syncing to a picked item) never showed a filtered list in v3, so they
+	// are ignored; that also keeps every item in the collection for zag's value -> label lookups.
+	const byLabel = (items: ComboboxData[], text: string) =>
+		items.filter((item) => item.label.toLowerCase().includes(text.toLowerCase()));
+	let guestFilter = $state('');
+	let avatarFilter = $state('');
+	let guestListOpen = false;
+	let avatarListOpen = false;
+	const guestOptions = $derived(byLabel(guestComboboxArray, guestFilter));
+	const avatarOptions = $derived(byLabel(avatarComboboxArray, avatarFilter));
+	const guestCollection = $derived(
+		useListCollection({
+			items: guestOptions,
+			itemToString: (item) => item.label,
+			itemToValue: (item) => item.value
+		})
+	);
+	const avatarCollection = $derived(
+		useListCollection({
+			items: avatarOptions,
+			itemToString: (item) => item.label,
+			itemToValue: (item) => item.value
+		})
+	);
+
 	onMount(async () => {
 		const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
 		const [year, month, day] = [
@@ -126,7 +175,7 @@
 			return alert('Please select a name and an avatar!');
 		}
 
-		const newGuest = await createGuestDaily({
+		await createGuestDaily({
 			name: modalGuestName,
 			pronoun: selectedPronoun,
 			avatar: selectedAvatarId[0]
@@ -162,7 +211,93 @@
 	const youtubeUrl = `https://www.youtube.com/watch?v=${youtubeId}${youtubeParam}`;
 </script>
 
-<svelte:window on:keydown={onKeydown} />
+<!--
+	Combobox parts shared by the Guest Name and Avatar boxes, rendered with the same elements and
+	classes as Skeleton 3's <Combobox>. Skeleton 5 styles every [data-scope=combobox] part with its
+	own look, so these parts drop data-scope (zag finds them by id and role) and use the v3 input
+	group styles from the <style> block below.
+-->
+{#snippet comboboxParts(options: ComboboxData[], contentClasses: string, itemLabelClass: string)}
+	<Combobox.Label class="label" data-scope={null}>
+		<Combobox.Control>
+			{#snippet element(attributes)}
+				<div {...attributes} data-scope={null} class="input-group grid-cols-[1fr_auto]">
+					<Combobox.Input>
+						{#snippet element(attributes)}
+							<input {...attributes} data-scope={null} class="ig-input" />
+						{/snippet}
+					</Combobox.Input>
+					<Combobox.Trigger>
+						{#snippet element(attributes)}
+							<button {...attributes} data-scope={null} class="ig-btn hover:bg-surface-950/5">
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									width="16"
+									height="16"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									style="opacity: 0.5"
+								>
+									<path d="m6 9 6 6 6-6" />
+								</svg>
+							</button>
+						{/snippet}
+					</Combobox.Trigger>
+				</div>
+			{/snippet}
+		</Combobox.Control>
+	</Combobox.Label>
+	<Combobox.Context>
+		{#snippet children(combobox)}
+			{#if combobox().open}
+				<Combobox.Positioner>
+					{#snippet element(attributes)}
+						<div {...attributes} data-scope={null} transition:fade|global={{ duration: 100 }}>
+							{#if options.length > 0}
+								<Combobox.Content>
+									{#snippet element(attributes: AnyTagAttributes)}
+										<nav
+											{...attributes}
+											data-scope={null}
+											class="card p-2 preset-outlined-surface-200-800 bg-surface-50-950 space-y-1 {contentClasses}"
+										>
+											{#each options as option (option.label)}
+												<Combobox.Item item={option}>
+													{#snippet element(attributes: AnyTagAttributes)}
+														{@const checked = attributes['data-state'] === 'checked'}
+														<button
+															{...attributes}
+															data-scope={null}
+															type="button"
+															class="btn justify-start w-full {checked
+																? 'preset-filled-primary-500'
+																: 'hover:bg-surface-950/5'}"
+														>
+															<div class="flex w-full justify-between space-x-2">
+																<span class={itemLabelClass}>{option.label}</span>
+																<span>{option.emoji}</span>
+															</div>
+														</button>
+													{/snippet}
+												</Combobox.Item>
+											{/each}
+										</nav>
+									{/snippet}
+								</Combobox.Content>
+							{/if}
+						</div>
+					{/snippet}
+				</Combobox.Positioner>
+			{/if}
+		{/snippet}
+	</Combobox.Context>
+{/snippet}
+
+<svelte:window onkeydown={onKeydown} />
 
 {#if hasGuests != undefined}
 	<div class="h-1/12 absolute bottom-2 left-2 flex w-4/12 justify-start gap-[2%]">
@@ -170,50 +305,72 @@
 			class="btn preset-tonal-secondary aspect-square h-full rounded-full border p-0"
 			onclick={() => (welcomeGuests ? updateWelcomeGuests() : updateHasGuests(undefined))}
 		>
-			<Undo class="h-full" />
+			<Undo class="h-full w-6" />
 		</button>
 		{#if hasGuests}
 			<button
 				class="btn preset-tonal-primary aspect-square h-full rounded-full border p-0"
 				onclick={() => (modalOpen = true)}
 			>
-				<UserRoundPlus class="h-full" />
+				<UserRoundPlus class="h-full w-6" />
 			</button>
 			<Popover
 				open={popoverOpen}
 				onOpenChange={(e) => (popoverOpen = e.open)}
 				positioning={{ placement: 'right-end' }}
-				triggerBase="btn preset-tonal-error aspect-square h-full rounded-full border p-0"
-				contentBase="card bg-error-200-800 p-4 space-y-4"
-				arrow
-				arrowBackground="!bg-error-200 dark:!bg-error-800"
 			>
-				{#snippet trigger()}<Trash class="h-full" />{/snippet}
-				{#snippet content()}
-					<header class="center flex">
-						<p class="text-size-1 text-center font-semibold">Delete Guest</p>
-					</header>
-					<article class="flex h-full flex-col items-center gap-2 overflow-y-auto">
-						{#each guestDailies as guest}
-							<button
-								type="button"
-								class="btn preset-tonal-error-500 w-full rounded-full text-left"
-								onclick={() => deleteGuestDaily(guest)}
-							>
-								<div class="text-size-1 flex w-full justify-between space-x-2">
-									<span class="truncate">{guest.name}</span>
-									<span>{guestAvatarMap.get(guest.avatar)?.emoji || '❔'}</span>
-								</div>
-							</button>
-						{/each}
-					</article>
-				{/snippet}
+				<span data-testid="popover">
+					<Popover.Trigger
+						class="btn preset-tonal-error aspect-square h-full rounded-full border p-0"
+					>
+						<Trash class="h-full w-6" />
+					</Popover.Trigger>
+				</span>
+				<Portal>
+					<Popover.Positioner>
+						<!-- like v3, the content only exists (with a short fade) while zag has it open -->
+						<Popover.Context>
+							{#snippet children(popover)}
+								{#if popover().open}
+									<Popover.Content>
+										{#snippet element(attributes)}
+											<div {...attributes} transition:fade|global={{ duration: 100 }}>
+												<Popover.Arrow class="[--arrow-size:10px]">
+													<Popover.ArrowTip class="!bg-error-200 dark:!bg-error-800" />
+												</Popover.Arrow>
+												<div class="card bg-error-200-800 p-4 space-y-4">
+													<header class="center flex">
+														<p class="text-size-1 text-center font-semibold">Delete Guest</p>
+													</header>
+													<article class="flex h-full flex-col items-center gap-2 overflow-y-auto">
+														{#each guestDailies as guest (guest.id)}
+															<button
+																type="button"
+																class="btn preset-tonal-error-500 w-full rounded-full text-left"
+																onclick={() => deleteGuestDaily(guest)}
+															>
+																<div class="text-size-1 flex w-full justify-between space-x-2">
+																	<span class="truncate">{guest.name}</span>
+																	<span>{guestAvatarMap.get(guest.avatar)?.emoji || '❔'}</span>
+																</div>
+															</button>
+														{/each}
+													</article>
+												</div>
+											</div>
+										{/snippet}
+									</Popover.Content>
+								{/if}
+							{/snippet}
+						</Popover.Context>
+					</Popover.Positioner>
+				</Portal>
 			</Popover>
 			<button
 				onclick={updateWelcomeGuests}
 				class="btn preset-tonal-success aspect-square h-full rounded-full border p-0"
 			>
-				<TvMinimalPlay class="h-full" />
+				<TvMinimalPlay class="h-full w-6" />
 			</button>
 		{/if}
 		{#if welcomeGuests}
@@ -270,11 +427,11 @@
 			<div
 				class="flex h-[80%] w-full flex-row flex-wrap items-center justify-center gap-[10%] overflow-y-auto pt-[1%] shadow"
 			>
-				{#each guestDailies as guest}
+				{#each guestDailies as guest (guest.id)}
 					<GuestButton
 						{guest}
 						{guestAvatarMap}
-						buttonClass="px-[2%] h-2/5"
+						buttonClass="px-[2%] py-1 h-2/5"
 						nameClass="text-size-7"
 						onClick={() => {}}
 					/>
@@ -286,7 +443,7 @@
 					class="btn preset-filled-primary-500 text-size-6 flex justify-center rounded-full p-[2%]"
 					onclick={() => (modalOpen = true)}
 				>
-					<UserRoundPlus />
+					<UserRoundPlus class="size-6" />
 					<span class="">Add a Guest</span>
 				</button>
 			</div>
@@ -294,84 +451,195 @@
 	</div>
 {/if}
 
-<Modal
-	open={modalOpen}
-	onOpenChange={(e) => (modalOpen = e.open)}
-	triggerBase="btn preset-filled-primary-500 rounded-full text-size-4"
-	contentBase="card  preset-filled-primary-50-950 p-4 space-y-4 shadow-xl max-w-screen-sm"
-	backdropClasses="backdrop-blur-sm"
->
-	{#snippet content()}
-		<header class="flex justify-between">
-			<Combobox
-				ids={{ root: 'guest-combobox' }}
-				classes="shadow w-[45%] z-10"
-				allowCustomValue={true}
-				data={guestComboboxArray}
-				value={selectedGuestName}
-				onValueChange={reusePreviousGuest}
-				onInputValueChange={updateModalGuestName}
-				label=""
-				placeholder="Guest Name"
-			>
-				<!-- This is optional. Combobox will render label by default -->
-				{#snippet item(item)}
-					<div class="flex w-full justify-between space-x-2">
-						<span>{item.label}</span>
-						<span>{item.emoji}</span>
-					</div>
-				{/snippet}
-			</Combobox>
+<Dialog open={modalOpen} onOpenChange={(e) => (modalOpen = e.open)}>
+	<Portal>
+		<!--
+			Like v3's <Modal>, everything below only exists while zag has the dialog open (so the
+			comboboxes start fresh each time) and fades/flies in and out the same way.
+		-->
+		<Dialog.Context>
+			{#snippet children(dialog)}
+				{#if dialog().open}
+					<Dialog.Backdrop
+						class="fixed top-0 left-0 right-0 bottom-0 z-[998] bg-surface-50/75 dark:bg-surface-950/75 backdrop-blur-sm"
+					>
+						{#snippet element(attributes)}
+							<div {...attributes} transition:fade|global={{ duration: 100 }}></div>
+						{/snippet}
+					</Dialog.Backdrop>
+					<Dialog.Positioner
+						class="fixed top-0 left-0 right-0 bottom-0 z-[999] flex justify-center items-center p-4"
+					>
+						{#snippet element(attributes)}
+							<div {...attributes} transition:fly|global={{ y: 50, duration: 200 }}>
+								<Dialog.Content
+									class="card  preset-filled-primary-50-950 p-4 space-y-4 shadow-xl max-w-screen-sm"
+								>
+									<header class="flex justify-between">
+										<Combobox
+											ids={{ root: 'guest-combobox' }}
+											class="shadow w-[45%] z-10"
+											allowCustomValue={true}
+											collection={guestCollection}
+											value={selectedGuestName}
+											onValueChange={reusePreviousGuest}
+											onInputValueChange={(e) => {
+												if (guestListOpen) guestFilter = e.inputValue;
+												updateModalGuestName(e);
+											}}
+											onOpenChange={(e) => {
+												guestListOpen = e.open;
+												guestFilter = '';
+											}}
+											placeholder="Guest Name"
+										>
+											{#snippet element(attributes: AnyTagAttributes)}
+												<span {...attributes} data-scope={null} data-testid="combobox">
+													{@render comboboxParts(guestOptions, '', '')}
+												</span>
+											{/snippet}
+										</Combobox>
 
-			<nav
-				class="btn preset-outlined-surface-500 group relative w-[15%] gap-0 overflow-clip rounded-full outline-2 contain-strict"
-			>
-				<button
-					type="button"
-					onclick={() => (selectedPronoun = selectedPronoun === 'he' ? undefined : 'he')}
-					class={`btn  -ml-[50%] w-1/2 border-r-2 py-[50%] pl-[50%] ${selectedPronoun == 'he' ? 'bg-blue-400 hover:bg-blue-600' : 'preset-tonal hover:bg-blue-500'}`}
-					>He</button
-				>
-				<button
-					type="button"
-					onclick={() => (selectedPronoun = selectedPronoun === 'she' ? undefined : 'she')}
-					class={`btn -mr-[50%] w-1/2 border-l-2 py-[50%] pr-[50%] ${selectedPronoun == 'she' ? 'bg-pink-400 hover:bg-pink-600' : 'preset-tonal hover:bg-pink-500'}`}
-					>She</button
-				>
-			</nav>
-			<Combobox
-				ids={{ root: 'avatar-combobox' }}
-				classes="shadow z-10 w-1/3 w-[35%] h-2/5"
-				contentClasses="max-h-64 overflow-auto"
-				allowCustomValue={false}
-				data={avatarComboboxArray}
-				value={selectedAvatarId}
-				onValueChange={updateAvatar}
-				onFocusOutside={(e) => console.log('focus outside', e)}
-				label=""
-				placeholder="Avatar"
-			>
-				<!-- This is optional. Combobox will render label by default -->
-				{#snippet item(item)}
-					<div class="flex w-full justify-between space-x-2">
-						<span class="w-5/6 truncate">{item.label}</span>
-						<span>{item.emoji}</span>
-					</div>
-				{/snippet}
-			</Combobox>
-		</header>
-		<article class="flex h-24 w-full items-center justify-center gap-[10%]">
-			<SampleButton
-				buttonClass="h-full"
-				imageUrl={avatarURL(selectedAvatarId[0])}
-				text={modalGuestName}
-				imgAlt={modalGuestName}
-				textClass="text-size-7 fontbold"
-			/>
-		</article>
-		<footer class="flex justify-end gap-4">
-			<button type="button" class="btn preset-tonal" onclick={() => resetModal()}>Cancel</button>
-			<button type="button" class="btn preset-filled" onclick={() => addGuest()}>Confirm</button>
-		</footer>
-	{/snippet}
-</Modal>
+										<!-- bg-surface-950/5 is v3's preset-tonal (v5's is darker and recolours the text) -->
+										<nav
+											class="btn preset-outlined-surface-500 group relative w-[15%] gap-0 overflow-clip rounded-full outline-2 contain-strict"
+										>
+											<button
+												type="button"
+												onclick={() =>
+													(selectedPronoun = selectedPronoun === 'he' ? undefined : 'he')}
+												class={`btn  -ml-[50%] w-1/2 border-r-2 py-[50%] pl-[50%] pr-4 ${selectedPronoun == 'he' ? 'bg-blue-400 hover:bg-blue-600' : 'bg-surface-950/5 hover:bg-blue-500'}`}
+												>He</button
+											>
+											<button
+												type="button"
+												onclick={() =>
+													(selectedPronoun = selectedPronoun === 'she' ? undefined : 'she')}
+												class={`btn -mr-[50%] w-1/2 border-l-2 py-[50%] pr-[50%] pl-4 ${selectedPronoun == 'she' ? 'bg-pink-400 hover:bg-pink-600' : 'bg-surface-950/5 hover:bg-pink-500'}`}
+												>She</button
+											>
+										</nav>
+										<Combobox
+											ids={{ root: 'avatar-combobox' }}
+											class="shadow z-10 w-1/3 w-[35%] h-2/5"
+											allowCustomValue={false}
+											collection={avatarCollection}
+											value={selectedAvatarId}
+											onValueChange={updateAvatar}
+											onInputValueChange={(e) => {
+												if (avatarListOpen) avatarFilter = e.inputValue;
+											}}
+											onOpenChange={(e) => {
+												avatarListOpen = e.open;
+												avatarFilter = '';
+											}}
+											onFocusOutside={(e) => console.log('focus outside', e)}
+											placeholder="Avatar"
+										>
+											{#snippet element(attributes: AnyTagAttributes)}
+												<span {...attributes} data-scope={null} data-testid="combobox">
+													{@render comboboxParts(
+														avatarOptions,
+														'max-h-64 overflow-auto',
+														'w-5/6 truncate'
+													)}
+												</span>
+											{/snippet}
+										</Combobox>
+									</header>
+									<article class="flex h-24 w-full items-center justify-center gap-[10%]">
+										<SampleButton
+											buttonClass="h-full"
+											imageUrl={avatarURL(selectedAvatarId[0])}
+											text={modalGuestName}
+											imgAlt={modalGuestName}
+											textClass="text-size-7 fontbold"
+										/>
+									</article>
+									<footer class="flex justify-end gap-4">
+										<button
+											type="button"
+											class="btn bg-surface-950/5"
+											onclick={() => resetModal()}>Cancel</button
+										>
+										<button
+											type="button"
+											class="btn preset-filled"
+											onclick={() => addGuest()}>Confirm</button
+										>
+									</footer>
+								</Dialog.Content>
+							</div>
+						{/snippet}
+					</Dialog.Positioner>
+				{/if}
+			{/snippet}
+		</Dialog.Context>
+	</Portal>
+</Dialog>
+
+<style>
+	/* Skeleton 3's input-group, ig-input and ig-btn utilities (gone in Skeleton 5), which gave
+	   the Guest Name and Avatar boxes their look. */
+	.input-group {
+		border-radius: var(--radius-base);
+		display: grid;
+		align-items: stretch;
+		overflow: hidden;
+		outline-color: transparent;
+		border-width: 0;
+		--tw-ring-inset: inset;
+		--tw-ring-color: var(--color-surface-200-800);
+		--tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 var(--default-ring-width)
+			var(--tw-ring-color, currentColor);
+		box-shadow:
+			var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow),
+			var(--tw-ring-shadow), var(--tw-shadow);
+	}
+	.input-group > * + * {
+		border-left-width: 1px !important;
+		border-color: var(--color-surface-200-800);
+	}
+	.ig-input {
+		background-color: transparent;
+		display: block;
+		width: 100%;
+		font-size: var(--text-base);
+		line-height: var(--text-base--line-height);
+		padding-block: calc(var(--spacing) * 1);
+		padding-inline: calc(var(--spacing) * 3);
+		outline-color: transparent;
+		border-width: 0;
+		--tw-ring-inset: inset;
+	}
+	.ig-input:active,
+	.ig-input:focus,
+	.ig-input:focus-within {
+		--tw-ring-color: var(--color-primary-500);
+	}
+	.ig-btn {
+		display: inline-flex;
+		flex-direction: row;
+		align-items: center;
+		justify-content: center;
+		gap: calc(var(--spacing) * 2);
+		text-decoration-line: none;
+		white-space: nowrap;
+		font-size: var(--text-base);
+		line-height: var(--text-base--line-height);
+		padding-block: calc(var(--spacing) * 1);
+		padding-inline: calc(var(--spacing) * 4);
+		transition-property: all;
+		transition-timing-function: var(--default-transition-timing-function);
+		transition-duration: var(--default-transition-duration);
+	}
+	@media (hover: hover) {
+		.ig-btn:hover {
+			filter: brightness(125%);
+		}
+	}
+	/* v3 Combobox: keyboard-highlighted option */
+	[data-part='item'][data-highlighted]:not([data-state='checked']) {
+		background-color: var(--color-surface-200-800);
+	}
+</style>

@@ -2,7 +2,8 @@
 	import { onMount } from 'svelte';
 	import type { Student, Teacher } from '#lib/pb/types.ts';
 	import PersonButton from '#lib/buttons/PersonButton.svelte';
-	import { Popover } from '@skeletonlabs/skeleton-svelte';
+	import { Popover, Portal } from '@skeletonlabs/skeleton-svelte';
+	import { fade } from 'svelte/transition';
 
 	import Cross from '@lucide/svelte/icons/x';
 	import type { ClassProps, MathClassProps } from './_types';
@@ -44,6 +45,7 @@
 		updateClassDailySlide = async (column: string, partialClassDaily: Partial<ClassProps>) => {}
 	}: PeopleMathProps = $props();
 
+	// svelte-ignore state_referenced_locally
 	let peopleTogether: (Student | Teacher)[] = [...peopleSubtracted, ...peopleRemaining].sort(
 		(a, b) => a.name.localeCompare(b.name)
 	);
@@ -51,6 +53,7 @@
 	const optionsPerQuestion: number = 4;
 
 	let oneAnswer = $derived(peopleTogether.length);
+	// svelte-ignore state_referenced_locally
 	let oneOptDist = $state(mathProps?.oneOptDist ?? 0);
 	let oneAnsIndex = $derived(Math.round(oneOptDist * (optionsPerQuestion - 1)));
 	let oneStart = $derived(oneAnswer - oneAnsIndex > 0 ? oneAnswer - oneAnsIndex : 0);
@@ -59,6 +62,7 @@
 	);
 
 	let twoAnswer = $derived(peopleSubtracted.length);
+	// svelte-ignore state_referenced_locally
 	let twoOptDist = $state(mathProps?.twoOptDist ?? 0);
 	let twoAnsIndex = $derived(Math.round(twoOptDist * (optionsPerQuestion - 1)));
 	let twoStart = $derived(twoAnswer - twoAnsIndex > 0 ? twoAnswer - twoAnsIndex : 0);
@@ -67,6 +71,7 @@
 	);
 
 	let resultAnswer = $derived(peopleRemaining.length);
+	// svelte-ignore state_referenced_locally
 	let resultOptDist = $state(mathProps?.resultOptDist ?? 0);
 	let resultAnsIndex = $derived(Math.round(resultOptDist * (optionsPerQuestion - 1)));
 	let resultStart = $derived(resultAnswer - resultAnsIndex > 0 ? resultAnswer - resultAnsIndex : 0);
@@ -101,6 +106,7 @@
 		}
 	});
 
+	// svelte-ignore state_referenced_locally
 	let oneGuesses: number[] = $state(mathProps?.oneGuesses ?? []);
 	let oneSelected: number | undefined = $derived(oneGuesses[0] ?? undefined);
 	let openStateOne = $state(false);
@@ -123,6 +129,7 @@
 		await updateClassDailySlide('attendance', partial);
 	};
 
+	// svelte-ignore state_referenced_locally
 	let twoGuesses: number[] = $state(mathProps?.twoGuesses ?? []);
 	let twoSelected: number | undefined = $derived(twoGuesses[0] ?? undefined);
 	let openStateTwo = $state(false);
@@ -145,6 +152,7 @@
 		await updateClassDailySlide('attendance', partial);
 	};
 
+	// svelte-ignore state_referenced_locally
 	let resultGuesses: number[] = $state(mathProps?.resultGuesses ?? []);
 	let resultSelected: number | undefined = $derived(resultGuesses[0] ?? undefined);
 	let openStateResult = $state(false);
@@ -169,6 +177,9 @@
 
 	const baseAnswerClass =
 		'btn text-size-8 font-black border-3 md:border-6 rounded-2xl aspect-square';
+	// Skeleton 3 gave every popover arrow --arrow-size: 10px and a surface-200/800 tip.
+	const arrowClass =
+		'[--arrow-size:10px] [--arrow-background:var(--color-surface-200)] dark:[--arrow-background:var(--color-surface-800)]';
 	const undefinedAnswerClass = `preset-filled-surface-300-700 ${baseAnswerClass}`;
 	const correctAnswerClass = `preset-filled-success-300-700 ${baseAnswerClass}`;
 	const wrongAnswerClass = `preset-filled-error-300-700 ${baseAnswerClass}`;
@@ -196,11 +207,18 @@
 			return resultGuesses.includes(num);
 		}
 	};
+	// Firefox works out the popover's width as if these square (aspect-square) grid items were only
+	// as wide as their padding and border, so the options collapse into thin strips. Give them the
+	// width Chromium computes as a minimum: the larger of one line + the .btn block padding (0.5rem)
+	// and the number (ABeeZee digits are 1ch wide, --digits set per button) + the .btn inline
+	// padding (2rem), plus the border (border-3 md:border-6). .btn padding: see app.css.
+	const optionSizeClass =
+		'min-w-[calc(max(1lh_+_0.5rem,var(--digits)_*_1ch_+_2rem)_+_6px)] md:min-w-[calc(max(1lh_+_0.5rem,var(--digits)_*_1ch_+_2rem)_+_12px)]';
 	const getOptionClass = (result: 'one' | 'two' | 'result', num: number) => {
 		if (wasGuessed(result, num)) {
-			return isCorrectAnswer(result, num) ? correctAnswerClass : wrongAnswerClass;
+			return `${isCorrectAnswer(result, num) ? correctAnswerClass : wrongAnswerClass} ${optionSizeClass}`;
 		}
-		return undefinedAnswerClass;
+		return `${undefinedAnswerClass} ${optionSizeClass}`;
 	};
 
 	const disableGuess = (result: 'one' | 'two' | 'result', num: number) => {
@@ -304,12 +322,14 @@
 
 <div class="h-full w-full">
 	<div class="flex h-[20%] w-full cursor-default items-center justify-center">
-		<h1 class="text-size-8 font-black">{title}</h1>
+		<!-- sm:text-nowrap: Firefox's synthetic bold (ABeeZee has no 900 face) makes the title ~6px
+		     wider than the 3xl slide, so it wrapped and the first line was cut off. -->
+		<h1 class="text-size-8 font-black sm:text-nowrap">{title}</h1>
 	</div>
 	<div class="flex h-[40%] items-center justify-center">
 		<div class="flex w-1/2 items-center justify-center p-[5%]">
 			<div class={getGridDivClass(peopleTogether.length)}>
-				{#each peopleTogether as person}
+				{#each peopleTogether as person (person.id)}
 					<div class="relative aspect-square">
 						{#if clickedPeopleIds.includes(person.id)}
 							<Cross
@@ -336,34 +356,46 @@
 			>
 				{peopleTogetherName}
 			</h1>
-			<Popover
-				open={openStateOne}
-				zIndex={'10'}
-				onOpenChange={(e) => (openStateOne = e.open)}
-				positioning={{ placement: 'top' }}
-				classes={getAnswerClass('one', oneSelected)}
-				triggerBase="btn text-size-8 font-black w-full h-full"
-				contentBase=" preset-filled-surface-300-700 max-w-[600px] rounded-2xl p-4"
-				arrow
-				arrowBase="preset-filled-surface-300-700"
-			>
-				{#snippet trigger()}
-					{oneSelected ?? '?'}
-				{/snippet}
-				{#snippet content()}
-					<div class="grid grid-cols-2 gap-2 md:gap-4">
-						{#each oneOptions as answer}
-							<button
-								class={getOptionClass('one', answer)}
-								disabled={disableGuess('one', answer)}
-								onclick={() => updateOne(answer)}
-							>
-								{answer}
-							</button>
-						{/each}
-					</div>
-				{/snippet}
-			</Popover>
+			<span class={getAnswerClass('one', oneSelected)}>
+				<Popover
+					open={openStateOne}
+					onOpenChange={(e) => (openStateOne = e.open)}
+					positioning={{ placement: 'top' }}
+				>
+					<Popover.Trigger class="btn text-size-8 h-full w-full font-black">
+						{oneSelected ?? '?'}
+					</Popover.Trigger>
+					<Portal>
+						<Popover.Positioner class="z-10!">
+							<Popover.Content>
+								{#snippet element(attributes)}
+									{#if !attributes.hidden}
+										<div {...attributes} transition:fade={{ duration: 100 }}>
+											<Popover.Arrow class={arrowClass}>
+												<Popover.ArrowTip />
+											</Popover.Arrow>
+											<div class="preset-filled-surface-300-700 max-w-[600px] rounded-2xl p-4">
+												<div class="grid grid-cols-2 gap-2 md:gap-4">
+													{#each oneOptions as answer (answer)}
+														<button
+															class={getOptionClass('one', answer)}
+															style:--digits={String(answer).length}
+															disabled={disableGuess('one', answer)}
+															onclick={() => updateOne(answer)}
+														>
+															{answer}
+														</button>
+													{/each}
+												</div>
+											</div>
+										</div>
+									{/if}
+								{/snippet}
+							</Popover.Content>
+						</Popover.Positioner>
+					</Portal>
+				</Popover>
+			</span>
 		</div>
 		<div
 			class="relative flex h-full flex-col items-center justify-between px-[2%] py-[5%] align-bottom"
@@ -373,34 +405,46 @@
 			>
 				{peopleSubtractedName}
 			</h1>
-			<Popover
-				open={openStateTwo}
-				zIndex={'10'}
-				onOpenChange={(e) => (openStateTwo = e.open)}
-				positioning={{ placement: 'top' }}
-				classes={getAnswerClass('two', twoSelected)}
-				triggerBase="btn text-size-8 font-black w-full h-full"
-				contentBase=" preset-filled-surface-300-700 max-w-[600px] rounded-2xl p-4"
-				arrow
-				arrowBase="preset-filled-surface-300-700"
-			>
-				{#snippet trigger()}
-					{twoSelected ?? '?'}
-				{/snippet}
-				{#snippet content()}
-					<div class="grid grid-cols-2 gap-2 md:gap-4">
-						{#each twoOptions as answer}
-							<button
-								class={getOptionClass('two', answer)}
-								disabled={disableGuess('two', answer)}
-								onclick={() => updateTwo(answer)}
-							>
-								{answer}
-							</button>
-						{/each}
-					</div>
-				{/snippet}
-			</Popover>
+			<span class={getAnswerClass('two', twoSelected)}>
+				<Popover
+					open={openStateTwo}
+					onOpenChange={(e) => (openStateTwo = e.open)}
+					positioning={{ placement: 'top' }}
+				>
+					<Popover.Trigger class="btn text-size-8 h-full w-full font-black">
+						{twoSelected ?? '?'}
+					</Popover.Trigger>
+					<Portal>
+						<Popover.Positioner class="z-10!">
+							<Popover.Content>
+								{#snippet element(attributes)}
+									{#if !attributes.hidden}
+										<div {...attributes} transition:fade={{ duration: 100 }}>
+											<Popover.Arrow class={arrowClass}>
+												<Popover.ArrowTip />
+											</Popover.Arrow>
+											<div class="preset-filled-surface-300-700 max-w-[600px] rounded-2xl p-4">
+												<div class="grid grid-cols-2 gap-2 md:gap-4">
+													{#each twoOptions as answer (answer)}
+														<button
+															class={getOptionClass('two', answer)}
+															style:--digits={String(answer).length}
+															disabled={disableGuess('two', answer)}
+															onclick={() => updateTwo(answer)}
+														>
+															{answer}
+														</button>
+													{/each}
+												</div>
+											</div>
+										</div>
+									{/if}
+								{/snippet}
+							</Popover.Content>
+						</Popover.Positioner>
+					</Portal>
+				</Popover>
+			</span>
 		</div>
 		<div
 			class="relative flex h-full flex-col items-center justify-between px-[2%] py-[5%] align-bottom"
@@ -411,34 +455,46 @@
 				{peopleRemainingName}
 			</h1>
 
-			<Popover
-				open={openStateResult}
-				zIndex={'10'}
-				onOpenChange={(e) => (openStateResult = e.open)}
-				positioning={{ placement: 'top' }}
-				classes={getAnswerClass('result', resultSelected)}
-				triggerBase="btn text-size-8 font-black w-full h-full"
-				contentBase=" preset-filled-surface-300-700 max-w-[600px] rounded-2xl p-4"
-				arrow
-				arrowBase="preset-filled-surface-300-700"
-			>
-				{#snippet trigger()}
-					{resultSelected ?? '?'}
-				{/snippet}
-				{#snippet content()}
-					<div class="grid grid-cols-2 gap-2 md:gap-4">
-						{#each resultOptions as answer}
-							<button
-								class={getOptionClass('result', answer)}
-								disabled={disableGuess('result', answer)}
-								onclick={() => updateResult(answer)}
-							>
-								{answer}
-							</button>
-						{/each}
-					</div>
-				{/snippet}
-			</Popover>
+			<span class={getAnswerClass('result', resultSelected)}>
+				<Popover
+					open={openStateResult}
+					onOpenChange={(e) => (openStateResult = e.open)}
+					positioning={{ placement: 'top' }}
+				>
+					<Popover.Trigger class="btn text-size-8 h-full w-full font-black">
+						{resultSelected ?? '?'}
+					</Popover.Trigger>
+					<Portal>
+						<Popover.Positioner class="z-10!">
+							<Popover.Content>
+								{#snippet element(attributes)}
+									{#if !attributes.hidden}
+										<div {...attributes} transition:fade={{ duration: 100 }}>
+											<Popover.Arrow class={arrowClass}>
+												<Popover.ArrowTip />
+											</Popover.Arrow>
+											<div class="preset-filled-surface-300-700 max-w-[600px] rounded-2xl p-4">
+												<div class="grid grid-cols-2 gap-2 md:gap-4">
+													{#each resultOptions as answer (answer)}
+														<button
+															class={getOptionClass('result', answer)}
+															style:--digits={String(answer).length}
+															disabled={disableGuess('result', answer)}
+															onclick={() => updateResult(answer)}
+														>
+															{answer}
+														</button>
+													{/each}
+												</div>
+											</div>
+										</div>
+									{/if}
+								{/snippet}
+							</Popover.Content>
+						</Popover.Positioner>
+					</Portal>
+				</Popover>
+			</span>
 		</div>
 
 		<h2

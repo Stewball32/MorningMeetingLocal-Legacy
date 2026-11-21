@@ -49,9 +49,9 @@
 		class="btn transparent- preset-filled-surface-400-600 m-0 border-2 p-[1%]"
 	>
 		{#if isFullscreen}
-			<Minimize class="" />
+			<Minimize class="size-6" />
 		{:else}
-			<Maximize class="" />
+			<Maximize class="size-6" />
 		{/if}
 	</button>
 </div>

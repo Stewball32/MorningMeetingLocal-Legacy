@@ -2,10 +2,9 @@
 @plugin '@tailwindcss/forms';
 
 @import '@skeletonlabs/skeleton';
-@import '@skeletonlabs/skeleton/optional/presets';
 @import '@skeletonlabs/skeleton/themes/cerberus';
 
-@source '../node_modules/@skeletonlabs/skeleton-svelte/dist';
+@import '@skeletonlabs/skeleton-svelte';
 
 /* fonts */
 @import '@fontsource/abeezee';
@@ -14,9 +13,9 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-	--heading-font-family: 'ABeeZee', sans-serif;
-	--base-font-family: 'ABeeZee', sans-serif;
-	--anchor-font-family: 'inherit';
+	--typo-heading--font-family: 'ABeeZee', sans-serif;
+	--typo-base--font-family: 'ABeeZee', sans-serif;
+	--typo-anchor--font-family: 'inherit';
 }
 
 @theme {
@@ -119,4 +118,41 @@ body {
 	button:disabled {
 		@apply select-text;
 	}
+}
+
+/* Skeleton 5 changed Cerberus' text scaling and corners; keep the v3 look.
+   corner-shape (squircle) is Chromium-only, so plain round corners also keep
+   Chrome and Firefox identical. */
+[data-theme='cerberus'] {
+	--text-scaling: 1.067;
+	--radius-base: 0.25rem;
+	--radius-container: 0.25rem;
+	--corner-shape-base: round;
+	--corner-shape-container: round;
+}
+
+/* Skeleton 3 base styles that Skeleton 5 dropped: pointer cursor on enabled buttons,
+   and a light scrollbar track (v5 makes it transparent). */
+@layer base {
+	:root {
+		scrollbar-color: var(--color-surface-300-700) var(--color-surface-100-900); /* thumb / track */
+	}
+	button:not(:disabled),
+	[role='button']:not(:disabled) {
+		cursor: pointer;
+	}
+}
+
+/* Skeleton 5 derives .btn padding and line-height from --btn-size, which makes every
+   button shorter and narrower than the Skeleton 3 buttons the slides were laid out for.
+   Restore the v3 box metrics. (v5 also sizes direct child SVG icons to --btn-size;
+   icons that relied on their own 24px size set it explicitly.) */
+@utility btn {
+	/* Same values as Skeleton's rule; they keep this rule sorted next to it, i.e. before
+	   p-*, leading-*, text-* utilities, so those still win on individual buttons. */
+	--btn-size: var(--text-base);
+	border-radius: var(--radius-base);
+	line-height: var(--text-base--line-height);
+	padding-block: --spacing(1);
+	padding-inline: --spacing(4);
 }
