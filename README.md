@@ -4,10 +4,10 @@
 
 ## 🧱 Tech Stack
 
-- **Frontend:** [SvelteKit 5](https://kit.svelte.dev/) + [Skeleton UI v3](https://www.skeleton.dev/) + Tailwind CSS
+- **Frontend:** [SvelteKit 3](https://svelte.dev/docs/kit) (Svelte 5) + [Skeleton UI v5](https://www.skeleton.dev/) + Tailwind CSS 4
 - **Backend:** [PocketBase](https://pocketbase.io/)
 - **Local Dev:** Runs on Raspberry Pi or other local hardware
-- **Current Enviroment**: Currently supporting Node/NPM LTS (currently 22.14.0)
+- **Node:** 24 LTS (or 22.22.2+) to install and build; the built app (`node build`) runs on 22.17+
 
 ## 📦 Project Structure
 

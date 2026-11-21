@@ -3,6 +3,9 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"engines": {
+		"node": ">=22.22.2"
+	},
 	"scripts": {
 		"dev": "vite dev",
 		"devhost": "vite dev --host",
@@ -30,6 +33,7 @@
 		"@tailwindcss/vite": "^4.3.5",
 		"@testing-library/jest-dom": "^8.0.0",
 		"@testing-library/svelte": "^5.4.2",
+		"@types/node": "^24.19.2",
 		"eslint": "^10.15.0",
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.24.1",

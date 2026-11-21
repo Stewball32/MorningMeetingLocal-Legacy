@@ -5,6 +5,10 @@ import { svelteTesting } from '@testing-library/svelte/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vitest/config';
 
+// SvelteKit 3 refuses to start without the variables declared in src/env.ts. Unit tests never
+// talk to PocketBase, so give them a placeholder when no .env is present.
+if (process.env.VITEST) process.env.PUBLIC_POCKETBASE_URL ??= 'http://localhost:8090';
+
 export default defineConfig({
 	plugins: [
 		tailwindcss(),
