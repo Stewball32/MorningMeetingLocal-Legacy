@@ -8,6 +8,7 @@
 	import type { Holiday } from '$lib/pb/calendar';
 	import DayInMonth from './DayInMonth.svelte';
 	import { MoonPhase } from 'astronomy-engine';
+	import { getZodiacSign } from './zodiac';
 
 	interface MonthViewProps {
 		classDaily: ClassDaily;
@@ -79,35 +80,7 @@
 		['Last Quarter', 'last-quarter.png'],
 		['Waning Crescent', 'waning-crescent.png']
 	];
-	const lastDayOfZodiac = [
-		19, // Jan: Capricorn ends 19
-		18, // Feb: Aquarius ends 18
-		20, // Mar: Pisces ends 20
-		19, // Apr: Aries ends 19
-		20, // May: Taurus ends 20
-		20, // Jun: Gemini ends 20
-		22, // Jul: Cancer ends 22
-		22, // Aug: Leo ends 22
-		22, // Sep: Virgo ends 22
-		22, // Oct: Libra ends 22
-		21, // Nov: Scorpio ends 21
-	  21  // Dec: Sagittarius ends 21
-	];
 	const zodiacDir = '/zodiac/';
-	const zodiacArray: ZodiacEntry[] = [
-		['Capricorn', 'capricorn.png'],
-		['Aquarius', 'aquarius.png'],
-		['Pisces', 'pisces.png'],
-		['Aries', 'aries.png'],
-		['Taurus', 'taurus.png'],
-		['Gemini', 'gemini.png'],
-		['Cancer', 'cancer.png'],
-		['Leo', 'leo.png'],
-		['Virgo', 'virgo.png'],
-		['Libra', 'libra.png'],
-		['Scorpio', 'scorpio.png'],
-		['Sagittarius', 'sagittarius.png']
-	];
 
 	const updateAstronomy = () => {
 		const newAstronomyData: Record<number, AstronomyData[]> = {};
@@ -118,21 +91,9 @@
 			return Math.round(normalized / 45) % 8;
 		};
 
-		const getZodiacSign = (date: Date): ZodiacEntry => {
-			const month = date.getMonth(); // 0..11
-			const day = date.getDate();
-
-			const idx = day <= lastDayOfZodiac[month]
-				? month
-				: (month + 1) % 12;
-
-			return zodiacArray[idx];
-		};
-
 		// 1) Compute the phase index of the last day of the previous month:
 		const lastOfPrevMonth = new Date(currentYear, currentMonth, 0); // day 0 = last day of previous month
 		let prevMoonIdx = getPhaseIndex(MoonPhase(lastOfPrevMonth));
-		console.log(lastOfPrevMonth);
 		let prevZodiacSign = getZodiacSign(lastOfPrevMonth);
 
 		// 2) Loop through each day of the current month, compute phase index, and record if it changes
