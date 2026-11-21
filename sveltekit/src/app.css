@@ -131,8 +131,10 @@ body {
 	--corner-shape-container: round;
 }
 
-/* Skeleton 3 base styles that Skeleton 5 dropped: pointer cursor on enabled buttons,
-   and a light scrollbar track (v5 makes it transparent). */
+/* Skeleton 3 base styles that Skeleton 5 dropped or changed: pointer cursor on enabled
+   buttons, a light scrollbar track (v5 makes it transparent), and no not-allowed cursor on
+   decorative .disabled elements such as the greyed neighbouring-month images (disabled
+   answer buttons keep v5's not-allowed cursor). */
 @layer base {
 	:root {
 		scrollbar-color: var(--color-surface-300-700) var(--color-surface-100-900); /* thumb / track */
@@ -141,6 +143,9 @@ body {
 	[role='button']:not(:disabled) {
 		cursor: pointer;
 	}
+	.disabled {
+		cursor: inherit;
+	}
 }
 
 /* Skeleton 5 derives .btn padding and line-height from --btn-size, which makes every
@@ -148,8 +153,9 @@ body {
    Restore the v3 box metrics. (v5 also sizes direct child SVG icons to --btn-size;
    icons that relied on their own 24px size set it explicitly.) */
 @utility btn {
-	/* Same values as Skeleton's rule; they keep this rule sorted next to it, i.e. before
-	   p-*, leading-*, text-* utilities, so those still win on individual buttons. */
+	/* Same values as Skeleton's rule. Tailwind sorts multi-property utilities like this one
+	   before single-property ones, so p-*, rounded-*, leading-*, text-* and text-size-* on an
+	   individual button still win (checked in the built CSS). */
 	--btn-size: var(--text-base);
 	border-radius: var(--radius-base);
 	line-height: var(--text-base--line-height);
@@ -165,7 +171,9 @@ body {
    it must beat preflight's `button { letter-spacing: inherit }`. -moz-orient is the
    same Gecko check Tailwind itself uses. */
 @supports (-moz-orient: inline) {
-	:where(.font-semibold, .font-bold, .font-extrabold, .font-black),
+	:where(.font-semibold, .font-bold, .font-extrabold, .font-black):where(
+			:not(.font-thin, .font-extralight, .font-light, .font-normal, .font-medium)
+		),
 	:where(.font-semibold, .font-bold, .font-extrabold, .font-black)
 		:where(:not(.font-thin, .font-extralight, .font-light, .font-normal, .font-medium)) {
 		letter-spacing: calc(-1em / 48);

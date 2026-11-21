@@ -210,10 +210,11 @@
 	// Firefox works out the popover's width as if these square (aspect-square) grid items were only
 	// as wide as their padding and border, so the options collapse into thin strips. Give them the
 	// width Chromium computes as a minimum: the larger of one line + the .btn block padding (0.5rem)
-	// and the number (ABeeZee digits are 1ch wide, --digits set per button) + the .btn inline
+	// and the number (ABeeZee digits are 0.6em wide — not 1ch, which Firefox inflates on synthetic-bold text — and
+	// --digits is set per button) + the .btn inline
 	// padding (2rem), plus the border (border-3 md:border-6). .btn padding: see app.css.
 	const optionSizeClass =
-		'min-w-[calc(max(1lh_+_0.5rem,var(--digits)_*_1ch_+_2rem)_+_6px)] md:min-w-[calc(max(1lh_+_0.5rem,var(--digits)_*_1ch_+_2rem)_+_12px)]';
+		'min-w-[calc(max(1lh_+_0.5rem,var(--digits)_*_0.6em_+_2rem)_+_6px)] md:min-w-[calc(max(1lh_+_0.5rem,var(--digits)_*_0.6em_+_2rem)_+_12px)]';
 	const getOptionClass = (result: 'one' | 'two' | 'result', num: number) => {
 		if (wasGuessed(result, num)) {
 			return `${isCorrectAnswer(result, num) ? correctAnswerClass : wrongAnswerClass} ${optionSizeClass}`;

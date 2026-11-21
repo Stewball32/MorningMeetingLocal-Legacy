@@ -60,6 +60,8 @@ export const getHolidayMap = async (year: number, month: number) => {
 				(h) =>
 					({
 						...h,
+						// date-holidays 3.39 writes ’; keep showing the plain ' the slides always had
+						name: normalizeHolidayName(h.name),
 						description: '',
 						dateObj: new Date(h.date),
 						image: '',

@@ -196,9 +196,10 @@
 	// shrink-wrapped popover the options collapsed to slivers (~44px wide) with the numbers
 	// spilling out. A length min-width equal to Chrome's natural square (the line height or the
 	// digits, whichever is larger, plus the .btn padding of 0.25rem/1rem from app.css and the border) gives both browsers the same grid.
-	// The font's digits are 1ch wide; each option button sets --option-digits.
+	// ABeeZee's digits are 0.6em wide (not 1ch: Firefox adds its synthetic-bold offset to ch on
+	// bold text); each option button sets --option-digits.
 	const optionMinWidthClass =
-		'min-w-[calc(max(1lh+0.5rem,var(--option-digits)*1ch+2rem)+6px)] md:min-w-[calc(max(1lh+0.5rem,var(--option-digits)*1ch+2rem)+12px)]';
+		'min-w-[calc(max(1lh+0.5rem,var(--option-digits)*0.6em+2rem)+6px)] md:min-w-[calc(max(1lh+0.5rem,var(--option-digits)*0.6em+2rem)+12px)]';
 	// svelte-ignore state_referenced_locally
 	const correctAnswers = {
 		one: peopleOne.length,

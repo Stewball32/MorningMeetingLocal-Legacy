@@ -397,7 +397,7 @@
 {#if welcomeGuests}
 	<div class="flex h-[90%] w-full flex-col items-center justify-around">
 		<h1 class="text-size-7 text-pretty text-center font-bold">{welcomeString()}</h1>
-		<div class="h-8/12 flex w-full justify-center">
+		<div class="h-8/12 flex min-h-0 w-full justify-center">
 			<!--iFrame of youtube video with 16/9 ratio-->
 			<iframe
 				class="rounded-4xl aspect-video h-full"
@@ -439,7 +439,7 @@
 					<GuestButton
 						{guest}
 						{guestAvatarMap}
-						buttonClass="px-[2%] py-1 h-2/5"
+						buttonClass="px-[2%] h-2/5"
 						nameClass="text-size-7"
 						onClick={() => {}}
 					/>
@@ -481,7 +481,7 @@
 						{#snippet element(attributes)}
 							<div {...attributes} transition:fly|global={{ y: 50, duration: 200 }}>
 								<Dialog.Content
-									class="card  preset-filled-primary-50-950 p-4 space-y-4 shadow-xl max-w-screen-sm"
+									class="card  preset-filled-primary-50-950 p-4 space-y-4 shadow-xl w-full max-w-screen-sm"
 								>
 									<header class="flex justify-between">
 										<Combobox
@@ -516,14 +516,14 @@
 												type="button"
 												onclick={() =>
 													(selectedPronoun = selectedPronoun === 'he' ? undefined : 'he')}
-												class={`btn  -ml-[50%] w-1/2 border-r-2 py-[50%] pl-[50%] pr-4 ${selectedPronoun == 'he' ? 'bg-blue-400 hover:bg-blue-600' : 'bg-surface-950/5 hover:bg-blue-500'}`}
+												class={`btn  -ml-[50%] w-1/2 border-r-2 py-[50%] pl-[50%] ${selectedPronoun == 'he' ? 'bg-blue-400 hover:bg-blue-600' : 'bg-surface-950/5 hover:bg-blue-500'}`}
 												>He</button
 											>
 											<button
 												type="button"
 												onclick={() =>
 													(selectedPronoun = selectedPronoun === 'she' ? undefined : 'she')}
-												class={`btn -mr-[50%] w-1/2 border-l-2 py-[50%] pr-[50%] pl-4 ${selectedPronoun == 'she' ? 'bg-pink-400 hover:bg-pink-600' : 'bg-surface-950/5 hover:bg-pink-500'}`}
+												class={`btn -mr-[50%] w-1/2 border-l-2 py-[50%] pr-[50%] ${selectedPronoun == 'she' ? 'bg-pink-400 hover:bg-pink-600' : 'bg-surface-950/5 hover:bg-pink-500'}`}
 												>She</button
 											>
 										</nav>
