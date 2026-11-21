@@ -11,7 +11,7 @@
 
 ## 📦 Project Structure
 
-- `/animotion/`: Main SvelteKit project ("Animotion") for presentation frontend
+- `/sveltekit/`: Main SvelteKit project for the presentation frontend
 - `/pocketbase/`: PocketBase backend for storing and managing student/teacher data
 
 ## 🚀 Getting Started
@@ -42,7 +42,7 @@ Config options can be modified in `setup.env` before running the script.
 After setup:
 - Start the frontend in dev mode:
   ```bash
-  cd animotion
+  cd sveltekit
   npm run dev
   ```
 
