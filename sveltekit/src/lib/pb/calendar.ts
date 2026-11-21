@@ -10,6 +10,13 @@ export interface Holiday extends HolidaysTypes.Holiday {
 	school: CalendarObservance['school'];
 }
 
+// date-holidays writes typographic apostrophes ("Valentine’s Day"), while names
+// typed into PocketBase usually use a plain ' — treat them as the same name.
+const normalizeHolidayName = (name: string) => name.replace(/[‘’ʼ]/g, "'").trim();
+
+export const isSameHolidayName = (a: string, b: string) =>
+	normalizeHolidayName(a) === normalizeHolidayName(b);
+
 const createHoliday = (HolidayRecord: CalendarObservance, year: number, month: number) => {
 	const customHolidays = new Holidays();
 	for (const date of HolidayRecord.dates) {
@@ -97,7 +104,7 @@ export const getHolidayMap = async (year: number, month: number) => {
 	for (const record of pbRecords) {
 		if (!record.dates || record.dates.length === 0) {
 			// Try to match with federal by name
-			const holidayIndex = holidays.findIndex((f) => f.name === record.name);
+			const holidayIndex = holidays.findIndex((f) => isSameHolidayName(f.name, record.name));
 			if (holidayIndex !== -1) {
 				// Merge federal holiday with PocketBase record
 				holidays[holidayIndex] = {
