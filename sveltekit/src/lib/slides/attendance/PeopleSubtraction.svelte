@@ -322,9 +322,7 @@
 
 <div class="h-full w-full">
 	<div class="flex h-[20%] w-full cursor-default items-center justify-center">
-		<!-- sm:text-nowrap: Firefox's synthetic bold (ABeeZee has no 900 face) makes the title ~6px
-		     wider than the 3xl slide, so it wrapped and the first line was cut off. -->
-		<h1 class="text-size-8 font-black sm:text-nowrap">{title}</h1>
+		<h1 class="text-size-8 font-black">{title}</h1>
 	</div>
 	<div class="flex h-[40%] items-center justify-center">
 		<div class="flex w-1/2 items-center justify-center p-[5%]">

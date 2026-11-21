@@ -156,3 +156,18 @@ body {
 	padding-block: --spacing(1);
 	padding-inline: --spacing(4);
 }
+
+/* Firefox only: ABeeZee ships just a regular (400) face, so every bold weight is
+   synthesized. Gecko's synthetic bold widens each glyph by 1em/48 (Chromium's does
+   not), which made bold headings ~4% wider in Firefox: "How Many Students?" wrapped
+   and was clipped, "September" truncated. Cancel the extra advance. Descendants are
+   matched too so the em is recomputed at their own font size. Unlayered on purpose:
+   it must beat preflight's `button { letter-spacing: inherit }`. -moz-orient is the
+   same Gecko check Tailwind itself uses. */
+@supports (-moz-orient: inline) {
+	:where(.font-semibold, .font-bold, .font-extrabold, .font-black),
+	:where(.font-semibold, .font-bold, .font-extrabold, .font-black)
+		:where(:not(.font-thin, .font-extralight, .font-light, .font-normal, .font-medium)) {
+		letter-spacing: calc(-1em / 48);
+	}
+}
