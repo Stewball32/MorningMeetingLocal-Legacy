@@ -55,7 +55,7 @@
 		{/if}
 	</button>
 </div>
-<div class="place-items-center">
+<div class="flex flex-col items-center">
 	<!-- <h1> Current thing</h1> -->
 	<div class="relative min-h-screen select-none place-content-center">
 		<img

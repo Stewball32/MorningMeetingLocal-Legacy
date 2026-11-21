@@ -121,3 +121,19 @@ body {
 		@apply select-text;
 	}
 }
+
+/*
+ * Firefox-only synthetic-bold compensation.
+ * ABeeZee ships only weight 400, so every font-semibold/bold/extrabold/black is synthesized.
+ * Gecko widens each synthetic-bold glyph advance by 1em/48 (Blink does not), making bold text
+ * ~4% wider in Firefox: "How Many Students?" wraps and is clipped, "September" truncates, etc.
+ * Cancel the extra advance so line breaks match Chromium. Only Gecko recognises -moz-appearance.
+ * Unlayered on purpose: it must beat preflight's `button { letter-spacing: inherit }`.
+ */
+@supports (-moz-appearance: none) {
+	:where(.font-semibold, .font-bold, .font-extrabold, .font-black),
+	:where(.font-semibold, .font-bold, .font-extrabold, .font-black)
+		:where(:not(.font-thin, .font-extralight, .font-light, .font-normal, .font-medium)) {
+		letter-spacing: calc(-1em / 48);
+	}
+}

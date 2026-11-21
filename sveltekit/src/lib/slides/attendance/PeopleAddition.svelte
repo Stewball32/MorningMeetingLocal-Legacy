@@ -453,7 +453,7 @@
 					{oneSelected ?? '?'}
 				{/snippet}
 				{#snippet content()}
-					<div class="grid grid-cols-2 gap-2 md:gap-4">
+					<div class="grid grid-cols-2 gap-2 md:gap-4 *:min-w-[calc(1lh+0.5rem+6px)] md:*:min-w-[calc(1lh+0.5rem+12px)]">
 						{#each oneOptions as answer}
 							<button
 								class={getOptionClass('one', answer)}
@@ -502,7 +502,7 @@
 					{twoSelected ?? '?'}
 				{/snippet}
 				{#snippet content()}
-					<div class="grid grid-cols-2 gap-2 md:gap-4">
+					<div class="grid grid-cols-2 gap-2 md:gap-4 *:min-w-[calc(1lh+0.5rem+6px)] md:*:min-w-[calc(1lh+0.5rem+12px)]">
 						{#each twoOptions as answer}
 							<button
 								class={getOptionClass('two', answer)}
@@ -552,7 +552,7 @@
 					{resultSelected ?? '?'}
 				{/snippet}
 				{#snippet content()}
-					<div class="grid grid-cols-2 gap-2 md:gap-4">
+					<div class="grid grid-cols-2 gap-2 md:gap-4 *:min-w-[calc(1lh+0.5rem+6px)] md:*:min-w-[calc(1lh+0.5rem+12px)]">
 						{#each resultOptions as answer}
 							<button
 								class={getOptionClass('result', answer)}
