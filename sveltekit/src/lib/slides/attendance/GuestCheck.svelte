@@ -195,7 +195,15 @@
 
 	let popoverOpen: boolean = $state(false);
 
+	const isTextEntry = (target: EventTarget | null) =>
+		target instanceof HTMLElement &&
+		(target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+
 	const onKeydown = (event: KeyboardEvent) => {
+		// While the Add Guest dialog is open, or while typing in a field, the arrow keys belong to
+		// the caret and the suggestion lists; flipping the page would unmount the dialog and lose
+		// the guest being entered.
+		if (modalOpen || isTextEntry(event.target)) return;
 		if (event.key === 'ArrowLeft') {
 			pageLeft();
 		} else if (event.key === 'ArrowRight') {
