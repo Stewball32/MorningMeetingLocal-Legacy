@@ -316,22 +316,25 @@
 	function onKeydown(event: KeyboardEvent) {
 		if (event.key === 'ArrowLeft') {
 			event.preventDefault();
+			// Clear the shown answers last to first (right or wrong, so a wrong guess can't block
+			// the way back); leave the page once all three are empty.
 			if (
 				[
-					resultSelected === undefined,
+					oneSelected === undefined,
 					twoSelected === undefined,
 					resultSelected === undefined
 				].every((e) => e)
 			)
 				return pageLeft();
-			else if (resultSelected === correctAnswers.result) resultSelected = undefined;
-			else if (twoSelected === correctAnswers.two) twoSelected = undefined;
-			else if (oneSelected === correctAnswers.one) oneSelected = undefined;
+			else if (resultSelected !== undefined) resultSelected = undefined;
+			else if (twoSelected !== undefined) twoSelected = undefined;
+			else if (oneSelected !== undefined) oneSelected = undefined;
 		} else if (event.key === 'ArrowRight') {
 			event.preventDefault();
+			// Fill in the correct answers first to last; leave the page once all three are correct.
 			if (
 				[
-					resultSelected === correctAnswers.one,
+					oneSelected === correctAnswers.one,
 					twoSelected === correctAnswers.two,
 					resultSelected === correctAnswers.result
 				].every((e) => e)
