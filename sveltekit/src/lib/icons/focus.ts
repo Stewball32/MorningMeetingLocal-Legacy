@@ -1,7 +1,21 @@
-// Keeping keyboard focus on an icon's switch while its row moves between groups.
+// The icon rows' switches in the page: keeping keyboard focus on one while its row moves between
+// groups, and putting one back when its change is refused.
 import { tick } from 'svelte';
 
 const rowSelector = (id: string) => `li[data-icon="${CSS.escape(id)}"]`;
+
+/**
+ * Puts an icon's switch back after a flip the page refused (e.g. Guests for an icon without a
+ * picture). The switch's look follows the icon, which didn't change, but the browser has already
+ * toggled the checkbox behind it, and zag reads the next flip from that checkbox: without this,
+ * the next click would be taken as switching it off.
+ */
+export function undoSwitchClick(id: string, field: string, checked: boolean) {
+	for (const input of document.querySelectorAll<HTMLInputElement>(
+		`${rowSelector(id)} input[name="${CSS.escape(field)}"]`
+	))
+		input.checked = checked;
+}
 
 /**
  * Applies a change that can move an icon's rows between groups (a switch flipped in the list). An

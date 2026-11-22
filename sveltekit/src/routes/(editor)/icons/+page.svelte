@@ -16,7 +16,7 @@
 	import { Notices } from '#lib/editor/notices.svelte.ts';
 	import OfflineNotice from '#lib/editor/OfflineNotice.svelte';
 	import DeleteIconDialog from '#lib/icons/DeleteIconDialog.svelte';
-	import { keepSwitchFocus } from '#lib/icons/focus.ts';
+	import { keepSwitchFocus, undoSwitchClick } from '#lib/icons/focus.ts';
 	import type { IconFormValues } from '#lib/icons/form.ts';
 	import IconFormDialog from '#lib/icons/IconFormDialog.svelte';
 	import IconRow from '#lib/icons/IconRow.svelte';
@@ -114,6 +114,7 @@
 		const current = icons.find(icon.id) ?? icon;
 		// Guest buttons show the picture: an icon without one would show a broken image.
 		if (field === 'for_guests' && value && !current.image) {
+			undoSwitchClick(current.id, field, false);
 			openEdit(current, { for_guests: true }, true);
 			return;
 		}
