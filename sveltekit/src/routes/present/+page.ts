@@ -8,7 +8,7 @@ import {
 } from '#lib/pb/index.ts';
 import type { PageLoad } from './$types';
 
-export const load = (async ({ params, url }) => {
+export const load = (async () => {
 	const todayISOString = getCurrentISOString();
 	const classDaily = await getClassDaily();
 	const people = await getAllPeople();
