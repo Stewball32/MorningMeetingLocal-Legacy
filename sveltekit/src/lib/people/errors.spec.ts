@@ -27,7 +27,7 @@ describe('describeError', () => {
 				}
 			}
 		});
-		const problem = describeError(error, 'add the person');
+		const problem = describeError(error, 'add the person', { form: true });
 		expect(problem.offline).toBe(false);
 		expect(problem.fields).toEqual({
 			name: 'Missing required value.',
@@ -35,6 +35,29 @@ describe('describeError', () => {
 			avatar: 'File too big.'
 		});
 		expect(problem.message).toBe("Couldn't add the person. Please fix the highlighted fields.");
+	});
+
+	it('only speaks of highlighted fields for the form', () => {
+		// What PocketBase answered when deleting a regular guest clashed with the guest_dailies
+		// unique index (before guest check-ins were deleted with the person).
+		const error = new ClientResponseError({
+			status: 400,
+			response: {
+				message: 'Failed to delete record.',
+				data: Object.fromEntries(
+					['avatar', 'date', 'name', 'person'].map((key) => [
+						key,
+						{ code: 'validation_not_unique', message: 'Value must be unique.' }
+					])
+				)
+			}
+		});
+		const problem = describeError(error, 'delete Ms. Gwen');
+		expect(problem.fields).toEqual({});
+		expect(problem.message).toBe(
+			"Couldn't delete Ms. Gwen: Failed to delete record. (avatar: Value must be unique.; date: Value must be unique.; name: Value must be unique.; person: Value must be unique.)"
+		);
+		expect(problem.message).not.toMatch(/highlighted/);
 	});
 
 	it('mentions errors for fields the form does not have', () => {

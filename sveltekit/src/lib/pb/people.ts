@@ -1,5 +1,5 @@
 // PocketBase access for the people editor (/people): list, create, update and delete people,
-// count their attendance history, and follow changes live.
+// count the history deleted with them, and follow changes live.
 //
 // Every request passes requestKey: null: the SDK otherwise cancels a pending request when another
 // one with the same key starts (e.g. two quick Active toggles, or a reload during a save).
@@ -12,6 +12,7 @@ import { DEFAULT_AVATAR } from '#lib/people/people.ts';
 
 export const PEOPLE = 'people';
 export const PEOPLE_DAILIES = 'people_dailies';
+export const GUEST_DAILIES = 'guest_dailies';
 export const POCKETBASE_URL = PUBLIC_POCKETBASE_URL;
 
 /** A new picture to upload, null to remove the current one, undefined to leave it alone. */
@@ -39,19 +40,38 @@ export function updatePerson(
 	return pb.collection(PEOPLE).update<Person>(id, withAvatar(fields, avatar), { requestKey: null });
 }
 
-/** Permanent. PocketBase also deletes the person's people_dailies (cascade). */
+/**
+ * Permanent. PocketBase also deletes the person's attendance history (people_dailies) and their
+ * guest check-ins (guest_dailies linked to them): both relations cascade.
+ */
 export function deletePerson(id: string): Promise<boolean> {
 	return pb.collection(PEOPLE).delete(id, { requestKey: null });
 }
 
-/** How many days of attendance history (people_dailies rows) the person has. */
-export async function countPersonDailies(id: string): Promise<number> {
-	const page = await pb.collection(PEOPLE_DAILIES).getList(1, 1, {
+/** What deleting a person takes with them. */
+export interface PersonHistory {
+	/** days of attendance (people_dailies rows) */
+	days: number;
+	/** guest check-ins (guest_dailies rows linked to them) */
+	guestCheckIns: number;
+}
+
+async function countLinked(collection: string, id: string): Promise<number> {
+	const page = await pb.collection(collection).getList(1, 1, {
 		filter: pb.filter('person = {:id}', { id }),
 		fields: 'id',
 		requestKey: null
 	});
 	return page.totalItems;
+}
+
+/** Counts the history deleted with the person. */
+export async function countPersonHistory(id: string): Promise<PersonHistory> {
+	const [days, guestCheckIns] = await Promise.all([
+		countLinked(PEOPLE_DAILIES, id),
+		countLinked(GUEST_DAILIES, id)
+	]);
+	return { days, guestCheckIns };
 }
 
 export function personAvatarUrl(person: Pick<Person, 'collectionId' | 'id' | 'avatar'>): string {

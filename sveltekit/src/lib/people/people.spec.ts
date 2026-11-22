@@ -5,6 +5,7 @@ import {
 	displayName,
 	groupOf,
 	groupPeople,
+	historyParts,
 	plural,
 	pronounLabel,
 	removePerson,
@@ -145,5 +146,17 @@ describe('upsertPerson / removePerson', () => {
 
 		expect(removePerson(list, a.id)).toEqual([b]);
 		expect(removePerson(list, 'missing')).toEqual(list);
+	});
+});
+
+describe('historyParts', () => {
+	it('names what is deleted with a person, leaving out what they have none of', () => {
+		expect(historyParts({ days: 12, guestCheckIns: 3 })).toEqual([
+			'12 days of attendance history',
+			'3 guest check-ins'
+		]);
+		expect(historyParts({ days: 1, guestCheckIns: 0 })).toEqual(['1 day of attendance history']);
+		expect(historyParts({ days: 0, guestCheckIns: 1 })).toEqual(['1 guest check-in']);
+		expect(historyParts({ days: 0, guestCheckIns: 0 })).toEqual([]);
 	});
 });

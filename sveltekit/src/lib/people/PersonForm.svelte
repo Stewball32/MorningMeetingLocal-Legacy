@@ -206,7 +206,8 @@
 		} catch (error) {
 			const problem = describeError(
 				error,
-				original ? `save ${displayName(original)}` : `add ${values.name.trim()}`
+				original ? `save ${displayName(original)}` : `add ${values.name.trim()}`,
+				{ form: true }
 			);
 			errors = problem.fields;
 			message = problem.message;

@@ -75,3 +75,14 @@ export function removePerson(people: readonly Person[], id: string): Person[] {
 export function plural(count: number, one: string, many = `${one}s`): string {
 	return `${count} ${count === 1 ? one : many}`;
 }
+
+/**
+ * The history deleted with a person, in words: ["12 days of attendance history",
+ * "3 guest check-ins"], leaving out what they have none of.
+ */
+export function historyParts(history: { days: number; guestCheckIns: number }): string[] {
+	const parts: string[] = [];
+	if (history.days > 0) parts.push(`${plural(history.days, 'day')} of attendance history`);
+	if (history.guestCheckIns > 0) parts.push(plural(history.guestCheckIns, 'guest check-in'));
+	return parts;
+}

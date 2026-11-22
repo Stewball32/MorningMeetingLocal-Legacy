@@ -11,7 +11,13 @@
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { Person } from '#lib/pb/types.ts';
-	import { listPeople, POCKETBASE_URL, updatePerson, watchPeople } from '#lib/pb/people.ts';
+	import {
+		listPeople,
+		POCKETBASE_URL,
+		updatePerson,
+		watchPeople,
+		type PersonHistory
+	} from '#lib/pb/people.ts';
 	import DeletePersonDialog from '#lib/people/DeletePersonDialog.svelte';
 	import { describeError } from '#lib/people/errors.ts';
 	import type { PersonFormValues } from '#lib/people/form.ts';
@@ -20,7 +26,7 @@
 	import {
 		displayName,
 		groupPeople,
-		plural,
+		historyParts,
 		removePerson,
 		upsertPerson,
 		type Flag,
@@ -279,15 +285,16 @@
 		deleteOpen = true;
 	}
 
-	function onDeleted(person: Person, days: number | null, alreadyGone: boolean) {
+	function onDeleted(person: Person, history: PersonHistory | null, alreadyGone: boolean) {
 		people = removePerson(people, person.id);
 		deleteOpen = false;
 		const name = displayName(person);
+		const parts = history ? historyParts(history) : [];
 		show({
 			text: alreadyGone
 				? `${name} had already been deleted (in another window).`
-				: days
-					? `Deleted ${name} and ${plural(days, 'day')} of attendance history.`
+				: parts.length > 0
+					? `Deleted ${name} and ${parts.join(' and ')}.`
 					: `Deleted ${name}.`,
 			tone: 'success'
 		});

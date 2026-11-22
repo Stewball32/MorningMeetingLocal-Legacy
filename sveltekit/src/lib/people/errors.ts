@@ -27,10 +27,23 @@ const isPbError = (error: unknown): error is PbErrorLike =>
 export const OFFLINE_MESSAGE =
 	"Can't reach PocketBase. Check that it is running (and this computer is on the classroom network), then try again.";
 
+export interface DescribeOptions {
+	/**
+	 * The request was the Add / Edit form's, which shows PocketBase's validation errors next to
+	 * its fields. Anything else (a delete, a switch in the list) has no fields to highlight, so the
+	 * errors are only listed in the message.
+	 */
+	form?: boolean;
+}
+
 /**
  * Describes a failed PocketBase request. `doing` completes "Couldn't ...", e.g. "save Bluey".
  */
-export function describeError(error: unknown, doing: string): Problem {
+export function describeError(
+	error: unknown,
+	doing: string,
+	{ form = false }: DescribeOptions = {}
+): Problem {
 	const problem: Problem = { message: '', fields: {}, offline: false, notFound: false };
 	if (!isPbError(error)) {
 		const text = error instanceof Error ? error.message : String(error);
@@ -57,7 +70,7 @@ export function describeError(error: unknown, doing: string): Problem {
 				value && typeof value === 'object' && 'message' in value
 					? String((value as { message: unknown }).message)
 					: String(value);
-			const field = FORM_FIELD_OF[key];
+			const field = form ? FORM_FIELD_OF[key] : undefined;
 			if (field) problem.fields[field] = text;
 			else unplaced.push(`${key}: ${text}`);
 		}

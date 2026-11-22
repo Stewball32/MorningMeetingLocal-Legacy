@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Person } from '#lib/pb/types.ts';
+	import type { PersonHistory } from '#lib/pb/people.ts';
 	import DeletePersonConfirm from './DeletePersonConfirm.svelte';
 	import EditorDialog from './EditorDialog.svelte';
 
@@ -8,8 +9,8 @@
 		/** Who to delete; keep it set while the dialog closes so it doesn't empty mid-animation. */
 		person: Person | null;
 		onClose: () => void;
-		/** `days`: attendance days deleted with them (null if they couldn't be counted). */
-		onDeleted: (person: Person, days: number | null, alreadyGone: boolean) => void;
+		/** `history`: what was deleted with them (null if it couldn't be counted). */
+		onDeleted: (person: Person, history: PersonHistory | null, alreadyGone: boolean) => void;
 		onDeactivate: (person: Person) => void;
 	}
 
