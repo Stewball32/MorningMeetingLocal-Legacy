@@ -13,13 +13,18 @@ export interface ClassDaily extends RecordModel {
 	calendar: ClassCalendarProps;
 }
 
-interface Person extends RecordModel {
+/** A row of the `people` collection: every student and teacher, including regular guests. */
+export interface Person extends RecordModel {
 	name: string;
-	pronoun?: 'he' | 'she';
-	video_id?: string;
-	video_start?: number;
-	video_end?: number;
-	avatar?: string;
+	role: 'student' | 'teacher';
+	title?: string; // e.g. "Mr."; shown in front of a teacher's name
+	pronoun?: 'he' | 'she' | '';
+	video_id?: string; // YouTube video ID for the welcome video
+	video_start?: number; // seconds
+	video_end?: number; // seconds
+	avatar?: string; // file name in this record's storage
+	is_guest: boolean; // only offered in the guest list, never on the student/teacher pages
+	active: boolean; // false hides the person everywhere on the slides
 }
 
 export interface DailyRecord extends RecordModel {
@@ -29,19 +34,22 @@ export interface DailyRecord extends RecordModel {
 	// weather: string[];
 }
 
-export interface Student extends Person {}
-export interface StudentDaily extends DailyRecord {
-	student: string;
-	attendance: StudentAttendanceProps;
+/** A row of `people_dailies`: one person's attendance on one date (unique per date + person). */
+export interface PersonDaily extends DailyRecord {
+	person: string; // Person.id
+	attendance?: StudentAttendanceProps | TeacherAttendanceProps | null;
+	feelings?: string[];
 }
 
-export interface Teacher extends Person {
-	title?: string;
-}
-export interface TeacherDaily extends DailyRecord {
-	teacher: string;
-	attendance: TeacherAttendanceProps;
-}
+// Pre-`people` names, kept until every caller uses Person / PersonDaily.
+/** @deprecated use Person */
+export type Student = Person;
+/** @deprecated use Person */
+export type Teacher = Person;
+/** @deprecated use PersonDaily */
+export type StudentDaily = PersonDaily;
+/** @deprecated use PersonDaily */
+export type TeacherDaily = PersonDaily;
 
 export interface IconRecord extends RecordModel {
 	name: string;
@@ -53,8 +61,9 @@ export interface IconRecord extends RecordModel {
 
 export interface GuestDaily extends DailyRecord {
 	name: string;
-	avatar: string; // GuestAvatar.id
-	pronoun?: 'he' | 'she';
+	avatar: string; // IconRecord.id, or '' when the guest is a person with their own picture
+	pronoun?: 'he' | 'she' | '';
+	person?: string; // Person.id when a regular guest (is_guest) was checked in; '' otherwise
 }
 
 export interface CalendarObservance extends RecordModel {
