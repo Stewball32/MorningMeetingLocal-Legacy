@@ -6,7 +6,6 @@
 	import ResetSlide from '#lib/slides/ResetSlide.svelte';
 
 	interface FindTheDateProps {
-		classDaily: ClassDaily;
 		today: Date;
 		todayWeekday: Weekday;
 		yesterdayWeekday: Weekday;
@@ -33,7 +32,6 @@
 	}
 
 	let {
-		classDaily,
 		currentCheck,
 		today = new Date(),
 		todayWeekday,
@@ -78,13 +76,10 @@
 	let selectedWeekday: Weekday | undefined = $derived(weekdayGuesses[0]);
 	const updateWeekday = async (value: Weekday) => {
 		if (selectedWeekday == todayWeekday) return;
-		let updatedWeekdayGuesses = classDaily?.calendar?.weekdayGuesses ?? [];
-		updatedWeekdayGuesses.unshift(value);
+		// a new array: the guesses come from the saved state (never changed in place)
+		const updatedWeekdayGuesses = [value, ...weekdayGuesses];
 		weekdayGuesses = updatedWeekdayGuesses;
-		let partial = {
-			...classDaily.calendar,
-			weekdayGuesses: updatedWeekdayGuesses
-		};
+		const partial = { weekdayGuesses: updatedWeekdayGuesses };
 		let sound = selectedWeekday == todayWeekday ? 'correct' : 'incorrect';
 		updateSound('find-weekday', sound);
 
@@ -94,13 +89,9 @@
 	let selectedMonth: Month | undefined = $derived(monthGuesses[0]);
 	const updateMonth = async (value: Month) => {
 		if (selectedMonth == todayMonth) return;
-		let updatedMonthGuesses = classDaily?.calendar?.monthGuesses ?? [];
-		updatedMonthGuesses.unshift(value);
+		const updatedMonthGuesses = [value, ...monthGuesses];
 		monthGuesses = updatedMonthGuesses;
-		let partial = {
-			...classDaily.calendar,
-			monthGuesses: updatedMonthGuesses
-		};
+		const partial = { monthGuesses: updatedMonthGuesses };
 		let sound = selectedMonth == todayMonth ? 'correct' : 'incorrect';
 		updateSound('find-month', sound);
 
@@ -110,13 +101,9 @@
 	let selectedDay: number | undefined = $derived(dayGuesses[0]);
 	const updateDay = async (value: number) => {
 		if (selectedDay == todayDay) return;
-		let updatedDayGuesses = classDaily?.calendar?.dayGuesses ?? [];
-		updatedDayGuesses.unshift(value);
+		const updatedDayGuesses = [value, ...dayGuesses];
 		dayGuesses = updatedDayGuesses;
-		let partial = {
-			...classDaily.calendar,
-			dayGuesses: updatedDayGuesses
-		};
+		const partial = { dayGuesses: updatedDayGuesses };
 		let sound = selectedDay == todayDay ? 'correct' : 'incorrect';
 		updateSound('find-day', sound);
 		await updateClassDailySlide('calendar', partial);
@@ -125,13 +112,9 @@
 	let selectedYear: number | undefined = $derived(yearGuesses[0]);
 	const updateYear = async (value: number) => {
 		if (selectedYear == todayYear) return;
-		let updatedYearGuesses = classDaily?.calendar?.yearGuesses ?? [];
-		updatedYearGuesses.unshift(value);
+		const updatedYearGuesses = [value, ...yearGuesses];
 		yearGuesses = updatedYearGuesses;
-		let partial = {
-			...classDaily.calendar,
-			yearGuesses: updatedYearGuesses
-		};
+		const partial = { yearGuesses: updatedYearGuesses };
 		let sound = selectedYear == todayYear ? 'correct' : 'incorrect';
 		updateSound('find-year', sound);
 
@@ -143,20 +126,14 @@
 		monthGuesses = [];
 		dayGuesses = [];
 		yearGuesses = [];
-		let partial = {
-			...classDaily.calendar,
-			weekdayGuesses: [],
-			monthGuesses: [],
-			dayGuesses: [],
-			yearGuesses: []
-		};
+		const partial = { weekdayGuesses: [], monthGuesses: [], dayGuesses: [], yearGuesses: [] };
 		await updateClassDailySlide('calendar', partial);
 	};
 
 	let weekdayOptions: Weekday[] = startWithSunday
 		? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 		: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-	const daysInMonth = new Date(todayYear, today.getMonth() + 1, 0).getDate();
+	const daysInMonth = $derived(new Date(todayYear, today.getMonth() + 1, 0).getDate());
 	const yearOptions: number[] = $derived(
 		today.getMonth() < 7 // before August
 			? [todayYear - 1, todayYear, todayYear + 1]
@@ -193,7 +170,7 @@
 		let checkOrder: Check[] = ['weekday', 'month', 'day', 'year'];
 		if (event.key === 'ArrowRight') {
 			event.preventDefault();
-			if (!currentCheck) return (currentCheck = 'weekday');
+			if (!currentCheck) return setCheck('weekday');
 			if (correctAnswers.every((answer) => answer)) return pageRight();
 			for (var i = 0; i < correctAnswers.length; i++) {
 				if (correctAnswers[i]) continue;

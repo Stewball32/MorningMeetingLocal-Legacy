@@ -11,7 +11,6 @@
 	import { getZodiacSign } from './zodiac';
 
 	interface MonthViewProps {
-		classDaily: ClassDaily;
 		today: Date;
 		todayDay: number;
 		calendarGuesses: number[];
@@ -26,7 +25,6 @@
 	}
 
 	let {
-		classDaily,
 		today = new Date(),
 		todayDay = today.getDate(),
 		calendarGuesses = $bindable([]),
@@ -146,25 +144,17 @@
 	let selectedCalendar: number | undefined = $derived(calendarGuesses[0]);
 	const updateCalendar = async (value: number) => {
 		if (selectedCalendar == todayDay) return;
-		let updatedCalendarGuesses = calendarGuesses ?? [];
-		updatedCalendarGuesses.unshift(value);
+		// a new array: the guesses come from the saved state (never changed in place)
+		const updatedCalendarGuesses = [value, ...(calendarGuesses ?? [])];
 		calendarGuesses = updatedCalendarGuesses;
-		let partial = {
-			...classDaily.calendar,
-			calendarGuesses: updatedCalendarGuesses
-		};
 		let sound = selectedCalendar == todayDay ? 'correct' : 'incorrect';
 		updateSound('find-calendar', sound);
-		await updateClassDailySlide('calendar', partial);
+		await updateClassDailySlide('calendar', { calendarGuesses: updatedCalendarGuesses });
 	};
 
 	const resetCalendar = async () => {
 		calendarGuesses = [];
-		let partial = {
-			...classDaily.calendar,
-			calendarGuesses: calendarGuesses
-		};
-		await updateClassDailySlide('calendar', partial);
+		await updateClassDailySlide('calendar', { calendarGuesses: [] });
 	};
 
 	onMount(generateCalendar);
