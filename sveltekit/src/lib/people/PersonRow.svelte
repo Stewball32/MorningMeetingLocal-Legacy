@@ -62,13 +62,14 @@
 		/>
 	</div>
 	<div class="flex items-center gap-2">
-		<button type="button" class="btn preset-tonal-primary px-4 py-2" onclick={onEdit}>
+		<!-- The space is in the expression: Svelte drops one at the start of an element ("EditDora"). -->
+		<button type="button" class="btn preset-tonal-primary px-4 py-2" data-edit onclick={onEdit}>
 			<Pencil class="size-5" aria-hidden="true" />
-			Edit<span class="sr-only"> {name}</span>
+			Edit<span class="sr-only">{` ${name}`}</span>
 		</button>
 		<button type="button" class="btn preset-tonal-error px-4 py-2" onclick={onDelete}>
 			<Trash class="size-5" aria-hidden="true" />
-			Delete<span class="sr-only"> {name}</span>
+			Delete<span class="sr-only">{` ${name}`}</span>
 		</button>
 	</div>
 </li>

@@ -42,7 +42,7 @@
 		<Switch.Thumb />
 	</Switch.Control>
 	<Switch.Label class="text-base font-normal">
-		{label}{#if context}<span class="sr-only"> ({context})</span>{/if}
+		{label}{#if context}<span class="sr-only">{` (${context})`}</span>{/if}
 	</Switch.Label>
 	<Switch.HiddenInput aria-describedby={describedBy} />
 </Switch>

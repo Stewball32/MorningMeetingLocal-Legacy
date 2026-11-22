@@ -28,10 +28,11 @@
 	let history: PersonHistory | null = $state(null);
 	const parts = $derived(history ? historyParts(history) : []);
 	let countFailed = $state(false);
+	/** A delete is on its way, or done (the dialog is then closing). */
 	let deleting = $state(false);
 	let message = $state('');
 
-	// This is mounted each time the dialog opens, so the count is always fresh.
+	// This is created anew each time the dialog opens, so the count is always fresh.
 	onMount(() => {
 		let stale = false;
 		countPersonHistory(person.id).then(
@@ -48,6 +49,11 @@
 		};
 	});
 
+	/** For Escape: the dialog stays open while the delete is on its way. */
+	export function canClose(): boolean {
+		return !deleting;
+	}
+
 	async function confirmDelete() {
 		if (deleting) return;
 		const target = person;
@@ -59,9 +65,10 @@
 		} catch (error) {
 			const problem = describeError(error, `delete ${displayName(target)}`);
 			if (problem.notFound) onDeleted(target, null, true);
-			else message = problem.message;
-		} finally {
-			deleting = false;
+			else {
+				message = problem.message;
+				deleting = false;
+			}
 		}
 	}
 </script>
@@ -100,6 +107,7 @@
 			<button
 				type="button"
 				class="btn preset-filled-warning-500 px-4 py-2"
+				disabled={deleting}
 				onclick={() => onDeactivate(person)}
 			>
 				<EyeOff class="size-5" aria-hidden="true" />
@@ -120,7 +128,9 @@
 	{/if}
 
 	<footer class="flex flex-wrap justify-end gap-3 pt-2">
-		<Dialog.CloseTrigger class="btn preset-tonal px-5 py-2">Cancel</Dialog.CloseTrigger>
+		<Dialog.CloseTrigger class="btn preset-tonal px-5 py-2" disabled={deleting}>
+			Cancel
+		</Dialog.CloseTrigger>
 		<button
 			type="button"
 			class="btn preset-filled-error-500 px-5 py-2"

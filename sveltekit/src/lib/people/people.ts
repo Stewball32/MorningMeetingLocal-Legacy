@@ -86,3 +86,22 @@ export function historyParts(history: { days: number; guestCheckIns: number }): 
 	if (history.guestCheckIns > 0) parts.push(plural(history.guestCheckIns, 'guest check-in'));
 	return parts;
 }
+
+/** The message after one of a person's switches in the list was saved. */
+export function flagMessage(
+	person: Pick<Person, 'name' | 'title' | 'role' | 'is_guest' | 'active'>,
+	flag: Flag
+): string {
+	const name = displayName(person);
+	if (flag === 'active')
+		return person.active
+			? `${name} is active again and back on the slides.`
+			: `${name} is now inactive: hidden from the slides, history kept.`;
+	if (person.is_guest)
+		return person.active
+			? `${name} is now a guest: only offered in the guest list.`
+			: `${name} is now a guest, but inactive: the guest list only offers them once Active is turned back on.`;
+	return person.active
+		? `${name} is no longer a guest and is back on the ${person.role} attendance page.`
+		: `${name} is no longer a guest.`;
+}
