@@ -7,7 +7,7 @@
 - **Frontend:** [SvelteKit 3](https://svelte.dev/docs/kit) (Svelte 5) + [Skeleton UI v5](https://www.skeleton.dev/) + Tailwind CSS 4
 - **Backend:** [PocketBase](https://pocketbase.io/)
 - **Local Dev:** Runs on Raspberry Pi or other local hardware
-- **Node:** 24 LTS (or 22.22.2+) to install and build; the built app (`node build`) runs on 22.17+
+- **Node:** 22.22.2+ (22.x) or 24.15.0+ to install and build (`.npmrc` has engine-strict); the built app (`node build`) runs on 22.17+
 
 ## 📦 Project Structure
 
