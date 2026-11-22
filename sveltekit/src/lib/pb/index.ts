@@ -4,7 +4,12 @@ import type { ClassDaily, IconRecord, GuestDaily, Person, PersonDaily } from './
 import { getCurrentISOString, isISOString } from '#lib';
 
 function createInstance() {
-	return new PocketBase(PUBLIC_POCKETBASE_URL);
+	const pb = new PocketBase(PUBLIC_POCKETBASE_URL);
+	// The SDK would otherwise cancel a pending request as soon as another one with the same key
+	// (method and path) starts, e.g. two quick attendance saves, and the first save would be lost.
+	// Nothing here needs that: it is meant for search-as-you-type.
+	pb.autoCancellation(false);
+	return pb;
 }
 
 /**
@@ -19,6 +24,24 @@ export const getPbImageUrl = (collectionId: string, recordId: string, fileId: st
 
 /** Every person's attendance lives here: one record per person and date. */
 const PEOPLE_DAILIES = 'people_dailies';
+/** The presenter's state for a day (slide, pages, answers): one record per date. */
+const CLASS_DAILIES = 'class_dailies';
+
+/** Saves give up after this long, so a request that never gets an answer ends as an error. */
+const WRITE_TIMEOUT_MS = 15_000;
+const writeOptions = () => ({ requestKey: null, signal: AbortSignal.timeout(WRITE_TIMEOUT_MS) });
+
+/** PocketBase answered 404: no such record (or none matched the filter). */
+export const isNotFound = (error: unknown) => (error as { status?: number } | null)?.status === 404;
+
+/** PocketBase refused a save because of a unique index (e.g. one class_dailies record per date). */
+export const isNotUnique = (error: unknown) => {
+	const data = (error as { response?: { data?: unknown } } | null)?.response?.data;
+	if (!data || typeof data !== 'object') return false;
+	return Object.values(data as Record<string, { code?: string } | undefined>).some(
+		(field) => field?.code === 'validation_not_unique'
+	);
+};
 
 /** Daily logs only belong to records of the `people` collection. */
 const isPersonRecord = (person: Person) => {
@@ -30,18 +53,10 @@ const isPersonRecord = (person: Person) => {
 /**
  * Gets everyone (students, teachers and regular guests, active or not), sorted by name.
  * Which of them a slide shows is up to the slide (see #lib/slides/people.ts).
- * @returns An array of Person objects. Empty array if error or no data.
+ * @returns An array of Person objects. Throws if PocketBase can't be reached.
  */
 export const getAllPeople = async (): Promise<Person[]> => {
-	console.log('Fetching all people...');
-	try {
-		const people = (await pb.collection('people').getFullList({ sort: 'name' })) as Person[];
-		console.log('Fetched all people');
-		return people;
-	} catch (error) {
-		console.error(error);
-		return [];
-	}
+	return await pb.collection('people').getFullList<Person>({ sort: 'name' });
 };
 
 export const getGuestAvatar = async (id: string): Promise<IconRecord | null> => {
@@ -54,67 +69,78 @@ export const getGuestAvatar = async (id: string): Promise<IconRecord | null> => 
 	}
 };
 
-export const getGuestAvatarMap = async (): Promise<Map<string, IconRecord>> => {
-	const guestAvatarMap = new Map<string, IconRecord>();
+/**
+ * Every icon by id, sorted by name. The Add Guest list only offers the ones for guests (see
+ * guestIconOptions), but earlier check-ins may use any of them. Throws if PocketBase can't be
+ * reached.
+ */
+export const getIconMap = async (): Promise<Map<string, IconRecord>> => {
+	const icons = await pb.collection('icons').getFullList<IconRecord>({ sort: 'name' });
+	return new Map(icons.map((icon) => [icon.id, icon]));
+};
+
+/**
+ * The class_dailies record for a date, or null if there is none yet. Any other error (PocketBase
+ * down, a network error) is thrown: it doesn't mean "no record".
+ */
+export const findClassDaily = async (date: string): Promise<ClassDaily | null> => {
 	try {
-		const guestAvatars = (await pb.collection('icons').getFullList({
-			filter: 'for_guests = true',
-			sort: 'name'
-		})) as IconRecord[];
-		guestAvatars.forEach((avatar) => {
-			guestAvatarMap.set(avatar.id, avatar);
-		});
-		return guestAvatarMap;
+		return await pb
+			.collection(CLASS_DAILIES)
+			.getFirstListItem<ClassDaily>(pb.filter('date = {:date}', { date }), { sort: 'created,id' });
 	} catch (error) {
-		console.error(error);
-		return guestAvatarMap;
+		if (isNotFound(error)) return null;
+		throw error;
 	}
 };
 
+/**
+ * Gets the class_dailies record for a date (today by default), and creates it if there is none
+ * yet. When two screens create it at the same moment, the unique index on date lets only one of
+ * them through and the other one fetches that record: every screen holds the same record.
+ */
 export const getClassDaily = async (isoString?: string): Promise<ClassDaily> => {
-	const dateString = isoString ?? getCurrentISOString();
-	if (!isISOString(dateString)) throw new Error(`Invalid date string: ${dateString}`);
-	let classDaily: ClassDaily;
+	const date = isoString ?? getCurrentISOString();
+	if (!isISOString(date)) throw new Error(`Invalid date string: ${date}`);
+	const existing = await findClassDaily(date);
+	if (existing) return existing;
 	try {
-		if (isISOString(dateString)) {
-			classDaily = await pb.collection('class_dailies').getFirstListItem(`date = "${dateString}" `);
-		} else {
-			// create a new class daily record if the date is not valid
-			classDaily = await pb.collection('class_dailies').create({ date: dateString });
-		}
-		return classDaily;
+		return await pb.collection(CLASS_DAILIES).create<ClassDaily>({ date }, writeOptions());
 	} catch (error) {
-		console.debug(error);
-		console.warn(`No class daily found! creating new daily...`);
-		classDaily = await pb.collection('class_dailies').create({ date: dateString });
-		if (!classDaily) throw new Error(`Error creating class daily: ${error}`);
-		return classDaily;
+		if (!isNotUnique(error)) throw error;
+		const created = await findClassDaily(date);
+		if (!created) throw error;
+		return created;
 	}
+};
+
+/**
+ * Saves fields of a class_dailies record, by its id: never by date, so a screen left open overnight
+ * can't write yesterday's state into today's record. A JSON field is replaced as a whole.
+ */
+export const saveClassDaily = async (id: string, fields: Partial<ClassDaily>) => {
+	return await pb.collection(CLASS_DAILIES).update<ClassDaily>(id, fields, writeOptions());
 };
 
 /**
  * Gets a map of person IDs to their daily logs for one date.
  * @param isoString - YYYY-MM-DD format. Defaults to today's date.
- * @returns A Map of person IDs to PersonDaily records. Empty map if error or no data.
+ * @returns A Map of person IDs to PersonDaily records. Throws if PocketBase can't be reached (an
+ * error is never taken for "nobody has a record").
  */
 export const getPersonDailyMap = async (isoString?: string): Promise<Map<string, PersonDaily>> => {
 	const personDailyMap = new Map<string, PersonDaily>();
 	const dateString = isoString ?? getCurrentISOString();
 	if (!isISOString(dateString)) return personDailyMap;
 
-	try {
-		const personDailies = (await pb.collection(PEOPLE_DAILIES).getFullList({
-			filter: `date = "${dateString}"`,
-			sort: '-created'
-		})) as PersonDaily[];
-		personDailies.forEach((daily) => {
-			personDailyMap.set(daily.person, daily);
-		});
-		return personDailyMap;
-	} catch (error) {
-		console.error(error);
-		return personDailyMap;
-	}
+	const personDailies = await pb.collection(PEOPLE_DAILIES).getFullList<PersonDaily>({
+		filter: pb.filter('date = {:date}', { date: dateString }),
+		sort: '-created'
+	});
+	personDailies.forEach((daily) => {
+		personDailyMap.set(daily.person, daily);
+	});
+	return personDailyMap;
 };
 
 /**
@@ -151,118 +177,67 @@ export const getGuestDailiesRange = async ({
 	return guestDailies;
 };
 
+/** The guest check-ins of one date. Throws if PocketBase can't be reached. */
 export const getGuestDailiesDate = async (isoString?: string): Promise<GuestDaily[]> => {
 	const dateString = isoString ?? getCurrentISOString();
 	if (!isISOString(dateString)) return [];
+	return await pb.collection('guest_dailies').getFullList<GuestDaily>({
+		filter: pb.filter('date = {:date}', { date: dateString }),
+		sort: '-created'
+	});
+};
+
+/** A person's people_dailies record for a date, or null if there is none. Throws on other errors. */
+const lookupPersonDaily = async (personId: string, date: string): Promise<PersonDaily | null> => {
 	try {
-		const guestDailies = (await pb.collection('guest_dailies').getFullList({
-			filter: `date = "${dateString}"`,
-			sort: '-created'
-		})) as GuestDaily[];
-		return guestDailies;
+		return await pb
+			.collection(PEOPLE_DAILIES)
+			.getFirstListItem<PersonDaily>(
+				pb.filter('date = {:date} && person = {:person}', { date, person: personId })
+			);
 	} catch (error) {
-		console.error(error);
-		return [];
+		if (isNotFound(error)) return null;
+		throw error;
 	}
 };
 
 /**
- * Creates a new class daily record.
- * @param daily - The data for the new class daily record.
- * @returns The created ClassDaily record or null if an error occurs.
+ * Sets a person's attendance on a date: updates their people_dailies record, or creates one with
+ * only date, person and here. `known` is the record the screen already has for them (from the
+ * realtime map); it is only used when it is for the same person and date.
+ * @returns The saved record. Throws if the save fails.
  */
-const createClassDaily = async (daily: Partial<ClassDaily>) => {
-	const dateString = daily?.date || getCurrentISOString();
-	if (!isISOString(dateString)) throw new Error(`Invalid date string: ${dateString}`);
-	daily = { ...daily, date: dateString };
-
-	try {
-		const record = await pb.collection('class_dailies').create(daily);
-		return record;
-	} catch (error) {
-		throw Error(`Error creating class daily: ${error}`);
-	}
-};
-
-/**
- * Updates a class daily record with the given data.
- * @param daily - The data to update the class daily record with.
- * @returns The updated ClassDaily record or null if an error occurs.
- */
-export const updateClassDaily = async (daily: Partial<ClassDaily>) => {
-	const dateString = daily?.date || getCurrentISOString();
-	if (!isISOString(dateString)) throw new Error(`Invalid date string: ${dateString}`);
-	daily = { ...daily, date: dateString };
-
-	try {
-		const existingDaily = await pb
-			.collection('class_dailies')
-			.getFirstListItem(`date = "${dateString}"`);
-		if (!existingDaily) {
-			console.log(`No existing class daily record found for ${dateString}. Creating a new one.`);
-			return await createClassDaily(daily);
+export const updatePersonDaily = async (
+	person: Person,
+	{ date, here, known }: { date: string; here: PersonDaily['here']; known?: PersonDaily }
+): Promise<PersonDaily> => {
+	if (!isISOString(date)) throw new Error(`Invalid date string: ${date}`);
+	if (!isPersonRecord(person)) throw new Error(`Not a person: ${person?.id}`);
+	const collection = pb.collection(PEOPLE_DAILIES);
+	const update = async (record: PersonDaily) => {
+		try {
+			return await collection.update<PersonDaily>(record.id, { here }, writeOptions());
+		} catch (error) {
+			if (isNotFound(error)) return null; // deleted in the meantime: create it again
+			throw error;
 		}
-		const record = await pb.collection('class_dailies').update(existingDaily.id, daily);
-		return record;
-	} catch (error) {
-		throw Error(`Error updating class daily: ${error}`);
+	};
+
+	const usable = known && known.person === person.id && known.date === date ? known : null;
+	const existing = usable ?? (await lookupPersonDaily(person.id, date));
+	if (existing) {
+		const updated = await update(existing);
+		if (updated) return updated;
 	}
-};
-
-/**
- * Creates a daily log for a person.
- * @param person - Person object.
- * @param daily - Daily log data.
- * @returns The created PersonDaily record. Throws if an error occurs.
- */
-const createPersonDaily = async (person: Person, daily: Partial<PersonDaily>) => {
-	// I don't need to recheck if this is only called from func updateDaily.
-	// uncomment if exporting this function.
-	//
-	// const isoString = daily?.date || getCurrentISOString()
-	// if (!isISOString(isoString)) return null
-	// daily = { ...daily, date: isoString }
-	//
-	// if (!isPersonRecord(person)) return null
-
-	const dailyData: Partial<PersonDaily> = { ...daily, person: person.id };
 	try {
-		const record = await pb.collection(PEOPLE_DAILIES).create(dailyData);
-		return record;
+		return await collection.create<PersonDaily>({ date, person: person.id, here }, writeOptions());
 	} catch (error) {
-		throw new Error(`Error creating ${PEOPLE_DAILIES} record: ${error}`);
-	}
-};
-
-/**
- * Updates a person's daily log with the given data.
- * Creates a new log if one does not exist.
- * @param person - Person object.
- * @param daily - The data to update the daily log with.
- * @returns The updated PersonDaily record or null if an error occurs.
- */
-export const updatePersonDaily = async (person: Person, daily: Partial<PersonDaily>) => {
-	const isoString = daily?.date || getCurrentISOString();
-	if (!isISOString(isoString)) throw new Error(`Invalid date string: ${isoString}`);
-	daily = { ...daily, date: isoString };
-
-	if (!isPersonRecord(person)) return null;
-
-	const dailyMap = await getPersonDailyMap();
-	const existingDaily = dailyMap.get(person.id);
-	if (!existingDaily) {
-		console.log(`No existing daily record found for ${person.name} on . Creating a new one.`);
-		// Create a new daily record if one does not exist
-		return await createPersonDaily(person, daily);
-	}
-	// Update the existing daily record
-	const newDaily = { ...existingDaily, ...daily };
-	try {
-		const record = await pb.collection(PEOPLE_DAILIES).update(existingDaily.id, newDaily);
-		return record;
-	} catch (error) {
-		console.error(error);
-		return null;
+		// another save (from this screen or another one) created it first: update that one
+		if (!isNotUnique(error)) throw error;
+		const created = await lookupPersonDaily(person.id, date);
+		const updated = created && (await update(created));
+		if (!updated) throw error;
+		return updated;
 	}
 };
 
@@ -278,8 +253,7 @@ export const deletePersonDaily = async (person: Person, isoString: string) => {
 
 	if (!isPersonRecord(person)) return null;
 
-	const dailyMap = await getPersonDailyMap(isoString);
-	const existingDaily = dailyMap.get(person.id);
+	const existingDaily = await lookupPersonDaily(person.id, isoString);
 	if (!existingDaily) {
 		console.log(`No existing daily record found for ${person.name} on ${isoString}.`);
 		return null;
@@ -298,7 +272,7 @@ export const deletePersonDaily = async (person: Person, isoString: string) => {
  * Finds a person's daily log by date.
  * * @param person - Person object.
  * * @param isoString - The date of the daily log to find. Defaults to today's date.
- * * @returns The PersonDaily if found, or null if not found or an error occurs.
+ * * @returns The PersonDaily if found, or null if there is none. Throws if the lookup fails.
  */
 export const findPersonDaily = async (person: Person, isoString?: string) => {
 	isoString = isoString ?? getCurrentISOString();
@@ -306,13 +280,7 @@ export const findPersonDaily = async (person: Person, isoString?: string) => {
 
 	if (!isPersonRecord(person)) return null;
 
-	const dailyMap = await getPersonDailyMap(isoString);
-	const existingDaily = dailyMap.get(person.id);
-	if (!existingDaily) {
-		console.log(`No existing daily record found for ${person.name} on ${isoString}.`);
-		return null;
-	}
-	return existingDaily;
+	return await lookupPersonDaily(person.id, isoString);
 };
 
 // createGuestDaily
@@ -362,6 +330,6 @@ export const deleteGuestDaily = async (daily: GuestDaily) => {
 		const record = await pb.collection('guest_dailies').delete(daily.id);
 		return record;
 	} catch (error) {
-		throw Error(`Error deleting guest daily: ${error}`);
+		throw Error(`Error deleting guest daily: ${error}`, { cause: error });
 	}
 };
