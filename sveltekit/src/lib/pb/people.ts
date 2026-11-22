@@ -88,10 +88,28 @@ export async function watchPeople(watch: PeopleWatch): Promise<() => Promise<voi
 		if (realtime.onDisconnect === onDisconnect) realtime.onDisconnect = previousOnDisconnect;
 		await Promise.allSettled(unsubscribers.splice(0).map((unsubscribe) => unsubscribe()));
 	};
+	/**
+	 * subscribe() adds its listener before it connects and leaves it there when connecting fails;
+	 * that leftover would keep the realtime connection open (and call this watch) after the page
+	 * is gone. The SDK hands out no way to remove it, so take it from its list for the topic: it
+	 * is the last one right after subscribe() is called (it is added before the first await).
+	 */
+	const subscribe = async (topic: string, start: () => Promise<UnsubscribeFunc>) => {
+		const subscribing = start();
+		const listeners = (realtime as unknown as { subscriptions?: Record<string, EventListener[]> })
+			.subscriptions?.[topic];
+		const listener = listeners?.[listeners.length - 1];
+		try {
+			unsubscribers.push(await subscribing);
+		} catch (error) {
+			if (listener) await realtime.unsubscribeByTopicAndListener(topic, listener).catch(() => {});
+			throw error;
+		}
+	};
 	try {
-		unsubscribers.push(await realtime.subscribe('PB_CONNECT', () => watch.onConnect()));
-		unsubscribers.push(
-			await pb.collection(PEOPLE).subscribe<Person>('*', (event) => watch.onChange(event))
+		await subscribe('PB_CONNECT', () => realtime.subscribe('PB_CONNECT', () => watch.onConnect()));
+		await subscribe(`${PEOPLE}/*`, () =>
+			pb.collection(PEOPLE).subscribe<Person>('*', (event) => watch.onChange(event))
 		);
 	} catch (error) {
 		await stop();

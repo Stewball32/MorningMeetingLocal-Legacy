@@ -7,6 +7,7 @@
 	import UserPlus from '@lucide/svelte/icons/user-plus';
 	import WifiOff from '@lucide/svelte/icons/wifi-off';
 	import X from '@lucide/svelte/icons/x';
+	import type { RecordSubscription } from 'pocketbase';
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { Person } from '#lib/pb/types.ts';
@@ -83,14 +84,24 @@
 	let stopWatching: (() => Promise<void>) | undefined;
 	let watching = false;
 
+	const applyChange = (list: Person[], event: RecordSubscription<Person>) =>
+		event.action === 'delete'
+			? removePerson(list, event.record.id)
+			: upsertPerson(list, event.record);
+	/** Live changes that arrived while a load was on its way, one list per load. */
+	const changesDuringLoads = new Set<RecordSubscription<Person>[]>();
+
 	/** (Re)loads everyone. A failure only replaces the list with an error before the first load. */
 	async function load() {
 		clearTimeout(retryTimer);
 		if (status === 'error') retrying = true;
+		const changes: RecordSubscription<Person>[] = [];
+		changesDuringLoads.add(changes);
 		try {
 			const list = await listPeople();
 			if (destroyed) return;
-			people = list;
+			// The answer may have been put together before those changes: apply them again on top.
+			people = changes.reduce(applyChange, list);
 			status = 'ready';
 			loadError = '';
 			startWatching();
@@ -101,6 +112,7 @@
 			status = 'error';
 			retryTimer = setTimeout(load, 5000);
 		} finally {
+			changesDuringLoads.delete(changes);
 			retrying = false;
 		}
 	}
@@ -110,10 +122,8 @@
 		watching = true;
 		watchPeople({
 			onChange: (event) => {
-				people =
-					event.action === 'delete'
-						? removePerson(people, event.record.id)
-						: upsertPerson(people, event.record);
+				for (const changes of changesDuringLoads) changes.push(event);
+				people = applyChange(people, event);
 			},
 			onConnect: () => {
 				const missedChanges = live === 'offline';
