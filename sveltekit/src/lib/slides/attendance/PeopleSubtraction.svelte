@@ -2,7 +2,8 @@
 	import { onMount } from 'svelte';
 	import type { Person } from '#lib/pb/types.ts';
 	import PersonButton from '#lib/buttons/PersonButton.svelte';
-	import { Popover, Portal } from '@skeletonlabs/skeleton-svelte';
+	import { Popover } from '@skeletonlabs/skeleton-svelte';
+	import StagePortal from '#lib/slides/StagePortal.svelte';
 	import { fade } from 'svelte/transition';
 
 	import Cross from '@lucide/svelte/icons/x';
@@ -364,7 +365,7 @@
 					<Popover.Trigger class="btn text-size-8 h-full w-full font-black">
 						{oneSelected ?? '?'}
 					</Popover.Trigger>
-					<Portal>
+					<StagePortal>
 						<Popover.Positioner class="z-10!">
 							<Popover.Content>
 								{#snippet element(attributes)}
@@ -392,7 +393,7 @@
 								{/snippet}
 							</Popover.Content>
 						</Popover.Positioner>
-					</Portal>
+					</StagePortal>
 				</Popover>
 			</span>
 		</div>
@@ -413,7 +414,7 @@
 					<Popover.Trigger class="btn text-size-8 h-full w-full font-black">
 						{twoSelected ?? '?'}
 					</Popover.Trigger>
-					<Portal>
+					<StagePortal>
 						<Popover.Positioner class="z-10!">
 							<Popover.Content>
 								{#snippet element(attributes)}
@@ -441,7 +442,7 @@
 								{/snippet}
 							</Popover.Content>
 						</Popover.Positioner>
-					</Portal>
+					</StagePortal>
 				</Popover>
 			</span>
 		</div>
@@ -463,7 +464,7 @@
 					<Popover.Trigger class="btn text-size-8 h-full w-full font-black">
 						{resultSelected ?? '?'}
 					</Popover.Trigger>
-					<Portal>
+					<StagePortal>
 						<Popover.Positioner class="z-10!">
 							<Popover.Content>
 								{#snippet element(attributes)}
@@ -491,7 +492,7 @@
 								{/snippet}
 							</Popover.Content>
 						</Popover.Positioner>
-					</Portal>
+					</StagePortal>
 				</Popover>
 			</span>
 		</div>

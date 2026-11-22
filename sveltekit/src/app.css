@@ -38,12 +38,81 @@
 	--text-13xl--line-height: 1;
 }
 
-@custom-variant smh   (@media (min-width: 640px)  and (min-height: 360px));
-@custom-variant mdh   (@media (min-width: 768px)  and (min-height: 432px));
-@custom-variant lgh   (@media (min-width: 1024px) and (min-height: 576px));
-@custom-variant xlh   (@media (min-width: 1280px) and (min-height: 720px));
-@custom-variant 2xlh  (@media (min-width: 1536px) and (min-height: 864px));
-@custom-variant 3xlh  (@media (min-width: 1920px) and (min-height: 1080px));
+/*
+ * Breakpoints that follow the presenter's stage.
+ *
+ * The presenter (/present) lays its slides out on a fixed-size "stage" and scales the stage to
+ * fit the window (lib/slides/stage.ts, routes/present/+layout.svelte). Inside the stage
+ * ([data-stage], a container named `stage`) the sm..3xl variants below test the stage's width
+ * instead of the window's, so browser zoom and the window size only scale the slide and never
+ * swap it to another breakpoint's layout. Everywhere else they are Tailwind's usual media
+ * queries, with the same widths.
+ *
+ * Only these six variants follow the stage. In slide code don't use max-*, min-[...], arbitrary
+ * [@media...] or @container variants, or vw/vh units: they still see the window. (Write
+ * `pb-[1%] lg:pb-0` instead of `max-lg:pb-[1%]`.) The [data-stage] element itself is outside
+ * both kinds of query, so it can't use the variants either.
+ */
+@custom-variant sm {
+	@media (width >= --theme(--breakpoint-sm)) {
+		&:where(:not([data-stage], [data-stage] *)) {
+			@slot;
+		}
+	}
+	@container stage (width >= --theme(--breakpoint-sm)) {
+		@slot;
+	}
+}
+@custom-variant md {
+	@media (width >= --theme(--breakpoint-md)) {
+		&:where(:not([data-stage], [data-stage] *)) {
+			@slot;
+		}
+	}
+	@container stage (width >= --theme(--breakpoint-md)) {
+		@slot;
+	}
+}
+@custom-variant lg {
+	@media (width >= --theme(--breakpoint-lg)) {
+		&:where(:not([data-stage], [data-stage] *)) {
+			@slot;
+		}
+	}
+	@container stage (width >= --theme(--breakpoint-lg)) {
+		@slot;
+	}
+}
+@custom-variant xl {
+	@media (width >= --theme(--breakpoint-xl)) {
+		&:where(:not([data-stage], [data-stage] *)) {
+			@slot;
+		}
+	}
+	@container stage (width >= --theme(--breakpoint-xl)) {
+		@slot;
+	}
+}
+@custom-variant 2xl {
+	@media (width >= --theme(--breakpoint-2xl)) {
+		&:where(:not([data-stage], [data-stage] *)) {
+			@slot;
+		}
+	}
+	@container stage (width >= --theme(--breakpoint-2xl)) {
+		@slot;
+	}
+}
+@custom-variant 3xl {
+	@media (width >= --theme(--breakpoint-3xl)) {
+		&:where(:not([data-stage], [data-stage] *)) {
+			@slot;
+		}
+	}
+	@container stage (width >= --theme(--breakpoint-3xl)) {
+		@slot;
+	}
+}
 
 @layer utilities {
 	.text-size-10 font-black {
@@ -104,10 +173,12 @@
 	}
 }
 
+/* No transform (such as the old translateZ(0)) on html or body: it makes them the containing
+   block of position: fixed elements, so dialogs and their backdrops scroll with the page instead
+   of staying in the window. */
 html,
 body {
 	@apply bg-gradient-to-br from-blue-400 to-blue-600;
-	transform: translateZ(0);
 }
 
 @layer utilities {

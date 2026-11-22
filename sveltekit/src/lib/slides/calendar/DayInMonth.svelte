@@ -115,7 +115,7 @@
 			}}
 		/>
 			<span
-				class="text-size-00 absolute bottom-0 bg-slate-100/60  w-full line-clamp-3 text-wrap max-h-4/5 text-center leading-none max-lg:pb-[1%]"
+				class="text-size-00 absolute bottom-0 line-clamp-3 max-h-4/5 w-full bg-slate-100/60 pb-[1%] text-center leading-none text-wrap lg:pb-0"
 			>
 				{holidays[holidayIndex].name}
 			</span>
