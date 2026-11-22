@@ -45,7 +45,7 @@
 	let imageUrl = $derived(
 		person.avatar
 			? `${PUBLIC_POCKETBASE_URL}/api/files/${person.collectionId}/${person.id}/${person.avatar}`
-			: ''
+			: '/defaults/avatar.png'
 	);
 	let text = $derived(`${person.title || ''} ${person.name}`.trimStart());
 	let imgAlt = $derived(`${person.title || ''} ${person.name}`.trimStart());
