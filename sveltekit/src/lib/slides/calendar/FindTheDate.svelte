@@ -168,11 +168,16 @@
 		updateClassDailySlide('calendar', { currentCheck });
 	};
 
-	const baseDateClass = 'btn text-size-4 select-none mx-[.75%] py-0';
+	// The date rows are sized to their text, and the % margins and padding are then added on top (a
+	// percentage of that width), so the rows spill out to the right. At 3xl (the 1920x1080 TV) that
+	// cut off the '...' and the '!' at the slide's edge, more so with 'Wednesday' or 'September'. The
+	// 3xl stage is always 1920px wide, so fixed spacing (3xl:mx-1, 3xl:px-6, a little tighter) works
+	// the same there, and the rows stay centred and fit.
+	const baseDateClass = 'btn text-size-4 select-none mx-[.75%] 3xl:mx-1 py-0';
 	const baseSpanClass = ` cursor-default select-none border border-transparent font-bold ${baseDateClass} `;
 	const baseBtnClass = `preset-outlined-surface-500 relative rounded-full ${baseDateClass}`;
 	const weekdayClass = ``;
-	const monthClass = `px-[5%]`;
+	const monthClass = `px-[5%] 3xl:px-6`;
 	const dayClass = ` `;
 	const yearClass = ` `;
 	const longestClass = 'z-2 relative flex h-full w-full items-center justify-center';
