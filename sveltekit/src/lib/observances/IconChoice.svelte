@@ -72,7 +72,7 @@
 			role="radiogroup"
 			aria-label="Icons"
 			aria-describedby={error ? errorId : undefined}
-			class="grid max-h-72 grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-2 overflow-y-auto p-1"
+			class="border-surface-200-800 rounded-base grid max-h-80 grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-2 overflow-y-auto border p-1"
 		>
 			{#each shown as icon (icon.id)}
 				{@const url = iconPictureUrl(icon, '100x100')}

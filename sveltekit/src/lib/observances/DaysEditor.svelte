@@ -77,7 +77,7 @@
 		}
 		onChange(result.entries);
 		problem = '';
-		message = `Added ${what}.${extra}${replaced}${already ? ` ${already}` : ''}`;
+		message = `Added ${what}${extra}.${replaced}${already ? ` ${already}` : ''}`;
 		return true;
 	}
 
@@ -233,7 +233,7 @@
 						bind:this={dayInput}
 						id={id('day')}
 						type="date"
-						class="{inputClass} w-44"
+						class="{inputClass} w-44 max-w-full"
 						min={MIN}
 						max={MAX}
 						bind:value={day}
@@ -267,7 +267,7 @@
 					<input
 						bind:this={fromInput}
 						type="date"
-						class="{inputClass} w-44"
+						class="{inputClass} w-44 max-w-full"
 						min={MIN}
 						max={MAX}
 						bind:value={from}
@@ -280,7 +280,7 @@
 					<span class="block">To</span>
 					<input
 						type="date"
-						class="{inputClass} w-44"
+						class="{inputClass} w-44 max-w-full"
 						min={from || MIN}
 						max={MAX}
 						bind:value={to}

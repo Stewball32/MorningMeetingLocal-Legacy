@@ -16,7 +16,7 @@
 	interface Props {
 		row: BuiltInRow;
 		today: Date;
-		/** Hide / Show is being saved. */
+		/** Hide / Show is being saved (the button stays focusable; a second press is ignored). */
 		busy?: boolean;
 		onCustomize: () => void;
 		onHide: (hidden: boolean) => void;
@@ -92,8 +92,8 @@
 		</button>
 		<button
 			type="button"
-			class="btn preset-tonal px-4 py-2"
-			disabled={busy}
+			class="btn preset-tonal px-4 py-2 aria-disabled:opacity-50"
+			aria-disabled={busy}
 			data-hide
 			onclick={() => onHide(!row.hidden)}
 		>

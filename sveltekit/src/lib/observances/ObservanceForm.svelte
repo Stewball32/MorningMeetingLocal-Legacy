@@ -527,10 +527,13 @@
 				class="gap-1"
 			>
 				<SegmentedControl.Label>School that day</SegmentedControl.Label>
-				<SegmentedControl.Control class="w-fit p-1">
+				<SegmentedControl.Control class="w-fit max-w-full p-1">
 					<SegmentedControl.Indicator class="preset-filled-primary-500" />
 					{#each schoolItems as item (item.value)}
-						<SegmentedControl.Item value={item.value} class="px-4 py-2">
+						<SegmentedControl.Item
+							value={item.value}
+							class="px-1.5 py-2 text-sm leading-tight whitespace-normal sm:px-4 sm:text-base"
+						>
 							<SegmentedControl.ItemText>{item.label}</SegmentedControl.ItemText>
 							<SegmentedControl.ItemHiddenInput />
 						</SegmentedControl.Item>
