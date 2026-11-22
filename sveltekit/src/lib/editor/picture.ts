@@ -3,7 +3,8 @@
 // caps a file at 5 MB when the field sets no size (maxSize 0), which a phone photo can easily
 // pass. Big photos are scaled down in the browser before they are sent: over 5 MB, or more pixels
 // than any screen shows them at (a small file can hold a huge picture that every slide would then
-// have to decode). Animated GIF/WebP are kept as they are (up to 5 MB); animated PNG is refused.
+// have to decode), or than a picture shown small needs (SMALL_PICTURE_SIDE, for icons). Animated
+// GIF/WebP are kept as they are (up to 5 MB); animated PNG is refused.
 
 export const PICTURE_TYPES = [
 	'image/jpeg',
@@ -19,6 +20,23 @@ export const PICTURE_MAX_BYTES = 5 * 1024 * 1024;
 export const PICTURE_MAX_SIDE = 2000;
 /** The longer side a scaled-down picture gets (the next one if that is still over 5 MB). */
 const SHRINK_SIDES = [1600, 1000];
+/**
+ * The longest side for pictures that are only ever shown small (PicturePicker's `maxSide`): icons
+ * (guest buttons, calendar day cells and the Icons list, 64-300 CSS pixels) and an observance's
+ * own picture (a calendar day cell). 640 stays sharp on a 2x screen. PocketBase 0.26 makes no
+ * ?thumb= copies of WebP, the format scaled pictures are saved in, so a 1600-pixel one would be
+ * downloaded in full wherever it is shown.
+ */
+export const SMALL_PICTURE_SIDE = 640;
+
+/**
+ * The longer sides to try when scaling a picture down, biggest first: `maxSide`, else 1600 (and
+ * 1000 if that is still over 5 MB).
+ */
+export function shrinkSides(maxSide?: number): number[] {
+	if (maxSide === undefined) return SHRINK_SIDES;
+	return [maxSide, ...SHRINK_SIDES.filter((side) => side < maxSide)];
+}
 
 const EXTENSION_TYPES: Record<string, (typeof PICTURE_TYPES)[number]> = {
 	jpg: 'image/jpeg',
@@ -56,11 +74,17 @@ const TYPE_ERROR = 'Please choose a JPEG, PNG, WebP, GIF or SVG picture.';
 const APNG_ERROR =
 	"Animated PNG pictures can't be used. Please choose an animated GIF or WebP, or a still picture.";
 
-/** Whether a picture can be used as it is, must be scaled down first, or can't be used. */
-export function planPicture({ type, size, width, height, animated }: PictureFacts): PicturePlan {
+/**
+ * Whether a picture can be used as it is, must be scaled down first, or can't be used. `maxSide`:
+ * still pictures wider or higher than this are scaled down (default PICTURE_MAX_SIDE).
+ */
+export function planPicture(
+	{ type, size, width, height, animated }: PictureFacts,
+	maxSide = PICTURE_MAX_SIDE
+): PicturePlan {
 	if (!(PICTURE_TYPES as readonly string[]).includes(type)) return { error: TYPE_ERROR };
 	const tooHeavy = size > PICTURE_MAX_BYTES;
-	const tooBig = Math.max(width ?? 0, height ?? 0) > PICTURE_MAX_SIDE;
+	const tooBig = Math.max(width ?? 0, height ?? 0) > maxSide;
 	const limits = `pictures can be up to ${megabytes(PICTURE_MAX_BYTES)}`;
 	// An SVG is drawn sharp at any size, so only its bytes count; it is never redrawn.
 	if (type === 'image/svg+xml')
@@ -165,27 +189,34 @@ async function shrink(
 
 /**
  * Checks a chosen picture and scales big photos down; resolves to the file to upload, or to a
- * message for the teacher.
+ * message for the teacher. `maxSide`: scale still pictures down to at most this many pixels wide
+ * and high (e.g. SMALL_PICTURE_SIDE); by default only pictures over PICTURE_MAX_SIDE, to 1600.
  */
-export async function preparePicture(file: File): Promise<{ file: File } | { error: string }> {
+export async function preparePicture(
+	file: File,
+	{ maxSide }: { maxSide?: number } = {}
+): Promise<{ file: File } | { error: string }> {
 	const type = pictureType(file);
 	if (!(PICTURE_TYPES as readonly string[]).includes(type)) return { error: TYPE_ERROR };
 	const svg = type === 'image/svg+xml';
 	const head = svg ? new Uint8Array() : new Uint8Array(await file.slice(0, 1 << 20).arrayBuffer());
 	const size = svg ? null : await readSize(file);
-	const plan = planPicture({
-		type,
-		size: file.size,
-		width: size?.width,
-		height: size?.height,
-		animated: looksAnimated(type, head)
-	});
+	const plan = planPicture(
+		{
+			type,
+			size: file.size,
+			width: size?.width,
+			height: size?.height,
+			animated: looksAnimated(type, head)
+		},
+		maxSide
+	);
 	if ('error' in plan) return plan;
 	if (plan.use === 'as-is') return { file };
 	try {
 		// A picture the browser can't read can't be redrawn either.
 		if (size) {
-			for (const side of SHRINK_SIDES) {
+			for (const side of shrinkSides(maxSide)) {
 				const smaller = await shrink(file, size, side);
 				if (smaller && smaller.size <= PICTURE_MAX_BYTES) return { file: smaller };
 			}
@@ -197,6 +228,6 @@ export async function preparePicture(file: File): Promise<{ file: File } | { err
 		? `${megabytes(file.size)}, ${size.width} × ${size.height} pixels`
 		: megabytes(file.size);
 	return {
-		error: `That picture (${what}) couldn't be made smaller here; pictures can be up to ${megabytes(PICTURE_MAX_BYTES)} and ${PICTURE_MAX_SIDE} pixels wide and high.`
+		error: `That picture (${what}) couldn't be made smaller here; pictures can be up to ${megabytes(PICTURE_MAX_BYTES)} and ${maxSide ?? PICTURE_MAX_SIDE} pixels wide and high.`
 	};
 }

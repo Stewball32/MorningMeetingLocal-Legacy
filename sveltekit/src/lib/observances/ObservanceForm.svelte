@@ -12,6 +12,7 @@
 	import { describeError, validationCodes } from '#lib/editor/errors.ts';
 	import { changedFields, hasErrors, type SaveOutcome } from '#lib/editor/form.ts';
 	import LabeledSwitch from '#lib/editor/LabeledSwitch.svelte';
+	import { SMALL_PICTURE_SIDE } from '#lib/editor/picture.ts';
 	import PicturePicker from '#lib/editor/PicturePicker.svelte';
 	import {
 		builtInDays,
@@ -622,6 +623,7 @@
 					emptyHint="Choose a picture, or drop one here. Reusable pictures go on the Icons page."
 					removedHint="The picture is removed when you save. Choose a new one, or another option above."
 					note="Square or wide pictures fit the calendar best."
+					maxSide={SMALL_PICTURE_SIDE}
 				>
 					{#snippet preview(url)}
 						<DayCellPreview

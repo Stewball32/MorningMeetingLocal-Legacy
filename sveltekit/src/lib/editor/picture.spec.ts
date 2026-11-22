@@ -6,6 +6,8 @@ import {
 	pictureType,
 	looksAnimated,
 	planPicture,
+	shrinkSides,
+	SMALL_PICTURE_SIDE,
 	type PictureFacts
 } from './picture.ts';
 
@@ -88,6 +90,36 @@ describe('planPicture', () => {
 	it('turns away other kinds of file', () => {
 		expect(planPicture(facts({ type: 'application/pdf' }))).toHaveProperty('error');
 		expect(planPicture(facts({ type: 'image/heic' }))).toHaveProperty('error');
+	});
+
+	it('scales still pictures down to a smaller side when asked (icons)', () => {
+		const side = SMALL_PICTURE_SIDE;
+		expect(side).toBe(640);
+		// The default (people's pictures) leaves 800 x 600 alone; icons get it smaller.
+		expect(planPicture(facts({ width: 800, height: 600 }))).toEqual({ use: 'as-is' });
+		expect(planPicture(facts({ width: 800, height: 600 }), side)).toEqual({ use: 'smaller' });
+		expect(planPicture(facts({ type: 'image/webp', width: 600, height: 700 }), side)).toEqual({
+			use: 'smaller'
+		});
+		expect(planPicture(facts({ width: side, height: side }), side)).toEqual({ use: 'as-is' });
+		expect(planPicture(facts({ width: 300, height: 300 }), side)).toEqual({ use: 'as-is' });
+		// Animated pictures and SVGs stay as they are: redrawing would stop them moving or blur them.
+		expect(
+			planPicture(facts({ type: 'image/gif', width: 900, height: 900, animated: true }), side)
+		).toEqual({ use: 'as-is' });
+		const svg = { type: 'image/svg+xml', width: undefined, height: undefined };
+		expect(planPicture(facts(svg), side)).toEqual({ use: 'as-is' });
+	});
+});
+
+describe('shrinkSides', () => {
+	it("tries 1600 then 1000 by default (people's pictures)", () => {
+		expect(shrinkSides()).toEqual([1600, 1000]);
+	});
+
+	it('tries the side asked for, then the smaller default ones', () => {
+		expect(shrinkSides(SMALL_PICTURE_SIDE)).toEqual([640]);
+		expect(shrinkSides(1200)).toEqual([1200, 1000]);
 	});
 });
 

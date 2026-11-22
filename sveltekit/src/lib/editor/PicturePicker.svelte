@@ -49,6 +49,11 @@
 		removedHint?: string;
 		/** An extra line under the hint, e.g. "Square pictures look best." */
 		note?: string;
+		/**
+		 * Still pictures are scaled down to at most this many pixels wide and high, for pictures only
+		 * ever shown small (SMALL_PICTURE_SIDE in picture.ts). By default only very big ones are.
+		 */
+		maxSide?: number;
 		/** Width of the column, e.g. "md:w-52". */
 		class?: string;
 	}
@@ -66,6 +71,7 @@
 		emptyHint = 'No picture: the slides show this default one. Or drop a picture here.',
 		removedHint = 'The picture is removed when you save; the slides then show the default one.',
 		note,
+		maxSide,
 		class: className = ''
 	}: Props = $props();
 
@@ -101,7 +107,7 @@
 		onError(undefined);
 		const choice = ++pictureChoice;
 		preparing = true;
-		const result = await preparePicture(file).catch((reason: unknown) => {
+		const result = await preparePicture(file, { maxSide }).catch((reason: unknown) => {
 			console.error('Could not read the picture', reason);
 			return { error: "Couldn't read that picture. Please choose it again." };
 		});

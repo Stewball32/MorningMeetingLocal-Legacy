@@ -11,6 +11,7 @@
 	import { describeError } from '#lib/editor/errors.ts';
 	import { changedFields, hasErrors, type SaveOutcome } from '#lib/editor/form.ts';
 	import LabeledSwitch from '#lib/editor/LabeledSwitch.svelte';
+	import { SMALL_PICTURE_SIDE } from '#lib/editor/picture.ts';
 	import PicturePicker from '#lib/editor/PicturePicker.svelte';
 	import { createIcon, iconPictureUrl, updateIcon } from '#lib/pb/icons.ts';
 	import type { FileChange } from '#lib/pb/requests.ts';
@@ -219,6 +220,7 @@
 					emptyHint="No picture: the previews show what the slides use instead. Or drop a picture here."
 					removedHint="The picture is removed when you save; the slides then use what the previews show."
 					note="Square pictures look best."
+					maxSide={SMALL_PICTURE_SIDE}
 					class="md:w-60"
 				>
 					{#snippet preview(url)}
