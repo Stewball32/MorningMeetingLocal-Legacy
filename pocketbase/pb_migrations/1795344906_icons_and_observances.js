@@ -17,7 +17,8 @@
 //
 // Everything is added or relaxed: nothing stored today can make it fail.
 //
-// Rolling back: `pocketbase migrate down 1`, with this file still in pb_migrations. It refuses
+// Rolling back: see DEPLOY.md section C2 (`pocketbase migrate down` reverts the newest migrations
+// first, so with 1795344907_class_dailies_unique_date.js applied this one is the 2nd). It refuses
 // (and changes nothing) once icon deletes have left same-day, same-name one-off guests without an
 // icon, which the old index doesn't allow; restore the pb_data copy taken before the update
 // instead. PocketBase exits with status 0 even when a migration fails, so check that it printed

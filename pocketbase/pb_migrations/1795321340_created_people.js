@@ -10,8 +10,10 @@
 // Rolling back: the real way back is the pb_data copy taken before deploying. The down migration
 // only undoes a migration nobody has used yet; it refuses to run once people, attendance or guest
 // links have changed (set MM_PEOPLE_FORCE_DOWN=1 to throw those changes away and run it anyway).
-// Run `pocketbase migrate down 1` while this file is still in pb_migrations (with the people code
+// Run `pocketbase migrate down` while this file is still in pb_migrations (with the people code
 // still checked out): without it PocketBase reverts whichever migration comes before it instead.
+// Newer migrations are reverted first: with the two after it applied, that is `migrate down 3`
+// (see DEPLOY.md section C2).
 // PocketBase exits with status 0 even when a migration fails, so check that it printed
 // "Reverted 1795321340_created_people.js" (or "Applied ..." when migrating up).
 
