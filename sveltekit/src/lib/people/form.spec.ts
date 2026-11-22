@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Person } from '#lib/pb/types.ts';
-import { changedFields, emptyForm, fieldsFromForm, formFromPerson, validateForm } from './form.ts';
+import {
+	changedFields,
+	emptyForm,
+	fieldsFromForm,
+	formFromPerson,
+	sameForm,
+	validateForm
+} from './form.ts';
 
 const record = (fields: Partial<Person>): Person => ({
 	id: 'abcdefghijklmno',
@@ -98,6 +105,33 @@ describe('validateForm', () => {
 		expect(validateForm({ ...valid(), start: '1:30', end: '60' }).end).toMatch(/1:30/);
 		expect(validateForm({ ...valid(), start: '30', end: '31' })).toEqual({});
 	});
+
+	it('takes times up to 24 hours', () => {
+		expect(validateForm({ ...valid(), start: '99999999999999999999' }).start).toMatch(/24 hours/);
+		expect(validateForm({ ...valid(), end: '25:00:00' }).end).toMatch(/24 hours/);
+		expect(validateForm({ ...valid(), start: '24:00:00' })).toEqual({});
+	});
+
+	it('lets an odd value saved long ago through as long as it is not changed', () => {
+		const saved = formFromPerson(record({ video_id: 'oldvid', video_start: 40, video_end: 20 }));
+		expect(validateForm({ ...saved, name: 'Dora M' }, saved)).toEqual({});
+		expect(validateForm({ ...saved, video: ' oldvid ' }, saved)).toEqual({});
+		expect(validateForm({ ...saved, video: 'oldvid2' }, saved).video).toBeTruthy();
+		expect(validateForm({ ...saved, end: '30' }, saved).end).toMatch(/after the start/);
+		// Without the starting values everything is checked.
+		expect(validateForm(saved).video).toBeTruthy();
+	});
+});
+
+describe('sameForm', () => {
+	it('compares values, ignoring spaces around text', () => {
+		const form = emptyForm({ name: 'Finn' });
+		expect(sameForm(form, { ...form })).toBe(true);
+		expect(sameForm(form, { ...form, name: ' Finn ' })).toBe(true);
+		expect(sameForm(form, { ...form, name: 'Fin' })).toBe(false);
+		expect(sameForm(form, { ...form, active: false })).toBe(false);
+		expect(sameForm(form, { ...form, pronoun: 'he' })).toBe(false);
+	});
 });
 
 describe('fieldsFromForm', () => {
@@ -134,6 +168,27 @@ describe('fieldsFromForm', () => {
 		expect(fields.video_end).toBe(0);
 		expect(fields.pronoun).toBe('');
 		expect(fields.active).toBe(true);
+	});
+
+	it('saves no times without a video', () => {
+		const fields = fieldsFromForm(
+			emptyForm({ name: 'Bluey', video: ' ', start: '30', end: '1:00' })
+		);
+		expect(fields.video_id).toBe('');
+		expect(fields.video_start).toBe(0);
+		expect(fields.video_end).toBe(0);
+	});
+
+	it('keeps an unreadable video ID saved long ago as it is', () => {
+		const person = record({ video_id: 'oldvid', video_start: 5 });
+		expect(fieldsFromForm(formFromPerson(person))).toMatchObject({
+			video_id: 'oldvid',
+			video_start: 5
+		});
+		const form = { ...formFromPerson(person), name: 'Dora M' };
+		expect(changedFields(fieldsFromForm(formFromPerson(person)), fieldsFromForm(form))).toEqual({
+			name: 'Dora M'
+		});
 	});
 
 	it('round-trips a record', () => {
@@ -176,6 +231,16 @@ describe('changedFields', () => {
 		const changes = changedFields(before, fieldsFromForm(form));
 		expect(changes).toEqual({ pronoun: '' });
 		expect('active' in changes).toBe(false);
+	});
+
+	it('clears the times when the video is removed', () => {
+		const person = record({ video_id: 'zenQCKkKEwc', video_start: 14, video_end: 30 });
+		const form = { ...formFromPerson(person), video: '' };
+		expect(changedFields(fieldsFromForm(formFromPerson(person)), fieldsFromForm(form))).toEqual({
+			video_id: '',
+			video_start: 0,
+			video_end: 0
+		});
 	});
 
 	it('clears the title when a teacher becomes a student', () => {
