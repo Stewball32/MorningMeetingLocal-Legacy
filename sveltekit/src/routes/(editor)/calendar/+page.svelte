@@ -22,6 +22,7 @@
 		type DeleteTarget
 	} from '#lib/observances/DeleteObservanceDialog.svelte';
 	import { builtInOf, type FormPreset } from '#lib/observances/form.ts';
+	import { HideMemory } from '#lib/observances/hide-memory.ts';
 	import ObservanceFormDialog from '#lib/observances/ObservanceFormDialog.svelte';
 	import ObservancePicture from '#lib/observances/ObservancePicture.svelte';
 	import {
@@ -143,6 +144,9 @@
 		}
 	}
 
+	/** Which records Hide had to turn on, so Show can turn them off again (see hide-memory.ts). */
+	const hideMemory = new HideMemory();
+
 	async function setHidden(holiday: BuiltInHoliday, hidden: boolean, undoable = true) {
 		const key = `builtin:${holiday.name}`;
 		if (pending.has(key)) return;
@@ -150,14 +154,22 @@
 		let record: CalendarObservance | undefined;
 		try {
 			record = settingsRecordsFor(observances.items, holiday.name)[0];
+			if (!record && !hidden) {
+				// No changes, so nothing hides it (e.g. they were reset in another window).
+				notices.show({ text: `${holiday.name} is already on the calendar.`, tone: 'success' });
+				return;
+			}
 			// One set of changes per holiday: check PocketBase itself before making one.
-			if (!record && hidden)
-				record = settingsRecordsFor(await listSettingsRecords(), holiday.name)[0];
+			if (!record) record = settingsRecordsFor(await listSettingsRecords(), holiday.name)[0];
+			// Hiding only counts while the changes are used: Hide turns them on if they are off,
+			// and Show turns them off again if Hide did that (and nothing changed them since).
+			const turnOn = hidden && !!record && !record.is_active;
+			const turnOff = !hidden && !!record && hideMemory.turnedOn(record);
 			const saved = record
 				? await updateObservance(record.id, {
 						hidden,
-						// Hiding only counts when the changes are used.
-						...(hidden && !record.is_active ? { is_active: true } : {})
+						...(turnOn ? { is_active: true } : {}),
+						...(turnOff ? { is_active: false } : {})
 					})
 				: await createObservance({
 						name: holiday.name,
@@ -165,14 +177,18 @@
 						school: holiday.school,
 						description: '',
 						is_active: true,
-						hidden: true,
+						hidden,
 						icon: ''
 					});
+			if (turnOn) hideMemory.remember(saved);
+			else hideMemory.forget(saved.id);
 			observances.upsert(saved);
 			notices.show({
 				text: hidden
 					? `${holiday.name} is hidden: it isn't on the calendar any more.`
-					: `${holiday.name} is back on the calendar.`,
+					: turnOff
+						? `${holiday.name} is back on the calendar (your changes to it stay off).`
+						: `${holiday.name} is back on the calendar.`,
 				tone: 'success',
 				undo: undoable ? () => setHidden(holiday, !hidden, false) : undefined
 			});
@@ -183,7 +199,10 @@
 				OBSERVANCE_ERRORS
 			);
 			if (problem.notFound && record) observances.remove(record.id);
-			notices.show({ text: problem.message, tone: 'error' });
+			// Its changes were just deleted elsewhere: with none, nothing hides it.
+			if (problem.notFound && !hidden)
+				notices.show({ text: `${holiday.name} is already on the calendar.`, tone: 'success' });
+			else notices.show({ text: problem.message, tone: 'error' });
 		} finally {
 			pending.delete(key);
 		}
