@@ -48,9 +48,15 @@ export function deleteObservance(id: string): Promise<boolean> {
 	return pb.collection(OBSERVANCES).delete(id, writeOptions());
 }
 
-/** The settings records for the built-in holidays (no dates), fresh from PocketBase. */
+/**
+ * The settings records for the built-in holidays (no dates), fresh from PocketBase: checked just
+ * before one is made, as part of a save (so it gives up after the same 30 s).
+ */
 export async function listSettingsRecords(): Promise<CalendarObservance[]> {
-	return (await listObservances()).filter(isSettingsRecord);
+	const records = await pb
+		.collection(OBSERVANCES)
+		.getFullList<CalendarObservance>({ expand: 'icon', ...writeOptions() });
+	return records.filter(isSettingsRecord);
 }
 
 /** The URL of an icon's picture ('' when it has none); `thumb` e.g. '100x100'. */
