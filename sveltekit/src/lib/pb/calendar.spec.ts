@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { PUBLIC_POCKETBASE_URL } from '$app/env/public';
 import Holidays from 'date-holidays';
 import {
 	builtInDays,
@@ -16,7 +17,9 @@ import {
 } from './calendar';
 import type { CalendarObservance, IconRecord } from './types';
 
-const PB = 'http://localhost:8090'; // vite.config.ts gives the tests this PocketBase URL
+// the same PocketBase address the code builds picture URLs with (vite.config.ts gives the tests a
+// default; a PUBLIC_POCKETBASE_URL in the environment wins)
+const PB = PUBLIC_POCKETBASE_URL;
 
 let created = 0;
 /** An observance record as PocketBase returns it (active, nothing set). */

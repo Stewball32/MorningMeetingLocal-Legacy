@@ -117,10 +117,13 @@
 
 	// --- Tiles -------------------------------------------------------------------------------
 
-	// The Icons and Calendar Observances pages come from their own branches: until they are
-	// merged, the route types don't know them (and those tiles lead to a "not found" page).
 	type EditorPath = 'people' | 'icons' | 'calendar';
-	const editorHref = (path: EditorPath) => resolve(path as 'people');
+	const EDITOR_ROUTES = {
+		people: '/(editor)/people',
+		icons: '/(editor)/icons',
+		calendar: '/(editor)/calendar'
+	} as const;
+	const editorHref = (path: EditorPath) => resolve(EDITOR_ROUTES[path]);
 
 	interface Tile {
 		key: 'people' | 'icons' | 'calendar';

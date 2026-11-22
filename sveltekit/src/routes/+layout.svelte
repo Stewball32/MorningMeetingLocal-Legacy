@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { dev } from '$app/env';
+	import { page } from '$app/state';
 
 	let { children } = $props();
 </script>
@@ -9,8 +10,9 @@
 	<title>Morning Meeting</title>
 </svelte:head>
 
-{#if dev}
-	<!-- the current Tailwind breakpoint, while developing only -->
+{#if dev && !page.url.pathname.startsWith('/present')}
+	<!-- the current Tailwind breakpoint, while developing only (the presenter's slides pick their
+	     layout from the stage, not the window: see lib/slides/stage.ts) -->
 	<div class="absolute top-0 left-0 z-10 text-xl text-blue-600">
 		<p class="block sm:hidden">XS</p>
 		<p class="hidden sm:block md:hidden">SM</p>
@@ -22,6 +24,6 @@
 	</div>
 {/if}
 
-<div class="min-w-screen relative min-h-screen">
+<div class="relative min-h-screen min-w-screen">
 	{@render children()}
 </div>
