@@ -23,6 +23,7 @@
 	} from '#lib/slides/people.ts';
 	import { ClassDailySync } from '#lib/present/classDaily.ts';
 	import { watchDay } from '#lib/present/dayWatch.ts';
+	import { isUnreachable } from '#lib/present/saveError.ts';
 	import { clearSaveError, reportSaveError, saveStatus } from '#lib/present/saveStatus.svelte.ts';
 	import { Subscriptions } from '#lib/present/subscriptions.ts';
 	import Attendance from '#lib/slides/attendance/+slide.svelte';
@@ -71,7 +72,8 @@
 		ensure: () => getClassDaily(todayISOString),
 		write: saveClassDaily,
 		onChange: (record) => (classDaily = record),
-		onError: (error) => reportSaveError(error, 'The slide', true),
+		// an unsaved change is sent again when the connection comes back (see reloadToday)
+		onError: (error) => reportSaveError(error, undefined, isUnreachable(error)),
 		onSaved: clearSaveError
 	});
 
