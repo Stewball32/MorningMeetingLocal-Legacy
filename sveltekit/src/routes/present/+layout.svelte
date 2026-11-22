@@ -6,17 +6,21 @@
 	import { slideStyle } from '#lib';
 	import { setStageContext, stageLayout } from '#lib/slides/stage.ts';
 	import { onDestroy, onMount } from 'svelte';
+	import { devicePixelRatio, innerHeight, innerWidth } from 'svelte/reactivity/window';
 
 	let { children } = $props();
 
 	// The slides are laid out on a stage of a fixed size, picked from the screen's real pixels, and
 	// the stage is scaled to fit the window (see lib/slides/stage.ts). Browser zoom and the window
 	// size then only change the scale: they never swap the slide to another layout or cut it off.
-	// Zooming fires a resize, so the bindings below follow it live.
-	let innerWidth = $state(window.innerWidth);
-	let innerHeight = $state(window.innerHeight);
-	let devicePixelRatio = $state(window.devicePixelRatio);
-	let stage = $derived(stageLayout(innerWidth, innerHeight, devicePixelRatio));
+	// The window values below are live: they follow resizing, zooming and moving to another screen.
+	let stage = $derived(
+		stageLayout(
+			innerWidth.current ?? window.innerWidth,
+			innerHeight.current ?? window.innerHeight,
+			devicePixelRatio.current ?? window.devicePixelRatio
+		)
+	);
 
 	// popovers on the slides are drawn on the stage, so they are scaled with it (StagePortal)
 	let stageElement: HTMLElement | undefined = $state();
@@ -60,9 +64,9 @@
 	};
 </script>
 
-<svelte:window onkeydown={onKeydown} bind:innerWidth bind:innerHeight bind:devicePixelRatio />
+<svelte:window onkeydown={onKeydown} />
 
-<!-- the window's own controls: outside the stage, so they keep the browser's zoom -->
+<!-- the window's own controls: outside the stage, so the browser's zoom still sizes them -->
 <div class="absolute top-1 right-1 z-10 grid grid-cols-1 gap-[10%]">
 	<button
 		onclick={toggleFullscreen}
