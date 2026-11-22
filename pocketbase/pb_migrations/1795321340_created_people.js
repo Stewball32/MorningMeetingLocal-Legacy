@@ -5,9 +5,11 @@
 //
 // Nothing is thrown away: record IDs (which class_dailies.attendance.currentPerson refers to),
 // created/updated times and pictures are carried over, and the old collections are kept as
-// legacy_* collections that only superusers can read. The down migration puts them back.
+// legacy_* collections that only superusers can read.
 //
-// Each migrate() handler runs on its own, so every constant lives inside the handler.
+// Rolling back: the real way back is the pb_data copy taken before deploying. The down migration
+// only undoes a migration nobody has used yet; it refuses to run once people, attendance or guest
+// links have changed (set MM_PEOPLE_FORCE_DOWN=1 to throw those changes away and run it anyway).
 
 migrate(
 	(app) => {
@@ -215,7 +217,8 @@ migrate(
 			updateRule: '',
 			deleteRule: '',
 			indexes: [
-				'CREATE UNIQUE INDEX `idx_people_dailies_date_person` ON `people_dailies` (`date`, `person`)'
+				'CREATE UNIQUE INDEX `idx_people_dailies_date_person` ON `people_dailies` (`date`, `person`)',
+				'CREATE INDEX `idx_people_dailies_person` ON `people_dailies` (`person`)'
 			],
 			fields: [
 				idField,
@@ -226,7 +229,7 @@ migrate(
 					max: 0,
 					min: 0,
 					name: 'date',
-					pattern: '',
+					pattern: '^\\d{4}-\\d{2}-\\d{2}$',
 					presentable: false,
 					primaryKey: false,
 					required: true,
@@ -306,12 +309,35 @@ migrate(
 		);
 		app.save(guestDailies);
 
+		// Two different regular guests may share a name; each person can still check in once a day.
+		const guestIndexes = JSON.parse(JSON.stringify(guestDailies.indexes));
+		const guestUnique = guestIndexes.findIndex((sql) => sql.includes('`idx_SKPwrroDQD`'));
+		if (guestUnique === -1) throw new Error('people migration: guest_dailies unique index not found');
+		guestIndexes[guestUnique] = guestIndexes[guestUnique].replace(/\)\s*$/, ', `person`)');
+		unmarshal({ indexes: guestIndexes }, guestDailies);
+		app.save(guestDailies);
+
 		// 2. Copy the records (raw SQL so IDs and created/updated times survive) ---------------
 
 		const clash = one(
 			'SELECT count(*) AS n FROM students s JOIN teachers t ON s.id = t.id'
 		);
 		if (clash > 0) throw new Error(`people migration: ${clash} student/teacher IDs clash`);
+
+		// Rows PocketBase itself should never have written; they are copied as they are, but say so.
+		const warnings = {
+			'dailies pointing at a missing student/teacher':
+				one('SELECT count(*) AS n FROM student_dailies WHERE student NOT IN (SELECT id FROM students)') +
+				one('SELECT count(*) AS n FROM teacher_dailies WHERE teacher NOT IN (SELECT id FROM teachers)'),
+			'dailies whose date is not YYYY-MM-DD':
+				one(`SELECT count(*) AS n FROM student_dailies WHERE date NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`) +
+				one(`SELECT count(*) AS n FROM teacher_dailies WHERE date NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`),
+			'people with an unknown pronoun':
+				one(`SELECT count(*) AS n FROM students WHERE pronoun NOT IN ('he', 'she', '')`) +
+				one(`SELECT count(*) AS n FROM teachers WHERE pronoun NOT IN ('he', 'she', '')`)
+		};
+		for (const [what, n] of Object.entries(warnings))
+			if (n > 0) console.log(`people migration: warning: ${n} ${what} (copied unchanged)`);
 
 		run(`INSERT INTO people
 			(id, name, role, title, pronoun, avatar, video_id, video_start, video_end, is_guest, active, created, updated)
@@ -345,32 +371,7 @@ migrate(
 		if (counts.peopleDailies !== counts.studentDailies + counts.teacherDailies)
 			throw new Error(`people migration: copied ${counts.peopleDailies} dailies, expected ${counts.studentDailies + counts.teacherDailies}`);
 
-		// 3. Copy the pictures (storage key: <collectionId>/<recordId>/<filename>) -------------
-
-		const fsys = app.newFilesystem();
-		try {
-			for (const [table, collectionId] of [
-				['students', STUDENTS_ID],
-				['teachers', TEACHERS_ID]
-			]) {
-				const rows = arrayOf(new DynamicModel({ id: '', avatar: '' }));
-				app.db().newQuery(`SELECT id, avatar FROM ${table} WHERE avatar != ''`).all(rows);
-				for (const row of rows) {
-					const src = `${collectionId}/${row.id}/${row.avatar}`;
-					const dst = `${PEOPLE_ID}/${row.id}/${row.avatar}`;
-					if (!fsys.exists(src)) {
-						console.log(`people migration: missing picture ${src}, leaving it out`);
-						run(`UPDATE people SET avatar = '' WHERE id = '${row.id}'`);
-						continue;
-					}
-					if (!fsys.exists(dst)) fsys.copy(src, dst);
-				}
-			}
-		} finally {
-			fsys.close();
-		}
-
-		// 4. Keep the old collections, renamed and locked to superusers ------------------------
+		// 3. Keep the old collections, renamed and locked to superusers ------------------------
 
 		for (const [id, name] of [
 			[STUDENT_DAILIES_ID, 'legacy_student_dailies'],
@@ -398,6 +399,29 @@ migrate(
 			app.save(collection);
 		}
 
+		// 4. Copy the pictures (storage key: <collectionId>/<recordId>/<filename>) -------------
+		// Last, because files are not part of the database transaction: if anything above fails,
+		// no copies are left behind. A failed run that did copy files can simply be re-run.
+
+		const fsys = app.newFilesystem();
+		try {
+			const rows = arrayOf(new DynamicModel({ id: '', avatar: '', role: '' }));
+			app.db().newQuery("SELECT id, avatar, role FROM people WHERE avatar != ''").all(rows);
+			for (const row of rows) {
+				const from = row.role === 'teacher' ? TEACHERS_ID : STUDENTS_ID;
+				const src = `${from}/${row.id}/${row.avatar}`;
+				const dst = `${PEOPLE_ID}/${row.id}/${row.avatar}`;
+				if (!fsys.exists(src)) {
+					console.log(`people migration: warning: missing picture ${src}, leaving it out`);
+					app.db().newQuery("UPDATE people SET avatar = '' WHERE id = {:id}").bind({ id: row.id }).execute();
+					continue;
+				}
+				if (!fsys.exists(dst)) fsys.copy(src, dst);
+			}
+		} finally {
+			fsys.close();
+		}
+
 		console.log(
 			`people migration: ${counts.students} students + ${counts.teachers} teachers -> ${counts.people} people; ` +
 				`${counts.studentDailies} + ${counts.teacherDailies} dailies -> ${counts.peopleDailies} people_dailies`
@@ -412,9 +436,46 @@ migrate(
 		const TEACHER_DAILIES_ID = 'pbc_2259412331';
 		const GUEST_DAILIES_ID = 'pbc_4221468678';
 
-		// Put the old collections back with their old names and rules. Their records were never
-		// touched, so this is exactly the state before the migration; anything changed in
-		// `people` since then is not copied back.
+		const one = (sql) => {
+			const row = new DynamicModel({ n: 0 });
+			app.db().newQuery(sql).one(row);
+			return row.n;
+		};
+
+		// The legacy_* records were never touched, so putting them back restores exactly the state
+		// before the migration -- and silently drops everything done in the app since. Refuse if
+		// anything changed, unless forced.
+		const changed = {
+			'people added or edited': one(`SELECT count(*) AS n FROM people p
+				WHERE NOT EXISTS (SELECT 1 FROM legacy_students s WHERE s.id = p.id AND s.updated = p.updated)
+				AND NOT EXISTS (SELECT 1 FROM legacy_teachers t WHERE t.id = p.id AND t.updated = p.updated)`),
+			'people deleted':
+				one('SELECT count(*) AS n FROM legacy_students WHERE id NOT IN (SELECT id FROM people)') +
+				one('SELECT count(*) AS n FROM legacy_teachers WHERE id NOT IN (SELECT id FROM people)'),
+			'attendance records added or edited': one(`SELECT count(*) AS n FROM people_dailies d
+				WHERE NOT EXISTS (SELECT 1 FROM legacy_student_dailies s
+					WHERE s.date = d.date AND s.student = d.person AND s.updated = d.updated)
+				AND NOT EXISTS (SELECT 1 FROM legacy_teacher_dailies t
+					WHERE t.date = d.date AND t.teacher = d.person AND t.updated = d.updated)`),
+			'attendance records deleted':
+				one(`SELECT count(*) AS n FROM legacy_student_dailies s WHERE NOT EXISTS
+					(SELECT 1 FROM people_dailies d WHERE d.date = s.date AND d.person = s.student)`) +
+				one(`SELECT count(*) AS n FROM legacy_teacher_dailies t WHERE NOT EXISTS
+					(SELECT 1 FROM people_dailies d WHERE d.date = t.date AND d.person = t.teacher)`),
+			'guest check-ins linked to a person': one("SELECT count(*) AS n FROM guest_dailies WHERE person != ''")
+		};
+		const lost = Object.entries(changed).filter(([, n]) => n > 0);
+		if (lost.length > 0) {
+			const summary = lost.map(([what, n]) => `${n} ${what}`).join(', ');
+			if ($os.getenv('MM_PEOPLE_FORCE_DOWN') !== '1')
+				throw new Error(
+					`people migration: not rolling back, it would lose ${summary}. ` +
+						'Restore the pb_data copy taken before the update instead, or set MM_PEOPLE_FORCE_DOWN=1 to roll back anyway.'
+				);
+			console.log(`people migration: MM_PEOPLE_FORCE_DOWN=1, throwing away ${summary}`);
+		}
+
+		// Put the old collections back with their old names and rules.
 		for (const [id, name, deleteRule] of [
 			[STUDENTS_ID, 'students', null],
 			[TEACHERS_ID, 'teachers', null],
@@ -433,7 +494,24 @@ migrate(
 			app.save(collection);
 		}
 
+		// The old unique index has no `person`, so same-name check-ins of different regular guests on
+		// one day can't all stay: keep a one-off guest's row, otherwise the earliest linked one.
+		const duplicateGuests = `FROM guest_dailies WHERE person != '' AND EXISTS (
+			SELECT 1 FROM guest_dailies g WHERE g.date = guest_dailies.date AND g.name = guest_dailies.name
+				AND g.avatar = guest_dailies.avatar AND g.rowid != guest_dailies.rowid
+				AND (g.person = '' OR g.rowid < guest_dailies.rowid))`;
+		const duplicates = one(`SELECT count(*) AS n ${duplicateGuests}`);
+		if (duplicates > 0) {
+			app.db().newQuery(`DELETE ${duplicateGuests}`).execute();
+			console.log(`people migration: removed ${duplicates} same-name guest check-ins`);
+		}
+
 		const guestDailies = app.findCollectionByNameOrId(GUEST_DAILIES_ID);
+		const guestIndexes = JSON.parse(JSON.stringify(guestDailies.indexes)).map((sql) =>
+			sql.includes('`idx_SKPwrroDQD`') ? sql.replace(', `person`)', ')') : sql
+		);
+		unmarshal({ indexes: guestIndexes }, guestDailies);
+		app.save(guestDailies);
 		guestDailies.fields.removeById('relation1795321342');
 		app.save(guestDailies);
 
