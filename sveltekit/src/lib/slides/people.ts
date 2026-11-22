@@ -6,6 +6,7 @@
 
 import { getPbImageUrl } from '#lib/pb/index.ts';
 import type { GuestDaily, IconRecord, Person } from '#lib/pb/types.ts';
+import { displayName } from '#lib/people/people.ts';
 
 export const DEFAULT_AVATAR = '/defaults/avatar.png';
 
@@ -35,6 +36,17 @@ export const guestPerson = (guest: GuestDaily, peopleById: Map<string, Person>) 
 /** Today's check-ins without those of people who have since been switched off (not active). */
 export const visibleGuestDailies = (guestDailies: GuestDaily[], peopleById: Map<string, Person>) =>
 	guestDailies.filter((guest) => guestPerson(guest, peopleById)?.active !== false);
+
+/**
+ * The name a guest check-in shows: a regular guest's current name with their title (like the
+ * teacher page), or the name saved at check-in when it is a one-off guest or the person is gone.
+ */
+export const guestDisplayName = (guest: GuestDaily, person: Person | undefined) =>
+	person ? displayName(person) : guest.name;
+
+/** The regular guests (people) among today's check-ins. */
+export const checkedInPeople = (guestDailies: GuestDaily[]) =>
+	new Set(guestDailies.flatMap((guest) => (guest.person ? [guest.person] : [])));
 
 /**
  * The picture a guest check-in shows: the person's own picture when it belongs to a person who
@@ -76,27 +88,36 @@ export interface GuestNameOption {
 export const PERSON_OPTION_PREFIX = 'person:';
 
 /**
- * The names offered in the Add Guest dialog: the regular guests (active is_guest people) first,
- * then the earlier one-off guests, each name once. Earlier check-ins of a regular guest are left
- * out (the person is listed instead), and so are those of people who are no longer active.
+ * The names offered in the Add Guest dialog: the regular guests (active is_guest people, by their
+ * display name) first, then the earlier one-off guests, each name once. Regular guests already
+ * checked in today are left out (they can check in once a day). Earlier check-ins of a regular
+ * guest are left out too (the person is listed instead), and so are those of people who are no
+ * longer active.
  */
 export const guestNameOptions = (
 	guestPeople: Person[],
 	previousGuests: GuestDaily[],
 	peopleById: Map<string, Person>,
-	guestAvatarMap: Map<string, IconRecord>
+	guestAvatarMap: Map<string, IconRecord>,
+	checkedInToday: ReadonlySet<string> = new Set()
 ): GuestNameOption[] => {
-	const options: GuestNameOption[] = guestPeople.map((person) => ({
-		label: person.name,
+	const regularGuests = guestPeople.map((person) => ({
+		label: displayName(person),
 		value: PERSON_OPTION_PREFIX + person.id,
 		emoji: '👤',
 		person
 	}));
+	// a checked-in regular guest's name isn't offered again as a one-off guest either
+	const names = new Set(regularGuests.map((option) => option.label));
+	const options: GuestNameOption[] = regularGuests.filter(
+		(option) => !checkedInToday.has(option.person.id)
+	);
 	const listedPeople = new Set(guestPeople.map((person) => person.id));
 	for (const guestDaily of previousGuests) {
 		const person = guestPerson(guestDaily, peopleById);
 		if (person && (!person.active || listedPeople.has(person.id))) continue;
-		if (options.some((option) => option.label === guestDaily.name)) continue;
+		if (names.has(guestDaily.name)) continue;
+		names.add(guestDaily.name);
 		options.push({
 			label: guestDaily.name,
 			value: guestDaily.id,
@@ -104,4 +125,49 @@ export const guestNameOptions = (
 		});
 	}
 	return options;
+};
+
+/**
+ * Why a regular guest picked in the Add Guest dialog can't be checked in (anymore), or undefined
+ * if they can. `current` is the person as the slides know them now (undefined once deleted): the
+ * People page may have changed them since they were picked.
+ */
+export const regularGuestProblem = (
+	picked: Person,
+	current: Person | undefined,
+	checkedInToday: ReadonlySet<string>
+): string | undefined => {
+	const name = displayName(current ?? picked);
+	if (!current) return `${name} was deleted on the People page, so they can't be checked in.`;
+	if (!current.active)
+		return `${name} is switched off (not Active) on the People page, so they can't be checked in.`;
+	if (!current.is_guest)
+		return `${name} is no longer a guest (Guest is off on the People page), so they can't be checked in as one.`;
+	if (checkedInToday.has(current.id)) return `${name} is already checked in today.`;
+	return undefined;
+};
+
+type FieldErrors = Record<string, { code?: string } | undefined>;
+
+/**
+ * PocketBase's per-field errors from a failed request: from a ClientResponseError, or from an
+ * Error that wraps one as its cause (as createGuestDaily throws).
+ */
+const fieldErrors = (error: unknown): FieldErrors => {
+	for (const candidate of [error, (error as { cause?: unknown } | null)?.cause]) {
+		const data = (candidate as { response?: { data?: unknown } } | null)?.response?.data;
+		if (data && typeof data === 'object') return data as FieldErrors;
+	}
+	return {};
+};
+
+/** What to tell the teacher when PocketBase didn't save a guest check-in. */
+export const guestCheckInError = (name: string, error: unknown): string => {
+	const fields = fieldErrors(error);
+	// a unique index: the same regular guest, or the same one-off guest with the same icon
+	if (Object.values(fields).some((field) => field?.code === 'validation_not_unique'))
+		return `${name} is already checked in today.`;
+	if (fields.person?.code === 'validation_missing_rel_records')
+		return `${name} was deleted on the People page, so they can't be checked in.`;
+	return `Couldn't add ${name}. Please try again.`;
 };

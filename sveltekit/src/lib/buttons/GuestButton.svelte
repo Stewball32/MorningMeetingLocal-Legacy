@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { getGuestAvatar } from '#lib/pb/index.ts';
 	import type { IconRecord, GuestDaily, Person } from '#lib/pb/types.ts';
-	import { guestPictureUrl } from '#lib/slides/people.ts';
+	import { guestDisplayName, guestPictureUrl } from '#lib/slides/people.ts';
 	import { onMount } from 'svelte';
 	import Button from './+button.svelte';
 
@@ -63,8 +63,9 @@
 
 	// the person's own picture, else the icon picked at check-in, else the default avatar
 	let imageUrl = $derived(guestPictureUrl(person, avatarRecord));
-	let text = $derived(`${guest.title || ''} ${guest.name}`.trimStart());
-	let imgAlt = $derived(`${guest.title || ''} ${guest.name}`.trimStart());
+	// a regular guest's current name and title, else the name saved at check-in
+	let text = $derived(guestDisplayName(guest, person));
+	let imgAlt = $derived(text);
 </script>
 
 <Button

@@ -50,10 +50,12 @@ export interface IconRecord extends RecordModel {
 }
 
 export interface GuestDaily extends DailyRecord {
-	name: string;
+	name: string; // as saved at check-in; a regular guest is shown with their current name
 	avatar: string; // IconRecord.id, or '' when the guest is a person with their own picture
 	pronoun?: 'he' | 'she' | '';
-	person?: string; // Person.id when a regular guest (is_guest) was checked in; '' otherwise
+	// Person.id when a regular guest (is_guest) was checked in, '' otherwise. A person checks in at
+	// most once a day, and deleting them deletes their check-ins.
+	person?: string;
 }
 
 export interface CalendarObservance extends RecordModel {

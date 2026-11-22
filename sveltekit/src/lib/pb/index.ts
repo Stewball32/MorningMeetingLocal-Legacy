@@ -319,7 +319,8 @@ export const findPersonDaily = async (person: Person, isoString?: string) => {
 /**
  * Creates a new guest daily record.
  * @param daily - The data for the new guest daily record.
- * @returns The created GuestDaily record or null if an error occurs.
+ * @returns The created GuestDaily record. Throws if an error occurs, with PocketBase's error as
+ * the cause (e.g. a unique index clash: that guest is already checked in that day).
  */
 export const createGuestDaily = async (daily: Partial<GuestDaily>) => {
 	const dateString = daily?.date || getCurrentISOString();
@@ -330,7 +331,7 @@ export const createGuestDaily = async (daily: Partial<GuestDaily>) => {
 		const record = (await pb.collection('guest_dailies').create(daily)) as GuestDaily;
 		return record;
 	} catch (error) {
-		throw Error(`Error creating guest daily: ${error}`);
+		throw new Error(`Error creating guest daily: ${error}`, { cause: error });
 	}
 };
 

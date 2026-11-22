@@ -1,11 +1,16 @@
 <script lang="ts">
 	import type { IconRecord, GuestDaily, Person } from '#lib/pb/types.ts';
 	import {
+		checkedInPeople,
+		guestCheckInError,
+		guestDisplayName,
 		guestNameOptions,
 		guestPerson,
 		guestPictureUrl,
+		regularGuestProblem,
 		type GuestNameOption
 	} from '#lib/slides/people.ts';
+	import { displayName } from '#lib/people/people.ts';
 	import { onMount } from 'svelte';
 	import { fade, fly } from 'svelte/transition';
 	import type { HTMLAttributes } from 'svelte/elements';
@@ -80,9 +85,11 @@
 	};
 
 	let previousGuests: GuestDaily[] = $state([]);
-	// the regular guests, then the earlier one-off guests (each name once)
+	// regular guests (people) checked in today: they can check in only once a day
+	let checkedInToday = $derived(checkedInPeople(guestDailies));
+	// the regular guests not checked in yet, then the earlier one-off guests (each name once)
 	let guestComboboxArray: GuestNameOption[] = $derived(
-		guestNameOptions(guestPeople, previousGuests, peopleById, guestAvatarMap)
+		guestNameOptions(guestPeople, previousGuests, peopleById, guestAvatarMap, checkedInToday)
 	);
 	let avatarComboboxArray: ComboboxData[] = $state([]);
 	guestAvatarMap.values().forEach((avatar) => {
@@ -140,8 +147,14 @@
 	let selectedPronoun: 'he' | 'she' | undefined = $state(undefined);
 	// the regular guest picked from the list; undefined for a one-off guest
 	let selectedPerson = $state<Person | undefined>(undefined);
+	// ...as they are now (the People page may change them while the dialog is open)
+	let currentPerson = $derived(
+		selectedPerson && (peopleById.get(selectedPerson.id) ?? selectedPerson)
+	);
 	// a regular guest with their own picture needs no icon
-	let usesOwnPicture = $derived(!!selectedPerson?.avatar);
+	let usesOwnPicture = $derived(!!currentPerson?.avatar);
+	// the name the preview shows and the check-in gets
+	let previewName = $derived(currentPerson ? displayName(currentPerson) : modalGuestName);
 	let modalOpen = $state(false);
 	const resetModal = (closeModal: boolean = true) => {
 		selectedGuestName = [];
@@ -157,7 +170,7 @@
 		selectedPerson = guestComboboxArray.find((option) => option.value === e.value[0])?.person;
 		if (selectedPerson) {
 			selectedPronoun = selectedPerson.pronoun || undefined;
-			selectedGuestName = [selectedPerson.name];
+			selectedGuestName = [displayName(selectedPerson)];
 			selectedAvatarId = [];
 			return;
 		}
@@ -171,8 +184,9 @@
 	const updateModalGuestName = (guest: any) => {
 		if (guest.inputValue.length == 0 && modalGuestName.length > 1) return;
 		modalGuestName = guest.inputValue;
-		// typing a different name makes it a one-off guest again
-		if (selectedPerson && modalGuestName !== selectedPerson.name) selectedPerson = undefined;
+		// typing a different name makes it a one-off guest again (the list shows the display name)
+		if (selectedPerson && modalGuestName !== displayName(selectedPerson))
+			selectedPerson = undefined;
 	};
 
 	const updateAvatar = (avatar: any) => {
@@ -186,7 +200,7 @@
 
 	const avatarURL = (avatarId: string) => {
 		// like on the guest page, a regular guest's own picture comes before the icon
-		if (usesOwnPicture) return guestPictureUrl(selectedPerson, null);
+		if (usesOwnPicture) return guestPictureUrl(currentPerson, null);
 		let avatar = guestAvatarMap.get(avatarId);
 		if (!avatar) return '/defaults/avatar.png';
 		let url = getPbImageUrl(avatar.collectionId, avatar.id, avatar.image);
@@ -194,35 +208,59 @@
 		return url;
 	};
 
+	let adding = false; // a double click on Confirm saves the guest once
 	const addGuest = async (closeModal: boolean = true) => {
 		if (!modalGuestName || (!selectedAvatarId[0] && !usesOwnPicture)) {
 			return alert('Please select a name and an avatar!');
 		}
+		if (adding) return;
 
+		const name = previewName;
 		if (selectedPerson) {
-			await createGuestDaily({
-				name: selectedPerson.name,
-				pronoun: selectedPronoun,
-				person: selectedPerson.id,
-				avatar: selectedAvatarId[0] ?? ''
-			});
-		} else {
-			await createGuestDaily({
-				name: modalGuestName,
-				pronoun: selectedPronoun,
-				avatar: selectedAvatarId[0]
-			});
+			// deleted, switched off, no longer a guest or already checked in since they were picked
+			const problem = regularGuestProblem(
+				selectedPerson,
+				peopleById.get(selectedPerson.id),
+				checkedInToday
+			);
+			if (problem) return alert(problem);
+		}
+		adding = true;
+		try {
+			if (selectedPerson) {
+				await createGuestDaily({
+					name,
+					pronoun: selectedPronoun,
+					person: selectedPerson.id,
+					avatar: selectedAvatarId[0] ?? ''
+				});
+			} else {
+				await createGuestDaily({
+					name,
+					pronoun: selectedPronoun,
+					avatar: selectedAvatarId[0]
+				});
+			}
+		} catch (error) {
+			// keep the dialog open so the teacher can change the guest or cancel
+			console.error(error);
+			return alert(guestCheckInError(name, error));
+		} finally {
+			adding = false;
 		}
 		resetModal(closeModal);
 	};
 
+	// a regular guest's current name and title, else the name saved at check-in
+	const guestName = (guest: GuestDaily) => guestDisplayName(guest, guestPerson(guest, peopleById));
+
 	const welcomeString = () => {
 		if (!guestDailies) return "Let's welcome our guests!";
-		if (guestDailies.length === 1) return `Let's welcome ${guestDailies[0].name}!`;
+		if (guestDailies.length === 1) return `Let's welcome ${guestName(guestDailies[0])}!`;
 		if (guestDailies.length > 1) {
 			let dailies = guestDailies.slice(0, -1);
 			let lastGuest = guestDailies[guestDailies.length - 1];
-			return `Let's welcome ${dailies.map((guest) => guest.name).join(', ')} and ${lastGuest?.name}!`;
+			return `Let's welcome ${dailies.map(guestName).join(', ')} and ${guestName(lastGuest)}!`;
 		}
 	};
 
@@ -391,7 +429,7 @@
 																onclick={() => deleteGuestDaily(guest)}
 															>
 																<div class="text-size-1 flex w-full justify-between space-x-2">
-																	<span class="truncate">{guest.name}</span>
+																	<span class="truncate">{guestName(guest)}</span>
 																	<span>{guestEmoji(guest)}</span>
 																</div>
 															</button>
@@ -593,8 +631,8 @@
 										<SampleButton
 											buttonClass="h-full"
 											imageUrl={avatarURL(selectedAvatarId[0])}
-											text={modalGuestName}
-											imgAlt={modalGuestName}
+											text={previewName}
+											imgAlt={previewName}
 											textClass="text-size-7 fontbold"
 										/>
 									</article>
