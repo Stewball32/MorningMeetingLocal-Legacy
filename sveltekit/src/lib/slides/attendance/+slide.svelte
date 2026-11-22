@@ -70,6 +70,20 @@
 	// (plain objects: nothing on screen depends on them)
 	const saving: Record<string, Promise<void> | undefined> = {};
 	const lastSaved: Record<string, PersonDaily | undefined> = {};
+	// Once the realtime map has a save's own record (or a newer one), forget the save: otherwise a
+	// record deleted later (in the dashboard) would come back as the base of the next toggle. The
+	// realtime echo can come before or after the save's answer, so check at both moments.
+	const forgetEchoed = (map: Map<string, PersonDaily>, personId: string) => {
+		const saved = lastSaved[personId];
+		const shown = map.get(personId);
+		if (saved && shown && !isNewer(saved, shown)) delete lastSaved[personId];
+	};
+	$effect(() => {
+		// read before the loop: with nothing saved yet, the loop alone wouldn't make this effect
+		// follow the map (a new Map comes with every realtime event)
+		const map = personDailyMap;
+		for (const personId of Object.keys(lastSaved)) forgetEchoed(map, personId);
+	});
 	const newestDaily = (personId: string) => {
 		const shown = personDailyMap.get(personId);
 		const saved = lastSaved[personId];
@@ -100,6 +114,7 @@
 			}
 			try {
 				lastSaved[person.id] = await updatePersonDaily(person, { date, here, known: daily });
+				forgetEchoed(personDailyMap, person.id);
 				clearSaveError(`attendance:${person.id}`);
 			} catch (error) {
 				reportSaveError(
