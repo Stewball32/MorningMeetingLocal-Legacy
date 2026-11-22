@@ -52,10 +52,10 @@
 		updateClassDailySlide = async (column: string, partialClassDaily: Partial<ClassProps>) => {}
 	}: PeopleMathProps = $props();
 
-	// svelte-ignore state_referenced_locally
-	const peopleResult: (Person | GuestDaily)[] = peopleOne
-		.filter((p1) => !peopleTwo.some((p2) => p2.id === p1.id))
-		.concat(peopleTwo);
+	// follows the lists (attendance and People page edits arrive live), like the answers below
+	const peopleResult: (Person | GuestDaily)[] = $derived(
+		peopleOne.filter((p1) => !peopleTwo.some((p2) => p2.id === p1.id)).concat(peopleTwo)
+	);
 
 	const optionsPerQuestion: number = 4;
 
@@ -203,12 +203,11 @@
 	// bold text); each option button sets --option-digits.
 	const optionMinWidthClass =
 		'min-w-[calc(max(1lh+0.5rem,var(--option-digits)*0.6em+2rem)+6px)] md:min-w-[calc(max(1lh+0.5rem,var(--option-digits)*0.6em+2rem)+12px)]';
-	// svelte-ignore state_referenced_locally
-	const correctAnswers = {
-		one: peopleOne.length,
-		two: peopleTwo.length,
-		result: peopleResult.length
-	};
+	const correctAnswers = $derived({
+		one: oneAnswer,
+		two: twoAnswer,
+		result: resultAnswer
+	});
 	const isCorrectAnswer = (result: 'one' | 'two' | 'result', num: number) => {
 		return correctAnswers[result] === num;
 	};

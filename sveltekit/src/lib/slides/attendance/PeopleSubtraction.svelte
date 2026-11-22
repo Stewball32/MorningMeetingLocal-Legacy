@@ -45,9 +45,9 @@
 		updateClassDailySlide = async (column: string, partialClassDaily: Partial<ClassProps>) => {}
 	}: PeopleMathProps = $props();
 
-	// svelte-ignore state_referenced_locally
-	let peopleTogether: Person[] = [...peopleSubtracted, ...peopleRemaining].sort((a, b) =>
-		a.name.localeCompare(b.name)
+	// follows the lists (attendance and People page edits arrive live), like the answers below
+	let peopleTogether: Person[] = $derived(
+		[...peopleSubtracted, ...peopleRemaining].sort((a, b) => a.name.localeCompare(b.name))
 	);
 
 	const optionsPerQuestion: number = 4;

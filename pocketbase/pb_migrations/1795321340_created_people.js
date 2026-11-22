@@ -10,6 +10,10 @@
 // Rolling back: the real way back is the pb_data copy taken before deploying. The down migration
 // only undoes a migration nobody has used yet; it refuses to run once people, attendance or guest
 // links have changed (set MM_PEOPLE_FORCE_DOWN=1 to throw those changes away and run it anyway).
+// Run `pocketbase migrate down 1` while this file is still in pb_migrations (with the people code
+// still checked out): without it PocketBase reverts whichever migration comes before it instead.
+// PocketBase exits with status 0 even when a migration fails, so check that it printed
+// "Reverted 1795321340_created_people.js" (or "Applied ..." when migrating up).
 
 migrate(
 	(app) => {
@@ -289,12 +293,12 @@ migrate(
 		});
 		app.save(peopleDailies);
 
-		// A guest check-in may belong to a person marked is_guest. Deleting that person only clears
-		// the link: the check-in keeps its own name and pronoun.
+		// A guest check-in may belong to a person marked is_guest. Like their attendance, deleting
+		// the person deletes their guest check-ins with them.
 		const guestDailies = app.findCollectionByNameOrId(GUEST_DAILIES_ID);
 		guestDailies.fields.add(
 			new Field({
-				cascadeDelete: false,
+				cascadeDelete: true,
 				collectionId: PEOPLE_ID,
 				hidden: false,
 				id: 'relation1795321342',
@@ -309,11 +313,16 @@ migrate(
 		);
 		app.save(guestDailies);
 
-		// Two different regular guests may share a name; each person can still check in once a day.
+		// One-off guests stay unique per date, name and icon. Two different regular guests may share
+		// a name and icon (or both use their own picture), so `person` joins that index; on top of
+		// it, a regular guest can check in only once a day (one-off guests have person = '').
 		const guestIndexes = JSON.parse(JSON.stringify(guestDailies.indexes));
 		const guestUnique = guestIndexes.findIndex((sql) => sql.includes('`idx_SKPwrroDQD`'));
 		if (guestUnique === -1) throw new Error('people migration: guest_dailies unique index not found');
 		guestIndexes[guestUnique] = guestIndexes[guestUnique].replace(/\)\s*$/, ', `person`)');
+		guestIndexes.push(
+			"CREATE UNIQUE INDEX `idx_guest_dailies_date_person` ON `guest_dailies` (`date`, `person`) WHERE `person` != ''"
+		);
 		unmarshal({ indexes: guestIndexes }, guestDailies);
 		app.save(guestDailies);
 
@@ -506,10 +515,11 @@ migrate(
 			console.log(`people migration: removed ${duplicates} same-name guest check-ins`);
 		}
 
+		// Drop the once-a-day index and take `person` back out of the other one before the field goes.
 		const guestDailies = app.findCollectionByNameOrId(GUEST_DAILIES_ID);
-		const guestIndexes = JSON.parse(JSON.stringify(guestDailies.indexes)).map((sql) =>
-			sql.includes('`idx_SKPwrroDQD`') ? sql.replace(', `person`)', ')') : sql
-		);
+		const guestIndexes = JSON.parse(JSON.stringify(guestDailies.indexes))
+			.filter((sql) => !sql.includes('`idx_guest_dailies_date_person`'))
+			.map((sql) => (sql.includes('`idx_SKPwrroDQD`') ? sql.replace(', `person`)', ')') : sql));
 		unmarshal({ indexes: guestIndexes }, guestDailies);
 		app.save(guestDailies);
 		guestDailies.fields.removeById('relation1795321342');

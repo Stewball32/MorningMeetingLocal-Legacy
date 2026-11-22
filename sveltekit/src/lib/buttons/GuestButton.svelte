@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { getGuestAvatar } from '#lib/pb/index.ts';
 	import type { IconRecord, GuestDaily, Person } from '#lib/pb/types.ts';
-	import { guestPictureUrl } from '#lib/slides/people.ts';
+	import { guestDisplayName, guestPictureUrl } from '#lib/slides/people.ts';
 	import { onMount } from 'svelte';
 	import Button from './+button.svelte';
 
@@ -55,16 +55,17 @@
 		} else if (guest.avatar) {
 			avatarRecord = await getGuestAvatar(guest.avatar);
 		}
-		// a regular guest may have been checked in without an icon: they use their own picture
-		if (!avatarRecord && !person?.avatar) {
-			console.error('Avatar not found for guest:', guest.avatar);
+		// no icon ('') is fine: a regular guest with their own picture is checked in without one
+		if (guest.avatar && !avatarRecord) {
+			console.warn('Avatar not found for guest:', guest.avatar);
 		}
 	});
 
 	// the person's own picture, else the icon picked at check-in, else the default avatar
 	let imageUrl = $derived(guestPictureUrl(person, avatarRecord));
-	let text = $derived(`${guest.title || ''} ${guest.name}`.trimStart());
-	let imgAlt = $derived(`${guest.title || ''} ${guest.name}`.trimStart());
+	// a regular guest's current name and title, else the name saved at check-in
+	let text = $derived(guestDisplayName(guest, person));
+	let imgAlt = $derived(text);
 </script>
 
 <Button
