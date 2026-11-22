@@ -1,14 +1,6 @@
 <script lang="ts">
 	import { updateClassDaily, updatePersonDaily } from '#lib/pb/index.ts';
-	import type {
-		ClassDaily,
-		IconRecord,
-		GuestDaily,
-		Student,
-		StudentDaily,
-		Teacher,
-		TeacherDaily
-	} from '#lib/pb/types.ts';
+	import type { ClassDaily, IconRecord, GuestDaily, Person, PersonDaily } from '#lib/pb/types.ts';
 	import { onMount } from 'svelte';
 	import WhoIsHere from '#lib/slides/attendance/WhoIsHere.svelte';
 	import type { ClassProps, MathClassProps } from './_types';
@@ -18,11 +10,12 @@
 	import NavArrows from '../NavArrows.svelte';
 
 	interface SlideProps {
-		students: Student[];
-		teachers: Teacher[];
+		students: Person[]; // shown on the student page
+		teachers: Person[]; // shown on the teacher page
+		guestPeople: Person[]; // offered in the Add Guest list
+		peopleById: Map<string, Person>; // everyone, active or not
 		classDaily: ClassDaily;
-		studentDailyMap: Map<string, StudentDaily>;
-		teacherDailyMap: Map<string, TeacherDaily>;
+		personDailyMap: Map<string, PersonDaily>;
 		guestDailies: GuestDaily[];
 		guestAvatarMap: Map<string, IconRecord>;
 		slideLeft: () => void;
@@ -36,9 +29,10 @@
 	let {
 		students = $bindable([]),
 		teachers = $bindable([]),
+		guestPeople = [],
+		peopleById = new Map<string, Person>(),
 		classDaily = $bindable({} as ClassDaily),
-		studentDailyMap = $bindable(new Map<string, StudentDaily>()),
-		teacherDailyMap = $bindable(new Map<string, TeacherDaily>()),
+		personDailyMap = $bindable(new Map<string, PersonDaily>()),
 		guestDailies = $bindable([]),
 		guestAvatarMap = $bindable(new Map<string, IconRecord>()),
 		slideLeft = () => {},
@@ -46,7 +40,7 @@
 		updateClassDailySlide = async (column: string, partialClassDaily: Partial<ClassDaily>) => {}
 	}: SlideProps = $props();
 
-	let currentPerson: Student | Teacher | undefined = $state(undefined);
+	let currentPerson: Person | undefined = $state(undefined);
 	let attendanceDaily = $derived(classDaily.attendance ?? ({} as ClassProps));
 	let page = $state(classDaily?.attendance?.page ?? 0);
 	let studentMath: MathClassProps = $derived(attendanceDaily.studentMath || ({} as MathClassProps));
@@ -59,21 +53,20 @@
 	onMount(async () => {
 		const personId = attendanceDaily.currentPerson; // id string
 		if (personId) {
-			const person =
-				students.find((s) => s.id === personId) || teachers.find((t) => t.id === personId);
+			// the student and teacher pages each only show the current person if they are theirs
+			const person = peopleById.get(personId);
 			if (person) {
 				currentPerson = person;
 			}
 		}
 	});
 
-	const updateAttendance = async (person: Student | Teacher | undefined, isHere: boolean) => {
+	const updateAttendance = async (person: Person | undefined, isHere: boolean) => {
 		if (!person) {
 			console.error('No person provided to update attendance.');
 			return;
 		}
-		let dailyMap = person.collectionName === 'students' ? studentDailyMap : teacherDailyMap;
-		let daily = dailyMap.get(person.id);
+		let daily = personDailyMap.get(person.id);
 		let here: 'present' | 'absent' | '' = '';
 		switch (daily?.here) {
 			case 'present':
@@ -111,7 +104,7 @@
 {#if page === 0}
 	<WhoIsHere
 		people={students}
-		dailyMap={studentDailyMap}
+		dailyMap={personDailyMap}
 		{updateAttendance}
 		bind:currentPerson
 		title="Let's Take Attendance!"
@@ -124,9 +117,9 @@
 {:else if page === 1}
 	<PeopleSubtraction
 		peopleTogetherName="Students"
-		peopleSubtracted={students.filter((s) => studentDailyMap.get(s.id)?.here === 'absent')}
+		peopleSubtracted={students.filter((s) => personDailyMap.get(s.id)?.here === 'absent')}
 		peopleSubtractedName="Absent"
-		peopleRemaining={students.filter((s) => studentDailyMap.get(s.id)?.here === 'present')}
+		peopleRemaining={students.filter((s) => personDailyMap.get(s.id)?.here === 'present')}
 		peopleRemainingName="Here"
 		title="How Many Students?"
 		mathProps={studentMath}
@@ -138,7 +131,7 @@
 {:else if page === 2}
 	<WhoIsHere
 		people={teachers}
-		dailyMap={teacherDailyMap}
+		dailyMap={personDailyMap}
 		{updateAttendance}
 		bind:currentPerson
 		title="Attendance: Part 2!"
@@ -154,23 +147,27 @@
 		{guestDailies}
 		{welcomeGuests}
 		{guestAvatarMap}
+		{guestPeople}
+		{peopleById}
 		{pageLeft}
 		{pageRight}
 		{updateClassDailySlide}
 	/>
 {:else if page === 4}
 	<PeopleAddition
-		peopleOne={students.filter((s) => studentDailyMap.get(s.id)?.here === 'present')}
+		peopleOne={students.filter((s) => personDailyMap.get(s.id)?.here === 'present')}
 		peopleOneName="Students"
-		peopleTwo={teachers
-			.filter((s) => teacherDailyMap.get(s.id)?.here === 'present')
-			.concat(guestDailies)}
+		peopleTwo={[
+			...teachers.filter((s) => personDailyMap.get(s.id)?.here === 'present'),
+			...guestDailies
+		]}
 		peopleTwoName="Teachers"
 		resultName="Total"
 		title="How Many People?"
 		mathProps={peopleMath}
 		mathPropsName="peopleMath"
 		{guestAvatarMap}
+		{peopleById}
 		{pageLeft}
 		{pageRight}
 		{updateClassDailySlide}

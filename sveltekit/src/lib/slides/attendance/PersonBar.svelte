@@ -1,17 +1,17 @@
 <script lang="ts">
-	import type { Student, StudentDaily, Teacher, TeacherDaily } from '#lib/pb/types.ts';
+	import type { Person, PersonDaily } from '#lib/pb/types.ts';
 	import PersonButton from '#lib/buttons/PersonButton.svelte';
 
 	interface PersonBarProps {
-		people: Student[] | Teacher[];
-		dailyMap: Map<string, StudentDaily | TeacherDaily>;
-		currentPerson: Student | Teacher | undefined;
-		onClick: (person: Student | Teacher) => void;
+		people: Person[];
+		dailyMap: Map<string, PersonDaily>;
+		currentPerson: Person | undefined;
+		onClick: (person: Person) => void;
 	}
 
 	let { people, dailyMap, currentPerson, onClick }: PersonBarProps = $props();
 
-	const getButtonPreset = (person: Student | Teacher) => {
+	const getButtonPreset = (person: Person) => {
 		const daily = dailyMap.get(person.id);
 		if (!daily) return 'surface';
 		if (daily.here === 'present') return 'success';
@@ -21,7 +21,7 @@
 </script>
 
 <div class="h-2/12 mx-auto flex w-full justify-evenly p-1 contain-strict">
-	{#each people as person}
+	{#each people as person (person.id)}
 		{#if person.id !== currentPerson?.id}
 			<PersonButton
 				{person}

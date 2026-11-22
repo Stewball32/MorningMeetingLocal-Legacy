@@ -41,16 +41,6 @@ export interface PersonDaily extends DailyRecord {
 	feelings?: string[];
 }
 
-// Pre-`people` names, kept until every caller uses Person / PersonDaily.
-/** @deprecated use Person */
-export type Student = Person;
-/** @deprecated use Person */
-export type Teacher = Person;
-/** @deprecated use PersonDaily */
-export type StudentDaily = PersonDaily;
-/** @deprecated use PersonDaily */
-export type TeacherDaily = PersonDaily;
-
 export interface IconRecord extends RecordModel {
 	name: string;
 	emoji: string; // emoji

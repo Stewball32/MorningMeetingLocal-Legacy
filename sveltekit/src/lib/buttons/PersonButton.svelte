@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { PUBLIC_POCKETBASE_URL } from '$app/env/public';
-	import type { Student, StudentDaily, Teacher, TeacherDaily } from '#lib/pb/types.ts';
+	import type { Person } from '#lib/pb/types.ts';
 	import Button from './+button.svelte';
 
 	interface Props {
-		person: Student | Teacher;
+		person: Person;
 		orientation?: 'horizontal' | 'vertical';
 		buttonClass?: string;
 		avatarClass?: string;

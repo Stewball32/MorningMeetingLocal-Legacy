@@ -1,6 +1,6 @@
 // place files you want to import through the `#lib` alias in this folder.
 
-import type { Student, Teacher } from './pb/types';
+import type { Person } from './pb/types';
 
 export const makeSearchParams = (
 	obj: Record<string, string | number | (string | number)[] | null | undefined>
@@ -62,10 +62,10 @@ export const getCurrentISOString = () => {
 /**
  * Returns a full set of pronouns based on the input. Undefined input defaults to "they".
  *
- * @param input - A string or Student/Teacher object.
+ * @param input - A string or Person object.
  * @returns  - a pronoun object.
  */
-export const getAllPronouns = (input?: string | Student | Teacher) => {
+export const getAllPronouns = (input?: string | Person) => {
 	const pronoun = typeof input === 'string' ? input : input?.pronoun || 'they';
 	switch (pronoun) {
 		case 'he':
@@ -101,10 +101,10 @@ export const getAllPronouns = (input?: string | Student | Teacher) => {
 /**
  * Returns the subject pronoun (e.g. "him", "her", "them") based on input.
  *
- * @param input - A string or Student/Teacher object.
+ * @param input - A string or Person object.
  * @returns The subject pronoun.
  */
-export const getPronounSubject = (input?: string | Student | Teacher) => {
+export const getPronounSubject = (input?: string | Person) => {
 	const pronouns = getAllPronouns(input);
 	return pronouns.subject;
 };
@@ -112,10 +112,10 @@ export const getPronounSubject = (input?: string | Student | Teacher) => {
 /**
  * Returns the object pronoun (e.g. "his", "her", "them") based on input.
  *
- * @param input - A string or Student/Teacher object.
+ * @param input - A string or Person object.
  * @returns The object pronoun.
  */
-export const getPronounObject = (input?: string | Student | Teacher) => {
+export const getPronounObject = (input?: string | Person) => {
 	const pronouns = getAllPronouns(input);
 	return pronouns.object;
 };
@@ -123,10 +123,10 @@ export const getPronounObject = (input?: string | Student | Teacher) => {
 /**
  * Returns the possessive pronoun (e.g. "his", "her", "their") based on input.
  *
- * @param input - A string or Student/Teacher object.
+ * @param input - A string or Person object.
  * @returns The possessive pronoun.
  */
-export const getPronounPossessive = (input?: string | Student | Teacher) => {
+export const getPronounPossessive = (input?: string | Person) => {
 	const pronouns = getAllPronouns(input);
 	return pronouns.possessive;
 };
@@ -134,10 +134,10 @@ export const getPronounPossessive = (input?: string | Student | Teacher) => {
 /**
  * Returns the reflexive pronoun (e.g. "himself", "herself", "themselves") based on input.
  *
- * @param input - A string or Student/Teacher object.
+ * @param input - A string or Person object.
  * @returns The reflexive pronoun.
  */
-export const getPronounReflexive = (input?: string | Student | Teacher) => {
+export const getPronounReflexive = (input?: string | Person) => {
 	const pronouns = getAllPronouns(input);
 	return pronouns.reflexive;
 };
@@ -145,10 +145,10 @@ export const getPronounReflexive = (input?: string | Student | Teacher) => {
 /**
  * Returns the present tense form of the verb "to be" based on input.
  *
- * @param input - A string or Student/Teacher object.
+ * @param input - A string or Person object.
  * @returns The present tense form of "to be".
  */
-export const getPronounPresent = (input?: string | Student | Teacher) => {
+export const getPronounPresent = (input?: string | Person) => {
 	const pronouns = getAllPronouns(input);
 	return pronouns.present;
 };
@@ -156,10 +156,10 @@ export const getPronounPresent = (input?: string | Student | Teacher) => {
 /**
  * Returns the past tense form of the verb "to be" based on input.
  *
- * @param input - A string or Student/Teacher object.
+ * @param input - A string or Person object.
  * @returns The past tense form of "to be".
  */
-export const getPronounPast = (input?: string | Student | Teacher) => {
+export const getPronounPast = (input?: string | Person) => {
 	const pronouns = getAllPronouns(input);
 	return pronouns.past;
 };

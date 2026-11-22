@@ -1,32 +1,26 @@
 import { getCurrentISOString } from '#lib';
 import {
-	getAllStudents,
-	getAllTeachers,
+	getAllPeople,
 	getClassDaily,
 	getGuestAvatarMap,
 	getGuestDailiesDate,
-	getStudentDailyMap,
-	getTeacherDailyMap
+	getPersonDailyMap
 } from '#lib/pb/index.ts';
 import type { PageLoad } from './$types';
 
 export const load = (async ({ params, url }) => {
 	const todayISOString = getCurrentISOString();
 	const classDaily = await getClassDaily();
-	const students = await getAllStudents();
-	const teachers = await getAllTeachers();
-	const studentDailyMap = await getStudentDailyMap();
-	const teacherDailyMap = await getTeacherDailyMap();
+	const people = await getAllPeople();
+	const personDailyMap = await getPersonDailyMap();
 	const guestDailies = await getGuestDailiesDate();
 	const guestAvatarMap = await getGuestAvatarMap();
 
 	return {
 		todayISOString,
 		classDaily,
-		students,
-		studentDailyMap,
-		teachers,
-		teacherDailyMap,
+		people,
+		personDailyMap,
 		guestDailies,
 		guestAvatarMap
 	};

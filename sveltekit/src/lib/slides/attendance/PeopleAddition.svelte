@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { fade } from 'svelte/transition';
-	import type { IconRecord, GuestDaily, Student, Teacher } from '#lib/pb/types.ts';
+	import type { IconRecord, GuestDaily, Person } from '#lib/pb/types.ts';
+	import { guestPerson, isPerson } from '#lib/slides/people.ts';
 	import PersonButton from '#lib/buttons/PersonButton.svelte';
 	import { Popover, Portal, Switch } from '@skeletonlabs/skeleton-svelte';
 
@@ -15,9 +16,9 @@
 
 	interface PeopleMathProps {
 		from?: 'left' | 'right';
-		peopleOne: (Student | Teacher | GuestDaily)[];
+		peopleOne: (Person | GuestDaily)[];
 		peopleOneName?: string;
-		peopleTwo: (Student | Teacher | GuestDaily)[];
+		peopleTwo: (Person | GuestDaily)[];
 		peopleTwoName?: string;
 		resultName?: string;
 		mathProps?: MathClassProps;
@@ -25,6 +26,7 @@
 		title?: string;
 		subtitle?: string;
 		guestAvatarMap?: Map<string, IconRecord>;
+		peopleById?: Map<string, Person>; // for the pictures of regular guests
 		pageLeft?: () => void;
 		pageRight?: () => void;
 		updateClassDailySlide: (
@@ -42,6 +44,7 @@
 		mathProps,
 		mathPropsName,
 		guestAvatarMap,
+		peopleById = new Map<string, Person>(),
 		title,
 		subtitle,
 		pageLeft = () => {},
@@ -50,7 +53,7 @@
 	}: PeopleMathProps = $props();
 
 	// svelte-ignore state_referenced_locally
-	const peopleResult: Student[] | Teacher[] = peopleOne
+	const peopleResult: (Person | GuestDaily)[] = peopleOne
 		.filter((p1) => !peopleTwo.some((p2) => p2.id === p1.id))
 		.concat(peopleTwo);
 
@@ -361,13 +364,14 @@
 			{#if showHintOne}
 				<div class={getGridDivClass(peopleOne.length)}>
 					{#each peopleOne as personOne (personOne.id)}
-						{#if ['students', 'teachers'].includes(personOne.collectionName)}
+						{#if isPerson(personOne)}
 							<div class="aspect-square">
 								<PersonButton person={personOne} buttonClass="aspect-square p-0" showName={false} />
 							</div>
 						{:else}
 							<GuestButton
-								guest={personOne as GuestDaily}
+								guest={personOne}
+								person={guestPerson(personOne, peopleById)}
 								{guestAvatarMap}
 								buttonClass="aspect-square p-0"
 								showName={false}
@@ -391,13 +395,14 @@
 			{#if showHintTwo}
 				<div class={getGridDivClass(peopleTwo.length)}>
 					{#each peopleTwo as personTwo (personTwo.id)}
-						{#if ['students', 'teachers'].includes(personTwo.collectionName)}
+						{#if isPerson(personTwo)}
 							<div class="aspect-square">
 								<PersonButton person={personTwo} buttonClass="aspect-square p-0" showName={false} />
 							</div>
 						{:else}
 							<GuestButton
-								guest={personTwo as GuestDaily}
+								guest={personTwo}
+								person={guestPerson(personTwo, peopleById)}
 								{guestAvatarMap}
 								buttonClass="aspect-square p-0"
 								showName={false}
@@ -422,7 +427,7 @@
 			{#if showHintResult}
 				<div class={getGridDivClass(peopleResult.length)}>
 					{#each peopleResult as personResult (personResult.id)}
-						{#if ['students', 'teachers'].includes(personResult.collectionName)}
+						{#if isPerson(personResult)}
 							<div class="aspect-square">
 								<PersonButton
 									person={personResult}
@@ -432,7 +437,8 @@
 							</div>
 						{:else}
 							<GuestButton
-								guest={personResult as GuestDaily}
+								guest={personResult}
+								person={guestPerson(personResult, peopleById)}
 								{guestAvatarMap}
 								buttonClass="aspect-square p-0"
 								showName={false}

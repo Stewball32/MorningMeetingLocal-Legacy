@@ -1,6 +1,6 @@
 export interface ClassProps {
 	page: number;
-	currentPerson?: string; // student or teacher ID
+	currentPerson?: string; // Person.id
 	studentMath?: MathClassProps;
 	peopleMath?: MathClassProps;
 	hasGuests?: boolean;
