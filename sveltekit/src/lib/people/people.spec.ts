@@ -1,17 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Person } from '#lib/pb/types.ts';
 import {
-	compareByName,
 	displayName,
 	flagMessage,
 	groupOf,
 	groupPeople,
 	historyParts,
-	plural,
 	pronounLabel,
-	removePerson,
-	roleLabel,
-	upsertPerson
+	roleLabel
 } from './people.ts';
 
 let nextId = 0;
@@ -87,30 +83,6 @@ describe('groupOf / groupPeople', () => {
 	});
 });
 
-describe('compareByName', () => {
-	it("sorts like PocketBase's sort: 'name' (plain text order)", () => {
-		const names = ['finn', 'Finn', 'Dora', 'Ánna', 'Bluey', 'bluey', 'Zed', '3D Kid'];
-		const sorted = names.map((name) => person({ name })).sort(compareByName);
-		expect(sorted.map((p) => p.name)).toEqual([
-			'3D Kid',
-			'Bluey',
-			'Dora',
-			'Finn',
-			'Zed',
-			'bluey',
-			'finn',
-			'Ánna'
-		]);
-	});
-
-	it('keeps people with the same name in a stable order', () => {
-		const a = person({ id: 'aaaaaaaaaaaaaaa', name: 'Sam' });
-		const b = person({ id: 'bbbbbbbbbbbbbbb', name: 'Sam' });
-		expect([b, a].sort(compareByName)).toEqual([a, b]);
-		expect(compareByName(a, a)).toBe(0);
-	});
-});
-
 describe('labels', () => {
 	it('describes pronouns the way the slides use them', () => {
 		expect(pronounLabel('he')).toBe('he / him');
@@ -122,31 +94,6 @@ describe('labels', () => {
 	it('names roles', () => {
 		expect(roleLabel('teacher')).toBe('Teacher');
 		expect(roleLabel('student')).toBe('Student');
-	});
-
-	it('counts things', () => {
-		expect(plural(0, 'day')).toBe('0 days');
-		expect(plural(1, 'day')).toBe('1 day');
-		expect(plural(12, 'day')).toBe('12 days');
-		expect(plural(2, 'person', 'people')).toBe('2 people');
-	});
-});
-
-describe('upsertPerson / removePerson', () => {
-	it('adds, replaces and removes by id without touching the original list', () => {
-		const a = person({ name: 'A' });
-		const b = person({ name: 'B' });
-		const list = [a, b];
-
-		const added = upsertPerson(list, person({ name: 'C' }));
-		expect(added.map((p) => p.name)).toEqual(['A', 'B', 'C']);
-
-		const renamed = upsertPerson(list, { ...a, name: 'A2' });
-		expect(renamed.map((p) => p.name)).toEqual(['A2', 'B']);
-		expect(list.map((p) => p.name)).toEqual(['A', 'B']);
-
-		expect(removePerson(list, a.id)).toEqual([b]);
-		expect(removePerson(list, 'missing')).toEqual(list);
 	});
 });
 

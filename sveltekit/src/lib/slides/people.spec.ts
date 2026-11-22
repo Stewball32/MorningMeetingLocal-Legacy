@@ -47,7 +47,7 @@ const icon = (id: string, emoji: string): IconRecord => ({
 	name: `Icon ${id}`,
 	emoji,
 	image: `${id}.png`,
-	for_avatar: true,
+	for_guests: true,
 	for_calendar: false
 });
 

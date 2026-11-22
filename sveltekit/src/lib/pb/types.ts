@@ -41,12 +41,16 @@ export interface PersonDaily extends DailyRecord {
 	feelings?: string[];
 }
 
+/**
+ * A row of `icons`: a picture with a name and an emoji, unique per (name, emoji). The `for_*`
+ * switches say where it is offered.
+ */
 export interface IconRecord extends RecordModel {
 	name: string;
-	emoji: string; // emoji
-	image: string; // image url
-	for_avatar: boolean; // for avatar
-	for_calendar: boolean; // for calendar
+	emoji: string; // one emoji; shown in the Add Guest lists
+	image: string; // file name in this record's storage; '' when it has no picture
+	for_guests: boolean; // offered to one-off guests (Add Guest)
+	for_calendar: boolean; // offered to calendar observances
 }
 
 export interface GuestDaily extends DailyRecord {
@@ -58,12 +62,25 @@ export interface GuestDaily extends DailyRecord {
 	person?: string;
 }
 
+/**
+ * A row of `calendar_observances`. Two kinds:
+ * - no `dates`: settings for the built-in (date-holidays, US) holiday of the same `name`;
+ * - with `dates`: the class's own observance on those days.
+ */
 export interface CalendarObservance extends RecordModel {
 	name: string;
-	description: string;
-	is_active: boolean;
-	dates: string[]; // Array of dates in YYYY-MM-DD format
-	image: string; // Image URL
-	exceptions: JSON; // TODO: Define a more specific type if needed
-	school: 'full' | 'short' | 'none'; // Whether this observance is a school day
+	description: string; // notes for the teacher; not shown on the slides
+	is_active: boolean; // false: the record is ignored (PocketBase's default)
+	/**
+	 * 'YYYY-MM-DD' (that year only) or 'MM-DD' (every year). Empty for a built-in holiday's
+	 * settings; PocketBase returns null for a record whose dates were never set.
+	 */
+	dates: string[];
+	image: string; // file name of its own picture in this record's storage; '' for none
+	icon?: string; // IconRecord.id, the picture to show when it has none of its own; '' for none
+	hidden?: boolean; // on a built-in holiday's settings: hide that holiday from the calendar
+	exceptions?: unknown; // an unused JSON field (null)
+	/** The school day: 'none' (No School!), 'short' (Short Day!), 'full'; '' when never set. */
+	school: 'full' | 'short' | 'none' | '';
+	expand?: { icon?: IconRecord }; // with `expand: 'icon'`
 }

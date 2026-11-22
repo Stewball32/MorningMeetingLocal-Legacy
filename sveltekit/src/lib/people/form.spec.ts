@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { changedFields } from '#lib/editor/form.ts';
 import type { Person } from '#lib/pb/types.ts';
-import {
-	changedFields,
-	emptyForm,
-	fieldsFromForm,
-	formFromPerson,
-	sameForm,
-	validateForm
-} from './form.ts';
+import { emptyForm, fieldsFromForm, formFromPerson, sameForm, validateForm } from './form.ts';
 
 const record = (fields: Partial<Person>): Person => ({
 	id: 'abcdefghijklmno',

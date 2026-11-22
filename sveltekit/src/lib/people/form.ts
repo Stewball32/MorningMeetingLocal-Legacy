@@ -1,4 +1,6 @@
-// The Add / Edit person form: its values, validation and the record fields it saves.
+// The Add / Edit person form: its values, validation and the record fields it saves (the shared
+// form helpers are in #lib/editor/form.ts).
+import { sameValues, type FieldErrors } from '#lib/editor/form.ts';
 import type { Person } from '#lib/pb/types.ts';
 import { MAX_SECONDS, formatTime, parseTime, parseYouTube } from './youtube.ts';
 
@@ -18,7 +20,7 @@ export interface PersonFormValues {
 }
 
 export type FormField = keyof PersonFormValues | 'avatar';
-export type FormErrors = Partial<Record<FormField, string>>;
+export type FormErrors = FieldErrors<FormField>;
 
 /** The record fields the form writes (the picture is handled separately). */
 export type PersonFields = Pick<
@@ -125,27 +127,7 @@ export function fieldsFromForm(values: PersonFormValues): PersonFields {
 
 /** Whether two sets of form values are the same (ignoring spaces around text). */
 export function sameForm(a: PersonFormValues, b: PersonFormValues): boolean {
-	return (Object.keys(a) as (keyof PersonFormValues)[]).every((field) =>
-		typeof a[field] === 'string'
-			? String(a[field]).trim() === String(b[field]).trim()
-			: a[field] === b[field]
-	);
-}
-
-/** How a save went: a new person, saved changes, or nothing to save. */
-export type SaveOutcome = 'created' | 'saved' | 'unchanged';
-
-/**
- * The fields that differ between two versions. Saving only these means a change made meanwhile
- * in another window (say, Active switched off there) is not overwritten by an edit that never
- * touched it.
- */
-export function changedFields(before: PersonFields, after: PersonFields): Partial<PersonFields> {
-	const changes: Partial<PersonFields> = {};
-	for (const key of Object.keys(after) as (keyof PersonFields)[]) {
-		if (before[key] !== after[key]) Object.assign(changes, { [key]: after[key] });
-	}
-	return changes;
+	return sameValues(a, b);
 }
 
 /** PocketBase field names -> form fields, for showing its validation errors next to the input. */

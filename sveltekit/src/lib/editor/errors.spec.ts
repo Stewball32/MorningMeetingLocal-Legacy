@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ClientResponseError } from 'pocketbase';
-import { describeError } from './errors.ts';
+import { describeError, validationCodes } from './errors.ts';
 
 describe('describeError', () => {
 	it('spots an unreachable PocketBase', () => {
@@ -27,7 +27,8 @@ describe('describeError', () => {
 				}
 			}
 		});
-		const problem = describeError(error, 'add the person', { form: true });
+		const fieldOf = { name: 'name', video_end: 'end', avatar: 'avatar' } as const;
+		const problem = describeError(error, 'add the person', { fieldOf });
 		expect(problem.offline).toBe(false);
 		expect(problem.fields).toEqual({
 			name: 'Missing required value.',
@@ -70,14 +71,38 @@ describe('describeError', () => {
 		expect(problem.message).toBe("Couldn't save: Failed. (mystery: Bad.)");
 	});
 
-	it('explains a record that is gone', () => {
+	it('explains a record that is gone, naming it', () => {
 		const error = new ClientResponseError({
 			status: 404,
 			response: { message: "The requested resource wasn't found." }
 		});
-		const problem = describeError(error, 'delete Finn');
+		const problem = describeError(error, 'delete Finn', { noun: 'person', pronoun: 'They' });
 		expect(problem.notFound).toBe(true);
-		expect(problem.message).toMatch(/no longer exists/);
+		expect(problem.message).toBe(
+			"Couldn't delete Finn: this person no longer exists. They may have been deleted in another window."
+		);
+		expect(describeError(error, 'save Sun', { noun: 'icon' }).message).toBe(
+			"Couldn't save Sun: this icon no longer exists. It may have been deleted in another window."
+		);
+		expect(describeError(error, 'save it').message).toMatch(/this record no longer exists\. It /);
+	});
+
+	it('leaves fields the map does not name in the message', () => {
+		const error = new ClientResponseError({
+			status: 400,
+			response: {
+				message: 'Failed to create record.',
+				data: {
+					name: { code: 'validation_required', message: 'Missing required value.' },
+					secret: { code: 'x', message: 'Bad.' }
+				}
+			}
+		});
+		const problem = describeError(error, 'add it', { fieldOf: { name: 'title' } });
+		expect(problem.fields).toEqual({ title: 'Missing required value.' });
+		expect(problem.message).toBe(
+			"Couldn't add it. Please fix the highlighted fields. (secret: Bad.)"
+		);
 	});
 
 	it("passes PocketBase's message through otherwise", () => {
@@ -88,5 +113,30 @@ describe('describeError', () => {
 	it('handles errors that are not from PocketBase', () => {
 		expect(describeError(new Error('boom'), 'save').message).toBe("Couldn't save: boom");
 		expect(describeError('odd', 'save').message).toBe("Couldn't save: odd");
+	});
+});
+
+describe('validationCodes', () => {
+	it("lists PocketBase's error codes by field", () => {
+		const error = new ClientResponseError({
+			status: 400,
+			response: {
+				message: 'Failed to create record.',
+				data: {
+					name: { code: 'validation_not_unique', message: 'Value must be unique.' },
+					emoji: { code: 'validation_not_unique', message: 'Value must be unique.' }
+				}
+			}
+		});
+		expect(validationCodes(error)).toEqual({
+			name: 'validation_not_unique',
+			emoji: 'validation_not_unique'
+		});
+	});
+
+	it('is empty for other errors', () => {
+		expect(validationCodes(new Error('boom'))).toEqual({});
+		expect(validationCodes(new ClientResponseError({ status: 0 }))).toEqual({});
+		expect(validationCodes(undefined)).toEqual({});
 	});
 });

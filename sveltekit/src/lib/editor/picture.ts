@@ -1,10 +1,11 @@
-// Picture uploads. The people.avatar field takes these image types; PocketBase caps a file at
-// 5 MB when the field sets no size (maxSize 0), which a phone photo can easily pass. Big photos
-// are scaled down in the browser before they are sent: over 5 MB, or more pixels than any
-// screen shows them at (a small file can hold a huge picture that every slide would then have
-// to decode).
+// Picture uploads for the editor pages (use it through PicturePicker.svelte). The picture fields
+// (people.avatar, icons.image, calendar_observances.image) take these image types; PocketBase
+// caps a file at 5 MB when the field sets no size (maxSize 0), which a phone photo can easily
+// pass. Big photos are scaled down in the browser before they are sent: over 5 MB, or more pixels
+// than any screen shows them at (a small file can hold a huge picture that every slide would then
+// have to decode). Animated GIF/WebP are kept as they are (up to 5 MB); animated PNG is refused.
 
-export const AVATAR_TYPES = [
+export const PICTURE_TYPES = [
 	'image/jpeg',
 	'image/png',
 	'image/svg+xml',
@@ -12,14 +13,14 @@ export const AVATAR_TYPES = [
 	'image/webp'
 ] as const;
 /** For <input type="file" accept=...>. */
-export const AVATAR_ACCEPT = AVATAR_TYPES.join(',');
-export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+export const PICTURE_ACCEPT = PICTURE_TYPES.join(',');
+export const PICTURE_MAX_BYTES = 5 * 1024 * 1024;
 /** Pictures wider or higher than this are scaled down, however few bytes they take. */
-export const AVATAR_MAX_SIDE = 2000;
+export const PICTURE_MAX_SIDE = 2000;
 /** The longer side a scaled-down picture gets (the next one if that is still over 5 MB). */
 const SHRINK_SIDES = [1600, 1000];
 
-const EXTENSION_TYPES: Record<string, (typeof AVATAR_TYPES)[number]> = {
+const EXTENSION_TYPES: Record<string, (typeof PICTURE_TYPES)[number]> = {
 	jpg: 'image/jpeg',
 	jpeg: 'image/jpeg',
 	png: 'image/png',
@@ -29,7 +30,7 @@ const EXTENSION_TYPES: Record<string, (typeof AVATAR_TYPES)[number]> = {
 };
 
 /** The file's image type, from the browser or (when it gives none) the file name. */
-export function avatarType(file: Pick<File, 'type' | 'name'>): string {
+export function pictureType(file: Pick<File, 'type' | 'name'>): string {
 	if (file.type) return file.type;
 	const extension = /\.([a-z0-9]+)$/i.exec(file.name)?.[1]?.toLowerCase() ?? '';
 	return EXTENSION_TYPES[extension] ?? '';
@@ -38,7 +39,7 @@ export function avatarType(file: Pick<File, 'type' | 'name'>): string {
 export const megabytes = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
 /** What is known about a chosen picture. */
-export interface AvatarFacts {
+export interface PictureFacts {
 	type: string;
 	/** in bytes */
 	size: number;
@@ -49,18 +50,18 @@ export interface AvatarFacts {
 	animated: boolean;
 }
 
-export type AvatarPlan = { use: 'as-is' | 'smaller' } | { error: string };
+export type PicturePlan = { use: 'as-is' | 'smaller' } | { error: string };
 
 const TYPE_ERROR = 'Please choose a JPEG, PNG, WebP, GIF or SVG picture.';
 const APNG_ERROR =
 	"Animated PNG pictures can't be used. Please choose an animated GIF or WebP, or a still picture.";
 
 /** Whether a picture can be used as it is, must be scaled down first, or can't be used. */
-export function planAvatar({ type, size, width, height, animated }: AvatarFacts): AvatarPlan {
-	if (!(AVATAR_TYPES as readonly string[]).includes(type)) return { error: TYPE_ERROR };
-	const tooHeavy = size > AVATAR_MAX_BYTES;
-	const tooBig = Math.max(width ?? 0, height ?? 0) > AVATAR_MAX_SIDE;
-	const limits = `pictures can be up to ${megabytes(AVATAR_MAX_BYTES)}`;
+export function planPicture({ type, size, width, height, animated }: PictureFacts): PicturePlan {
+	if (!(PICTURE_TYPES as readonly string[]).includes(type)) return { error: TYPE_ERROR };
+	const tooHeavy = size > PICTURE_MAX_BYTES;
+	const tooBig = Math.max(width ?? 0, height ?? 0) > PICTURE_MAX_SIDE;
+	const limits = `pictures can be up to ${megabytes(PICTURE_MAX_BYTES)}`;
 	// An SVG is drawn sharp at any size, so only its bytes count; it is never redrawn.
 	if (type === 'image/svg+xml')
 		return tooHeavy
@@ -74,7 +75,7 @@ export function planAvatar({ type, size, width, height, animated }: AvatarFacts)
 	if (animated) {
 		if (!tooHeavy) return { use: 'as-is' };
 		return {
-			error: `That picture is ${megabytes(size)}; GIF and animated pictures can be up to ${megabytes(AVATAR_MAX_BYTES)} (making them smaller here would stop the animation). Please choose a smaller one.`
+			error: `That picture is ${megabytes(size)}; GIF and animated pictures can be up to ${megabytes(PICTURE_MAX_BYTES)} (making them smaller here would stop the animation). Please choose a smaller one.`
 		};
 	}
 	return { use: 'smaller' };
@@ -162,14 +163,17 @@ async function shrink(
 	}
 }
 
-/** Checks a chosen picture and scales big photos down; resolves to the file to upload. */
-export async function prepareAvatar(file: File): Promise<{ file: File } | { error: string }> {
-	const type = avatarType(file);
-	if (!(AVATAR_TYPES as readonly string[]).includes(type)) return { error: TYPE_ERROR };
+/**
+ * Checks a chosen picture and scales big photos down; resolves to the file to upload, or to a
+ * message for the teacher.
+ */
+export async function preparePicture(file: File): Promise<{ file: File } | { error: string }> {
+	const type = pictureType(file);
+	if (!(PICTURE_TYPES as readonly string[]).includes(type)) return { error: TYPE_ERROR };
 	const svg = type === 'image/svg+xml';
 	const head = svg ? new Uint8Array() : new Uint8Array(await file.slice(0, 1 << 20).arrayBuffer());
 	const size = svg ? null : await readSize(file);
-	const plan = planAvatar({
+	const plan = planPicture({
 		type,
 		size: file.size,
 		width: size?.width,
@@ -183,7 +187,7 @@ export async function prepareAvatar(file: File): Promise<{ file: File } | { erro
 		if (size) {
 			for (const side of SHRINK_SIDES) {
 				const smaller = await shrink(file, size, side);
-				if (smaller && smaller.size <= AVATAR_MAX_BYTES) return { file: smaller };
+				if (smaller && smaller.size <= PICTURE_MAX_BYTES) return { file: smaller };
 			}
 		}
 	} catch (error) {
@@ -193,6 +197,6 @@ export async function prepareAvatar(file: File): Promise<{ file: File } | { erro
 		? `${megabytes(file.size)}, ${size.width} × ${size.height} pixels`
 		: megabytes(file.size);
 	return {
-		error: `That picture (${what}) couldn't be made smaller here; pictures can be up to ${megabytes(AVATAR_MAX_BYTES)} and ${AVATAR_MAX_SIDE} pixels wide and high.`
+		error: `That picture (${what}) couldn't be made smaller here; pictures can be up to ${megabytes(PICTURE_MAX_BYTES)} and ${PICTURE_MAX_SIDE} pixels wide and high.`
 	};
 }
