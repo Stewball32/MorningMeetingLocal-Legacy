@@ -10,6 +10,8 @@
 		regularGuestProblem,
 		type GuestNameOption
 	} from '#lib/slides/people.ts';
+	import { reportSaveError } from '#lib/present/saveStatus.svelte.ts';
+	import { releaseVideoFocus, youtubeEmbedUrl } from './video.ts';
 	import { displayName } from '#lib/people/people.ts';
 	import { onMount } from 'svelte';
 	import { fade, fly } from 'svelte/transition';
@@ -168,21 +170,20 @@
 	const reusePreviousGuest = (e: any) => {
 		console.log('Selected Guest', e);
 		selectedPerson = guestComboboxArray.find((option) => option.value === e.value[0])?.person;
+		// the combobox's value is the option's value (its id); zag shows that option's label
+		selectedGuestName = e.value[0] ? [e.value[0]] : [];
 		if (selectedPerson) {
 			selectedPronoun = selectedPerson.pronoun || undefined;
-			selectedGuestName = [displayName(selectedPerson)];
 			selectedAvatarId = [];
 			return;
 		}
 		let guest = previousGuests.find((guest) => guest.id === e.value[0]);
 		console.log('Guest', guest);
 		selectedPronoun = guest?.pronoun || undefined;
-		selectedGuestName = [guest?.name || e.label];
 		selectedAvatarId = [guest?.avatar ?? ''];
 	};
 
 	const updateModalGuestName = (guest: any) => {
-		if (guest.inputValue.length == 0 && modalGuestName.length > 1) return;
 		modalGuestName = guest.inputValue;
 		// typing a different name makes it a one-off guest again (the list shows the display name)
 		if (selectedPerson && modalGuestName !== displayName(selectedPerson))
@@ -282,12 +283,18 @@
 		}
 	};
 
-	const youtubeId = 'batjBLqr8ck';
-	const youtubeStart = 201;
-	const youtubeEnd = 223;
-	const youtubeParam = `?rel=0&enablejsapi=1&autoplay=0&start=${youtubeStart}&end=${youtubeEnd}`;
-	const youtubeEmbeddedUrl = `https://www.youtube.com/embed/${youtubeId}${youtubeParam}`;
-	const youtubeUrl = `https://www.youtube.com/watch?v=${youtubeId}${youtubeParam}`;
+	const welcomeVideo = { id: 'batjBLqr8ck', start: 201, end: 223 };
+	const youtubeEmbeddedUrl = youtubeEmbedUrl(welcomeVideo);
+	// (spelled out: the linter only recognises a literal https: link as external)
+	const youtubeUrl = `https://www.youtube.com/watch?v=${welcomeVideo.id}&t=${welcomeVideo.start}s`;
+
+	const removeGuest = async (guest: GuestDaily) => {
+		try {
+			await deleteGuestDaily(guest);
+		} catch (error) {
+			reportSaveError(error, `Removing ${guestName(guest)}`);
+		}
+	};
 </script>
 
 <!--
@@ -376,7 +383,7 @@
 	</Combobox.Context>
 {/snippet}
 
-<svelte:window onkeydown={onKeydown} />
+<svelte:window onkeydown={onKeydown} onblur={releaseVideoFocus} />
 
 {#if hasGuests != undefined}
 	<div class="h-1/12 absolute bottom-2 left-2 flex w-4/12 justify-start gap-[2%]">
@@ -426,7 +433,7 @@
 															<button
 																type="button"
 																class="btn preset-tonal-error-500 w-full rounded-full text-left"
-																onclick={() => deleteGuestDaily(guest)}
+																onclick={() => removeGuest(guest)}
 															>
 																<div class="text-size-1 flex w-full justify-between space-x-2">
 																	<span class="truncate">{guestName(guest)}</span>
