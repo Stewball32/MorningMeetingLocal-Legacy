@@ -33,9 +33,15 @@ export const isPerson = (record: Person | GuestDaily): record is Person =>
 export const guestPerson = (guest: GuestDaily, peopleById: Map<string, Person>) =>
 	guest.person ? peopleById.get(guest.person) : undefined;
 
-/** Today's check-ins without those of people who have since been switched off (not active). */
+/**
+ * Today's check-ins without those of people who are no longer regular guests: switched off (not
+ * active), or switched to Guest off (then they are a student or teacher again and counted as one).
+ */
 export const visibleGuestDailies = (guestDailies: GuestDaily[], peopleById: Map<string, Person>) =>
-	guestDailies.filter((guest) => guestPerson(guest, peopleById)?.active !== false);
+	guestDailies.filter((guest) => {
+		const person = guestPerson(guest, peopleById);
+		return !person || isListedGuest(person);
+	});
 
 /**
  * The name a guest check-in shows: a regular guest's current name with their title (like the

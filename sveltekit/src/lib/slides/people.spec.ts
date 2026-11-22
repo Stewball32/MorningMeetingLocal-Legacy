@@ -107,6 +107,17 @@ describe('guest check-ins', () => {
 		expect(ids(visibleGuestDailies(dailies, peopleById))).toEqual(['g1', 'g2', 'g4']);
 	});
 
+	it('hides check-ins of people switched to Guest off (they count as a student or teacher now)', () => {
+		const dailies = [
+			guest('g1', 'Gus', { person: 'gst' }),
+			guest('g2', 'Amy', { person: 'amy' }),
+			guest('g3', 'Ms. Lee', { person: 'lee' })
+		];
+		expect(ids(visibleGuestDailies(dailies, peopleById))).toEqual(['g1']);
+		const gusNoLongerAGuest = new Map(peopleById).set('gst', { ...guestStudent, is_guest: false });
+		expect(visibleGuestDailies(dailies, gusNoLongerAGuest)).toEqual([]);
+	});
+
 	it("shows a regular guest's current name and title, else the name saved at check-in", () => {
 		const officer = person('ofc', 'Dan', { role: 'teacher', title: 'Officer', is_guest: true });
 		const checkIn = guest('g1', 'Dan', { person: 'ofc' });

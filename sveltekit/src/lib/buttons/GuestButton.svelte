@@ -55,9 +55,9 @@
 		} else if (guest.avatar) {
 			avatarRecord = await getGuestAvatar(guest.avatar);
 		}
-		// a regular guest may have been checked in without an icon: they use their own picture
-		if (!avatarRecord && !person?.avatar) {
-			console.error('Avatar not found for guest:', guest.avatar);
+		// no icon ('') is fine: a regular guest with their own picture is checked in without one
+		if (guest.avatar && !avatarRecord) {
+			console.warn('Avatar not found for guest:', guest.avatar);
 		}
 	});
 
