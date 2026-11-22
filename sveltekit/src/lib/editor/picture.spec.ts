@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
-	AVATAR_ACCEPT,
-	AVATAR_MAX_BYTES,
-	AVATAR_MAX_SIDE,
-	avatarType,
+	PICTURE_ACCEPT,
+	PICTURE_MAX_BYTES,
+	PICTURE_MAX_SIDE,
+	pictureType,
 	looksAnimated,
-	planAvatar,
-	type AvatarFacts
-} from './avatar.ts';
+	planPicture,
+	type PictureFacts
+} from './picture.ts';
 
 const MB = 1024 * 1024;
-const facts = (more: Partial<AvatarFacts>): AvatarFacts => ({
+const facts = (more: Partial<PictureFacts>): PictureFacts => ({
 	type: 'image/png',
 	size: 200_000,
 	width: 800,
@@ -19,75 +19,75 @@ const facts = (more: Partial<AvatarFacts>): AvatarFacts => ({
 	...more
 });
 
-describe('avatar files', () => {
-	it('accepts the image types the people.avatar field allows', () => {
-		expect(AVATAR_ACCEPT).toBe('image/jpeg,image/png,image/svg+xml,image/gif,image/webp');
+describe('picture files', () => {
+	it('accepts the image types the picture fields allow', () => {
+		expect(PICTURE_ACCEPT).toBe('image/jpeg,image/png,image/svg+xml,image/gif,image/webp');
 	});
 
 	it('falls back to the file name when the browser gives no type', () => {
-		expect(avatarType({ type: '', name: 'me.JPG' })).toBe('image/jpeg');
-		expect(avatarType({ type: '', name: 'me.svg' })).toBe('image/svg+xml');
-		expect(avatarType({ type: '', name: 'me' })).toBe('');
-		expect(avatarType({ type: 'image/png', name: 'me.jpg' })).toBe('image/png');
+		expect(pictureType({ type: '', name: 'me.JPG' })).toBe('image/jpeg');
+		expect(pictureType({ type: '', name: 'me.svg' })).toBe('image/svg+xml');
+		expect(pictureType({ type: '', name: 'me' })).toBe('');
+		expect(pictureType({ type: 'image/png', name: 'me.jpg' })).toBe('image/png');
 	});
 });
 
-describe('planAvatar', () => {
+describe('planPicture', () => {
 	it('takes small pictures as they are', () => {
-		expect(planAvatar(facts({}))).toEqual({ use: 'as-is' });
+		expect(planPicture(facts({}))).toEqual({ use: 'as-is' });
 		expect(
-			planAvatar(facts({ type: 'image/gif', size: AVATAR_MAX_BYTES, animated: true }))
+			planPicture(facts({ type: 'image/gif', size: PICTURE_MAX_BYTES, animated: true }))
 		).toEqual({ use: 'as-is' });
-		expect(planAvatar(facts({ width: AVATAR_MAX_SIDE, height: AVATAR_MAX_SIDE }))).toEqual({
+		expect(planPicture(facts({ width: PICTURE_MAX_SIDE, height: PICTURE_MAX_SIDE }))).toEqual({
 			use: 'as-is'
 		});
 	});
 
 	it('scales big photos down', () => {
 		for (const type of ['image/jpeg', 'image/png', 'image/webp'])
-			expect(planAvatar(facts({ type, size: 8 * MB }))).toEqual({ use: 'smaller' });
+			expect(planPicture(facts({ type, size: 8 * MB }))).toEqual({ use: 'smaller' });
 	});
 
 	it('scales pictures with too many pixels down, however few bytes they take', () => {
-		expect(planAvatar(facts({ size: 1 * MB, width: 16000, height: 16000 }))).toEqual({
+		expect(planPicture(facts({ size: 1 * MB, width: 16000, height: 16000 }))).toEqual({
 			use: 'smaller'
 		});
-		expect(planAvatar(facts({ type: 'image/jpeg', width: 2000, height: 3000 }))).toEqual({
+		expect(planPicture(facts({ type: 'image/jpeg', width: 2000, height: 3000 }))).toEqual({
 			use: 'smaller'
 		});
 	});
 
 	it('leaves a picture it cannot measure to PocketBase unless it is too big', () => {
 		const unknown = { width: undefined, height: undefined };
-		expect(planAvatar(facts(unknown))).toEqual({ use: 'as-is' });
-		expect(planAvatar(facts({ ...unknown, size: 8 * MB }))).toEqual({ use: 'smaller' });
+		expect(planPicture(facts(unknown))).toEqual({ use: 'as-is' });
+		expect(planPicture(facts({ ...unknown, size: 8 * MB }))).toEqual({ use: 'smaller' });
 	});
 
 	it('never flattens an animated picture', () => {
-		const heavy = planAvatar(facts({ type: 'image/webp', size: 9 * MB, animated: true }));
+		const heavy = planPicture(facts({ type: 'image/webp', size: 9 * MB, animated: true }));
 		expect('error' in heavy && heavy.error).toMatch(/9\.0 MB.*animat/);
-		const large = planAvatar(
+		const large = planPicture(
 			facts({ type: 'image/gif', width: 3000, height: 2000, animated: true })
 		);
 		expect(large).toEqual({ use: 'as-is' });
-		const gif = planAvatar(facts({ type: 'image/gif', size: 6 * MB, animated: true }));
+		const gif = planPicture(facts({ type: 'image/gif', size: 6 * MB, animated: true }));
 		expect('error' in gif && gif.error).toMatch(/6\.0 MB/);
 	});
 
 	it('turns away animated PNGs, which PocketBase refuses', () => {
-		const apng = planAvatar(facts({ animated: true }));
+		const apng = planPicture(facts({ animated: true }));
 		expect('error' in apng && apng.error).toMatch(/Animated PNG/);
 	});
 
 	it('keeps SVGs as they are, up to 5 MB', () => {
 		const svg = { type: 'image/svg+xml', width: undefined, height: undefined };
-		expect(planAvatar(facts({ ...svg, size: 4 * MB }))).toEqual({ use: 'as-is' });
-		expect(planAvatar(facts({ ...svg, size: 6 * MB }))).toHaveProperty('error');
+		expect(planPicture(facts({ ...svg, size: 4 * MB }))).toEqual({ use: 'as-is' });
+		expect(planPicture(facts({ ...svg, size: 6 * MB }))).toHaveProperty('error');
 	});
 
 	it('turns away other kinds of file', () => {
-		expect(planAvatar(facts({ type: 'application/pdf' }))).toHaveProperty('error');
-		expect(planAvatar(facts({ type: 'image/heic' }))).toHaveProperty('error');
+		expect(planPicture(facts({ type: 'application/pdf' }))).toHaveProperty('error');
+		expect(planPicture(facts({ type: 'image/heic' }))).toHaveProperty('error');
 	});
 });
 

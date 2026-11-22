@@ -1,3 +1,9 @@
+<!--
+	@component
+	A switch with its label, the whole label being the click target. In a list, pass `context`
+	(e.g. the record's name) so screen readers hear whose switch it is, and `readOnly` while its
+	change is being saved.
+-->
 <script lang="ts">
 	import { Switch } from '@skeletonlabs/skeleton-svelte';
 

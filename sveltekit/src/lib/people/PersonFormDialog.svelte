@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { Person } from '#lib/pb/types.ts';
-	import EditorDialog from './EditorDialog.svelte';
-	import type { PersonFormValues, SaveOutcome } from './form.ts';
+	import EditorDialog from '#lib/editor/EditorDialog.svelte';
+	import type { SaveOutcome } from '#lib/editor/form.ts';
+	import type { PersonFormValues } from './form.ts';
 	import PersonForm from './PersonForm.svelte';
 
 	interface Props {

@@ -1,3 +1,18 @@
+<!--
+	@component
+	The dialog every editor uses (forms and delete confirmations), styled like the People editor.
+	Keep its content in its own component and give it a new `session` for each opening:
+
+	```svelte
+	<EditorDialog open={formOpen} session={formSession} onClose={() => (formOpen = false)}
+		canClose={() => form?.canClose() ?? true} closeOnInteractOutside={false} class="max-w-3xl">
+		<IconForm bind:this={form} ... />
+	</EditorDialog>
+	```
+
+	Use `role="alertdialog"` for a delete confirmation (zag then focuses its Dialog.CloseTrigger,
+	i.e. Cancel, and ignores clicks outside). Title the content with Dialog.Title.
+-->
 <script lang="ts">
 	import { Dialog, Portal } from '@skeletonlabs/skeleton-svelte';
 	import type { Snippet } from 'svelte';

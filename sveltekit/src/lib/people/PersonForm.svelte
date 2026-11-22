@@ -1,29 +1,27 @@
 <script lang="ts">
 	import { Dialog, SegmentedControl } from '@skeletonlabs/skeleton-svelte';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
-	import ImagePlus from '@lucide/svelte/icons/image-plus';
-	import ImageOff from '@lucide/svelte/icons/image-off';
-	import Undo from '@lucide/svelte/icons/undo-2';
-	import { onDestroy, tick, untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
+	import { describeError } from '#lib/editor/errors.ts';
+	import { changedFields, type SaveOutcome } from '#lib/editor/form.ts';
+	import LabeledSwitch from '#lib/editor/LabeledSwitch.svelte';
+	import PicturePicker from '#lib/editor/PicturePicker.svelte';
 	import type { Person } from '#lib/pb/types.ts';
 	import { createPerson, personAvatarUrl, updatePerson } from '#lib/pb/people.ts';
-	import { AVATAR_ACCEPT, prepareAvatar } from './avatar.ts';
-	import { describeError } from './errors.ts';
+	import type { FileChange } from '#lib/pb/requests.ts';
 	import {
-		changedFields,
 		emptyForm,
+		FORM_FIELD_OF,
 		fieldsFromForm,
 		formFromPerson,
 		sameForm,
 		validateForm,
 		type FormErrors,
 		type FormField,
-		type PersonFormValues,
-		type SaveOutcome
+		type PersonFormValues
 	} from './form.ts';
-	import LabeledSwitch from './LabeledSwitch.svelte';
 	import PersonAvatar from './PersonAvatar.svelte';
-	import { displayName, groupOf } from './people.ts';
+	import { displayName, groupOf, PERSON_ERRORS } from './people.ts';
 	import {
 		MAX_SECONDS,
 		describeTimeIssues,
@@ -67,74 +65,9 @@
 	// --- Picture -----------------------------------------------------------------------------
 
 	const currentPictureUrl = original?.avatar ? personAvatarUrl(original) : '';
-	let newPicture: File | null = $state(null);
-	let newPictureUrl = $state('');
-	let removePicture = $state(false);
+	/** What to send for the picture (see PicturePicker). */
+	let picture: FileChange = $state();
 	let preparingPicture = $state(false);
-	let dragging = $state(false);
-	let fileInput: HTMLInputElement | undefined = $state();
-
-	const pictureUrl = $derived(newPictureUrl || (removePicture ? '' : currentPictureUrl));
-	const pictureChanged = $derived(!!newPicture || removePicture);
-
-	const forgetNewPicture = () => {
-		if (newPictureUrl) URL.revokeObjectURL(newPictureUrl);
-		newPicture = null;
-		newPictureUrl = '';
-	};
-	/**
-	 * Counts picture choices. Getting a big one ready takes a moment; only the latest choice's
-	 * result is used, so a slow one can't replace a picture chosen after it.
-	 */
-	let pictureChoice = 0;
-	const dropPictureInProgress = () => {
-		pictureChoice++;
-		preparingPicture = false;
-	};
-	onDestroy(() => {
-		dropPictureInProgress();
-		forgetNewPicture();
-	});
-
-	async function usePicture(file: File | null | undefined) {
-		if (!file || saving) return;
-		clearError('avatar');
-		const choice = ++pictureChoice;
-		preparingPicture = true;
-		const result = await prepareAvatar(file);
-		if (choice !== pictureChoice) return;
-		preparingPicture = false;
-		if ('error' in result) {
-			errors.avatar = result.error;
-			return;
-		}
-		forgetNewPicture();
-		newPicture = result.file;
-		newPictureUrl = URL.createObjectURL(result.file);
-		removePicture = false;
-	}
-
-	function onFileChosen(event: Event & { currentTarget: HTMLInputElement }) {
-		const file = event.currentTarget.files?.[0];
-		event.currentTarget.value = ''; // so choosing the same file again still counts
-		usePicture(file);
-	}
-
-	function onRemovePicture() {
-		dropPictureInProgress();
-		forgetNewPicture();
-		removePicture = !!currentPictureUrl;
-		clearError('avatar');
-	}
-
-	function onKeepPicture() {
-		dropPictureInProgress();
-		forgetNewPicture();
-		removePicture = false;
-		clearError('avatar');
-	}
-
-	const isFileDrag = (event: DragEvent) => !!event.dataTransfer?.types.includes('Files');
 
 	// --- Video -------------------------------------------------------------------------------
 
@@ -267,7 +200,7 @@
 		}
 
 		const fields = fieldsFromForm(values);
-		const avatar = newPicture ?? (removePicture ? null : undefined);
+		const avatar = picture;
 		const changes = original ? changedFields(fieldsFromForm(initial), fields) : fields;
 		// Once saved, the form stays locked while the dialog closes: a second Enter in that moment
 		// must not save (or add the person) again.
@@ -282,7 +215,7 @@
 		try {
 			const saved = original
 				? await updatePerson(original.id, changes, avatar)
-				: await createPerson(fields, newPicture);
+				: await createPerson(fields, picture);
 			sending = false;
 			onSaved(saved, original ? 'saved' : 'created');
 		} catch (error) {
@@ -291,7 +224,7 @@
 			const problem = describeError(
 				error,
 				original ? `save ${displayName(original)}` : `add ${values.name.trim()}`,
-				{ form: true }
+				{ ...PERSON_ERRORS, fieldOf: FORM_FIELD_OF }
 			);
 			errors = problem.fields;
 			message = problem.message;
@@ -302,7 +235,7 @@
 	/** For Escape: the dialog stays open while saving, and asks before changes are thrown away. */
 	export function canClose(): boolean {
 		if (saving) return false;
-		if (!pictureChanged && !preparingPicture && sameForm(values, initial)) return true;
+		if (picture === undefined && !preparingPicture && sameForm(values, initial)) return true;
 		return confirm('Discard your changes?');
 	}
 
@@ -334,86 +267,23 @@
 
 	<div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-3">
 		<div class="flex flex-col gap-5 md:flex-row">
-			<!-- Picture: choose, drop, replace, remove -->
-			<div
-				role="group"
-				aria-labelledby={id('picture-label')}
-				class="rounded-container flex shrink-0 flex-col items-center gap-2 p-2 md:w-52 {dragging
-					? 'ring-primary-500 bg-primary-50-950 ring-4'
-					: ''}"
-				ondragover={(event) => {
-					if (!isFileDrag(event)) return;
-					event.preventDefault();
-					dragging = true;
+			<PicturePicker
+				field="avatar"
+				currentUrl={currentPictureUrl}
+				bind:change={picture}
+				bind:preparing={preparingPicture}
+				disabled={saving}
+				error={errors.avatar}
+				onError={(text) => {
+					if (text) errors.avatar = text;
+					else clearError('avatar');
 				}}
-				ondragleave={() => (dragging = false)}
-				ondrop={(event) => {
-					if (!isFileDrag(event)) return;
-					event.preventDefault();
-					dragging = false;
-					usePicture(event.dataTransfer?.files?.[0]);
-				}}
+				class="md:w-52"
 			>
-				<span id={id('picture-label')} class="label-text self-start">Picture</span>
-				<PersonAvatar src={pictureUrl} alt="" class="size-32" />
-				<input
-					bind:this={fileInput}
-					type="file"
-					accept={AVATAR_ACCEPT}
-					class="hidden"
-					onchange={onFileChosen}
-					aria-hidden="true"
-					tabindex="-1"
-				/>
-				<div class="flex flex-wrap justify-center gap-2">
-					<button
-						type="button"
-						class="btn preset-tonal-primary px-3 py-2"
-						disabled={preparingPicture || saving}
-						aria-describedby={id('picture-status')}
-						onclick={() => fileInput?.click()}
-					>
-						<ImagePlus class="size-5" aria-hidden="true" />
-						{pictureUrl ? 'Replace picture' : 'Choose picture'}
-					</button>
-					{#if pictureUrl}
-						<button
-							type="button"
-							class="btn preset-tonal-error px-3 py-2"
-							disabled={preparingPicture || saving}
-							onclick={onRemovePicture}
-						>
-							<ImageOff class="size-5" aria-hidden="true" />
-							Remove picture
-						</button>
-					{/if}
-					{#if pictureChanged && currentPictureUrl}
-						<button
-							type="button"
-							class="btn preset-tonal px-3 py-2"
-							disabled={saving}
-							onclick={onKeepPicture}
-						>
-							<Undo class="size-5" aria-hidden="true" />
-							Keep the old picture
-						</button>
-					{/if}
-				</div>
-				<p id={id('picture-status')} class="text-center text-xs opacity-80" aria-live="polite">
-					{#if preparingPicture}
-						Getting the picture ready…
-					{:else if newPicture}
-						New picture chosen; it is uploaded when you save.
-					{:else if removePicture}
-						The picture is removed when you save; the slides then show the default one.
-					{:else if pictureUrl}
-						Or drop a new picture here.
-					{:else}
-						No picture: the slides show this default one. Or drop a picture here.
-					{/if}
-				</p>
-				{@render fieldError('avatar')}
-			</div>
+				{#snippet preview(url)}
+					<PersonAvatar src={url} alt="" class="size-32" />
+				{/snippet}
+			</PicturePicker>
 
 			<div class="min-w-0 flex-1 space-y-4">
 				<div class="flex gap-3">

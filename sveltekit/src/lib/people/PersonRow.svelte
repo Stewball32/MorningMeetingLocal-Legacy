@@ -5,7 +5,7 @@
 	import VideoOff from '@lucide/svelte/icons/video-off';
 	import type { Person } from '#lib/pb/types.ts';
 	import { personAvatarUrl } from '#lib/pb/people.ts';
-	import LabeledSwitch from './LabeledSwitch.svelte';
+	import LabeledSwitch from '#lib/editor/LabeledSwitch.svelte';
 	import PersonAvatar from './PersonAvatar.svelte';
 	import { displayName, pronounLabel, roleLabel, type Flag } from './people.ts';
 

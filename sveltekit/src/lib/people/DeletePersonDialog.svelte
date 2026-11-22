@@ -1,8 +1,8 @@
 <script lang="ts">
+	import EditorDialog from '#lib/editor/EditorDialog.svelte';
 	import type { Person } from '#lib/pb/types.ts';
 	import type { PersonHistory } from '#lib/pb/people.ts';
 	import DeletePersonConfirm from './DeletePersonConfirm.svelte';
-	import EditorDialog from './EditorDialog.svelte';
 
 	interface Props {
 		open: boolean;

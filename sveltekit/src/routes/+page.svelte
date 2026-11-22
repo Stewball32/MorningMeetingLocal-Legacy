@@ -14,7 +14,7 @@
 			<Presentation class="size-8" aria-hidden="true" />
 			Presenter
 		</a>
-		<a href={resolve('/people')} class="btn preset-tonal-primary w-full gap-3 py-4 text-2xl">
+		<a href={resolve('/(editor)/people')} class="btn preset-tonal-primary w-full gap-3 py-4 text-2xl">
 			<Users class="size-8" aria-hidden="true" />
 			People
 		</a>
