@@ -128,23 +128,24 @@
 	}
 
 	/** "Turn off instead" (in the delete dialog): every switch off, with Undo. */
-	function turnOff(icon: IconRecord, undoable = true) {
+	function turnOff(icon: IconRecord) {
 		const current = icons.find(icon.id) ?? icon;
 		const changes = allOff(current);
 		const fields = Object.keys(changes) as UseField[];
+		if (fields.length === 0) {
+			// Turned off meanwhile (say in another window): nothing to send.
+			notices.show({ text: turnedOffMessage(current.name, fields), tone: 'success' });
+			return;
+		}
+		const turnBackOn = (saved: IconRecord) =>
+			saveSwitches(saved, Object.fromEntries(fields.map((field) => [field, true])), (back) =>
+				notices.show({ text: `${back.name} is turned on again.`, tone: 'success' })
+			);
 		saveSwitches(current, changes, (saved) =>
 			notices.show({
 				text: turnedOffMessage(saved.name, fields),
 				tone: 'success',
-				undo: undoable
-					? () =>
-							saveSwitches(
-								saved,
-								Object.fromEntries(fields.map((field) => [field, true])),
-								(back) =>
-									notices.show({ text: `${back.name} is turned on again.`, tone: 'success' })
-							)
-					: undefined
+				undo: () => turnBackOn(saved)
 			})
 		);
 	}
@@ -299,7 +300,7 @@
 						onclick={() => openAdd({ [use.field]: true })}
 					>
 						<Plus class="size-6" aria-hidden="true" />
-						{use.addLabel.replace(/^Add /, 'Add a ')}
+						{use.addLabel}
 					</button>
 				{/each}
 			</div>

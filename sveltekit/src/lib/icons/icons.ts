@@ -2,7 +2,7 @@
 import { validationCodes, type DescribeOptions } from '#lib/editor/errors.ts';
 import { compareByName, plural } from '#lib/editor/list.ts';
 import type { IconRecord } from '#lib/pb/types.ts';
-import { USES, usesOf, type UseCounts, type UseField, type UseKey } from './uses.ts';
+import { USES, useOf, usesOf, type UseCounts, type UseField, type UseKey } from './uses.ts';
 
 /** For describeError: "this icon no longer exists. It may have been deleted ..." */
 export const ICON_ERRORS = { noun: 'icon', pronoun: 'It' } satisfies DescribeOptions;
@@ -73,8 +73,7 @@ export function afterDelete(counts: UseCounts | null): string[] {
 
 /** The message after one of an icon's switches was saved in the list. */
 export function switchMessage(icon: Pick<IconRecord, 'name' | UseField>, field: UseField): string {
-	const use = USES.find((candidate) => candidate.field === field);
-	if (!use) return `Saved ${icon.name}.`;
+	const use = useOf(field);
 	return icon[field] ? use.turnedOn(icon.name) : use.turnedOff(icon.name);
 }
 
