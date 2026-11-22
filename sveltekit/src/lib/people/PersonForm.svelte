@@ -56,6 +56,8 @@
 	let message = $state('');
 	/** A save is on its way, or done (the dialog is then closing): the form takes no more input. */
 	let saving = $state(false);
+	/** The save request is on its way (the button says so; not while the dialog closes). */
+	let sending = $state(false);
 
 	const clearError = (field: FormField) => {
 		if (errors[field]) errors[field] = undefined;
@@ -276,12 +278,15 @@
 			onSaved(original, 'unchanged');
 			return;
 		}
+		sending = true;
 		try {
 			const saved = original
 				? await updatePerson(original.id, changes, avatar)
 				: await createPerson(fields, newPicture);
+			sending = false;
 			onSaved(saved, original ? 'saved' : 'created');
 		} catch (error) {
+			sending = false;
 			saving = false;
 			const problem = describeError(
 				error,
@@ -636,7 +641,7 @@
 				class="btn preset-filled-primary-500 px-5 py-2"
 				disabled={saving || preparingPicture}
 			>
-				{#if saving}
+				{#if sending}
 					Saving…
 				{:else}
 					{original ? 'Save changes' : 'Add person'}

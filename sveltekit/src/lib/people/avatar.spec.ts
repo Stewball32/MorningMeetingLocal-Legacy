@@ -69,7 +69,7 @@ describe('planAvatar', () => {
 		const large = planAvatar(
 			facts({ type: 'image/gif', width: 3000, height: 2000, animated: true })
 		);
-		expect('error' in large && large.error).toMatch(/3000 × 2000 pixels/);
+		expect(large).toEqual({ use: 'as-is' });
 		const gif = planAvatar(facts({ type: 'image/gif', size: 6 * MB, animated: true }));
 		expect('error' in gif && gif.error).toMatch(/6\.0 MB/);
 	});

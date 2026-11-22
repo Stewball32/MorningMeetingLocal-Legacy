@@ -97,14 +97,14 @@
 			? removePerson(list, event.record.id)
 			: upsertPerson(list, event.record);
 	/** Live changes that arrived while a load was on its way, one list per load. */
-	const changesDuringLoads = new Set<RecordSubscription<Person>[]>();
+	const changesDuringLoads: RecordSubscription<Person>[][] = [];
 
 	/** (Re)loads everyone. A failure only replaces the list with an error before the first load. */
 	async function load() {
 		clearTimeout(retryTimer);
 		if (status === 'error') retrying = true;
 		const changes: RecordSubscription<Person>[] = [];
-		changesDuringLoads.add(changes);
+		changesDuringLoads.push(changes);
 		try {
 			const list = await listPeople();
 			if (destroyed) return;
@@ -120,7 +120,7 @@
 			status = 'error';
 			retryTimer = setTimeout(load, 5000);
 		} finally {
-			changesDuringLoads.delete(changes);
+			changesDuringLoads.splice(changesDuringLoads.indexOf(changes), 1);
 			retrying = false;
 		}
 	}

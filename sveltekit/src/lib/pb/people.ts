@@ -3,6 +3,10 @@
 //
 // Every request passes requestKey: null: the SDK otherwise cancels a pending request when another
 // one with the same key starts (e.g. two quick Active toggles, or a reload during a save).
+//
+// Saves and deletes also give up after WRITE_TIMEOUT_MS: the SDK has no timeout of its own, and the
+// dialogs stay locked while a save or delete is on its way, so a request that never gets an
+// answer (e.g. the laptop's Wi-Fi dropped) must end as a "Can't reach PocketBase" error.
 import { PUBLIC_POCKETBASE_URL } from '$app/env/public';
 import type { RecordSubscription, UnsubscribeFunc } from 'pocketbase';
 import { getPbImageUrl, pb } from '#lib/pb/index.ts';
@@ -14,6 +18,10 @@ export const PEOPLE = 'people';
 export const PEOPLE_DAILIES = 'people_dailies';
 export const GUEST_DAILIES = 'guest_dailies';
 export const POCKETBASE_URL = PUBLIC_POCKETBASE_URL;
+
+/** Long enough for a 5 MB picture on slow Wi-Fi. */
+export const WRITE_TIMEOUT_MS = 30_000;
+const writeOptions = () => ({ requestKey: null, signal: AbortSignal.timeout(WRITE_TIMEOUT_MS) });
 
 /** A new picture to upload, null to remove the current one, undefined to leave it alone. */
 export type AvatarChange = File | null | undefined;
@@ -29,7 +37,7 @@ export function listPeople(): Promise<Person[]> {
 export function createPerson(fields: PersonFields, avatar?: File | null): Promise<Person> {
 	return pb
 		.collection(PEOPLE)
-		.create<Person>(withAvatar(fields, avatar ?? undefined), { requestKey: null });
+		.create<Person>(withAvatar(fields, avatar ?? undefined), writeOptions());
 }
 
 export function updatePerson(
@@ -37,7 +45,7 @@ export function updatePerson(
 	fields: Partial<PersonFields>,
 	avatar?: AvatarChange
 ): Promise<Person> {
-	return pb.collection(PEOPLE).update<Person>(id, withAvatar(fields, avatar), { requestKey: null });
+	return pb.collection(PEOPLE).update<Person>(id, withAvatar(fields, avatar), writeOptions());
 }
 
 /**
@@ -45,7 +53,7 @@ export function updatePerson(
  * guest check-ins (guest_dailies linked to them): both relations cascade.
  */
 export function deletePerson(id: string): Promise<boolean> {
-	return pb.collection(PEOPLE).delete(id, { requestKey: null });
+	return pb.collection(PEOPLE).delete(id, writeOptions());
 }
 
 /** What deleting a person takes with them. */

@@ -30,6 +30,8 @@
 	let countFailed = $state(false);
 	/** A delete is on its way, or done (the dialog is then closing). */
 	let deleting = $state(false);
+	/** The delete request is on its way (the button says so; not while the dialog closes). */
+	let sending = $state(false);
 	let message = $state('');
 
 	// This is created anew each time the dialog opens, so the count is always fresh.
@@ -59,10 +61,13 @@
 		const target = person;
 		deleting = true;
 		message = '';
+		sending = true;
 		try {
 			await deletePerson(target.id);
+			sending = false;
 			onDeleted(target, history, false);
 		} catch (error) {
+			sending = false;
 			const problem = describeError(error, `delete ${displayName(target)}`);
 			if (problem.notFound) onDeleted(target, null, true);
 			else {
@@ -138,7 +143,7 @@
 			onclick={confirmDelete}
 		>
 			<Trash class="size-5" aria-hidden="true" />
-			{deleting ? 'Deleting…' : 'Delete permanently'}
+			{sending ? 'Deleting…' : 'Delete permanently'}
 		</button>
 	</footer>
 </div>

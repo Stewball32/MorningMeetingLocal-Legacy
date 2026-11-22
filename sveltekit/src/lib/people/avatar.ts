@@ -69,10 +69,12 @@ export function planAvatar({ type, size, width, height, animated }: AvatarFacts)
 	// PocketBase sees an animated PNG as another file type and refuses it.
 	if (type === 'image/png' && animated) return { error: APNG_ERROR };
 	if (!tooHeavy && !tooBig) return { use: 'as-is' };
+	// Redrawing a GIF or an animated WebP smaller would stop it moving: within the size in bytes it
+	// is uploaded as it is, however many pixels it has (as before the editor scaled pictures).
 	if (animated) {
-		const what = tooHeavy ? megabytes(size) : `${width} × ${height} pixels`;
+		if (!tooHeavy) return { use: 'as-is' };
 		return {
-			error: `That picture is ${what}; GIF and animated pictures can be up to ${megabytes(AVATAR_MAX_BYTES)} and ${AVATAR_MAX_SIDE} pixels wide and high (making them smaller here would stop the animation). Please choose a smaller one.`
+			error: `That picture is ${megabytes(size)}; GIF and animated pictures can be up to ${megabytes(AVATAR_MAX_BYTES)} (making them smaller here would stop the animation). Please choose a smaller one.`
 		};
 	}
 	return { use: 'smaller' };
