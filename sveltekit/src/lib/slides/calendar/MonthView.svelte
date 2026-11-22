@@ -4,7 +4,7 @@
 	import type { Weekday, AstronomyData } from './_types';
 	import { updateSound } from '#lib/sounds.ts';
 	import ResetSlide from '#lib/slides/ResetSlide.svelte';
-	import { getHolidayMap as getObservationMap } from '#lib/pb/calendar.ts';
+	import { followObservances, getHolidayMap as getObservationMap } from '#lib/pb/calendar.ts';
 	import type { Holiday } from '#lib/pb/calendar.ts';
 	import DayInMonth from './DayInMonth.svelte';
 	import { MoonPhase } from 'astronomy-engine';
@@ -134,11 +134,23 @@
 		astronomyData = newAstronomyData;
 	};
 
+	/** Counts observance fetches: only the latest one's answer is used. */
+	let holidayFetch = 0;
+	const loadObservances = async () => {
+		const request = ++holidayFetch;
+		try {
+			const newHolidayMap = await getObservationMap(currentYear, currentMonth);
+			if (request === holidayFetch) holidayMap = newHolidayMap;
+		} catch (error) {
+			// Keep showing what was there; the next change (or reconnect) tries again.
+			console.error('Could not load the calendar observances', error);
+		}
+	};
+
 	const generateCalendar = async () => {
 		// const numDays = getDaysInMonth(currentMonth, currentYear);
 		startDay = getStartDayOfMonth(currentMonth, currentYear);
-		const newHolidayMap = await getObservationMap(currentYear, currentMonth);
-		holidayMap = newHolidayMap;
+		await loadObservances();
 	};
 
 	updateAstronomy();
@@ -167,7 +179,11 @@
 		await updateClassDailySlide('calendar', partial);
 	};
 
-	onMount(generateCalendar);
+	onMount(() => {
+		generateCalendar();
+		// Edits on the Calendar Observances or Icons page show up without a reload.
+		return followObservances(loadObservances);
+	});
 
 	const monthNames = [
 		'January',
