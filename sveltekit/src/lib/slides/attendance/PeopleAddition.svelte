@@ -4,7 +4,8 @@
 	import type { IconRecord, GuestDaily, Person } from '#lib/pb/types.ts';
 	import { guestPerson, isPerson } from '#lib/slides/people.ts';
 	import PersonButton from '#lib/buttons/PersonButton.svelte';
-	import { Popover, Portal, Switch } from '@skeletonlabs/skeleton-svelte';
+	import { Popover, Switch } from '@skeletonlabs/skeleton-svelte';
+	import StagePortal from '#lib/slides/StagePortal.svelte';
 
 	// import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Hash from '@lucide/svelte/icons/hash';
@@ -491,7 +492,7 @@
 					<Popover.Trigger class="btn text-size-8 h-full w-full font-black">
 						{oneSelected ?? '?'}
 					</Popover.Trigger>
-					<Portal>
+					<StagePortal>
 						<Popover.Positioner>
 							<Popover.Content>
 								{#snippet element(attributes)}
@@ -519,7 +520,7 @@
 								{/snippet}
 							</Popover.Content>
 						</Popover.Positioner>
-					</Portal>
+					</StagePortal>
 				</Popover>
 			</span>
 		</div>
@@ -557,7 +558,7 @@
 					<Popover.Trigger class="btn text-size-8 h-full w-full font-black">
 						{twoSelected ?? '?'}
 					</Popover.Trigger>
-					<Portal>
+					<StagePortal>
 						<Popover.Positioner>
 							<Popover.Content>
 								{#snippet element(attributes)}
@@ -585,7 +586,7 @@
 								{/snippet}
 							</Popover.Content>
 						</Popover.Positioner>
-					</Portal>
+					</StagePortal>
 				</Popover>
 			</span>
 		</div>
@@ -624,7 +625,7 @@
 					<Popover.Trigger class="btn text-size-8 h-full w-full font-black">
 						{resultSelected ?? '?'}
 					</Popover.Trigger>
-					<Portal>
+					<StagePortal>
 						<Popover.Positioner>
 							<Popover.Content>
 								{#snippet element(attributes)}
@@ -652,7 +653,7 @@
 								{/snippet}
 							</Popover.Content>
 						</Popover.Positioner>
-					</Portal>
+					</StagePortal>
 				</Popover>
 			</span>
 		</div>

@@ -34,6 +34,8 @@
 	} from '#lib/pb/index.ts';
 	import GuestButton from '#lib/buttons/GuestButton.svelte';
 	import SampleButton from '#lib/buttons/+button.svelte';
+	// the Delete Guest popover is scaled with the slide; the Add Guest dialog stays on <body>
+	import StagePortal from '#lib/slides/StagePortal.svelte';
 
 	interface GuestCheckProps {
 		hasGuests?: boolean;
@@ -405,7 +407,7 @@
 						<Trash class="h-full w-6" />
 					</Popover.Trigger>
 				</span>
-				<Portal>
+				<StagePortal>
 					<Popover.Positioner>
 						<!-- like v3, the content only exists (with a short fade) while zag has it open -->
 						<Popover.Context>
@@ -443,7 +445,7 @@
 							{/snippet}
 						</Popover.Context>
 					</Popover.Positioner>
-				</Portal>
+				</StagePortal>
 			</Popover>
 			<button
 				onclick={updateWelcomeGuests}
