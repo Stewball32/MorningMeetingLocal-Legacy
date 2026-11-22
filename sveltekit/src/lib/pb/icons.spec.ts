@@ -25,10 +25,12 @@ describe('countIconUses', () => {
 		matches['guest_dailies avatar = "mh7f9dlc7939t2o"'] = 12;
 		matches['calendar_observances icon = "mh7f9dlc7939t2o"'] = 1;
 		expect(await countIconUses('mh7f9dlc7939t2o')).toEqual({ guests: 12, calendar: 1 });
-		// One tiny request each, never cancelled by the other (requestKey: null).
+		// One tiny request each, never cancelled by the other (requestKey: null), and given up on
+		// if PocketBase doesn't answer (signal).
+		const signal = expect.any(AbortSignal);
 		expect(requests.map((request) => request.options)).toEqual([
-			{ filter: 'avatar = "mh7f9dlc7939t2o"', fields: 'id', requestKey: null },
-			{ filter: 'icon = "mh7f9dlc7939t2o"', fields: 'id', requestKey: null }
+			{ filter: 'avatar = "mh7f9dlc7939t2o"', fields: 'id', requestKey: null, signal },
+			{ filter: 'icon = "mh7f9dlc7939t2o"', fields: 'id', requestKey: null, signal }
 		]);
 		expect(await countIconUses('somethingelse12')).toEqual({ guests: 0, calendar: 0 });
 	});

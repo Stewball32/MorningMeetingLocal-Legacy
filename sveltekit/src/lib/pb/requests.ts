@@ -38,12 +38,20 @@ export function withFile<T extends object>(
 		Record<string, File | null>;
 }
 
+/**
+ * A count gives up after this long. The delete dialogs wait for it before Delete can be pressed;
+ * a PocketBase that never answers must not leave them at "Counting…" (a failed count says it
+ * couldn't count and lets the delete go ahead).
+ */
+export const COUNT_TIMEOUT_MS = 10_000;
+
 /** How many records of `collection` match `filter` (one tiny request; no records are fetched). */
 export async function countRecords(collection: string, filter: string): Promise<number> {
 	const page = await pb.collection(collection).getList(1, 1, {
 		filter,
 		fields: 'id',
-		requestKey: null
+		requestKey: null,
+		signal: AbortSignal.timeout(COUNT_TIMEOUT_MS)
 	});
 	return page.totalItems;
 }
