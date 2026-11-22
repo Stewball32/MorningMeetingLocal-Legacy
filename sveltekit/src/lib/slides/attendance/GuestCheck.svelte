@@ -4,6 +4,7 @@
 		checkedInPeople,
 		guestCheckInError,
 		guestDisplayName,
+		guestIconOptions,
 		guestNameOptions,
 		guestPerson,
 		guestPictureUrl,
@@ -93,14 +94,10 @@
 	let guestComboboxArray: GuestNameOption[] = $derived(
 		guestNameOptions(guestPeople, previousGuests, peopleById, guestAvatarMap, checkedInToday)
 	);
-	let avatarComboboxArray: ComboboxData[] = $state([]);
-	guestAvatarMap.values().forEach((avatar) => {
-		avatarComboboxArray.push({
-			label: avatar.name,
-			value: avatar.id,
-			emoji: avatar.emoji
-		});
-	});
+	// the icons for guests, by name; follows the Icons page live
+	let avatarComboboxArray: ComboboxData[] = $derived(guestIconOptions(guestAvatarMap));
+	const isOffered = (iconId: string | undefined) =>
+		!!iconId && avatarComboboxArray.some((option) => option.value === iconId);
 
 	// Skeleton 3's Combobox filtered its own list: typing kept the items whose label contains the
 	// text (case-insensitive) and every open/close showed the whole list again. Skeleton 5 leaves
@@ -180,7 +177,8 @@
 		let guest = previousGuests.find((guest) => guest.id === e.value[0]);
 		console.log('Guest', guest);
 		selectedPronoun = guest?.pronoun || undefined;
-		selectedAvatarId = [guest?.avatar ?? ''];
+		// their icon from last time, if it is still offered (it may be gone from the Icons page)
+		selectedAvatarId = isOffered(guest?.avatar) ? [guest!.avatar] : [];
 	};
 
 	const updateModalGuestName = (guest: any) => {
@@ -213,6 +211,11 @@
 	const addGuest = async (closeModal: boolean = true) => {
 		if (!modalGuestName || (!selectedAvatarId[0] && !usesOwnPicture)) {
 			return alert('Please select a name and an avatar!');
+		}
+		if (selectedAvatarId[0] && !isOffered(selectedAvatarId[0])) {
+			// removed (or no longer for guests) on the Icons page while the dialog was open
+			selectedAvatarId = [];
+			if (!usesOwnPicture) return alert('That icon was just removed. Please pick another one.');
 		}
 		if (adding) return;
 

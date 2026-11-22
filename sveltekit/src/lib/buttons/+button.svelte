@@ -45,7 +45,7 @@
 	}: Props = $props();
 
 	const baseClass = `flex btn relative cursor-pointer pointer-none disabled:pointer-not-allowed  overflow-hidden rounded-full border items-center justify-center`;
-	const orientationClass = orientation === 'vertical' ? 'flex-col' : 'flex-row';
+	const orientationClass = $derived(orientation === 'vertical' ? 'flex-col' : 'flex-row');
 	const presetMap = {
 		surface: `preset-tonal-surface ${baseClass}`,
 		primary: `preset-tonal-primary ${baseClass}`,
@@ -68,11 +68,22 @@
 
 	const baseTextClass = `text-center`;
 	let TextClassDerived = $derived(`${overrideTextClass ? textClass : baseTextClass} ${textClass}`);
+
+	// A picture that is missing or broken (e.g. its icon was just deleted) shows the default one
+	// instead of a broken image; if even that fails, no picture.
+	const FALLBACK_IMAGE = '/defaults/avatar.png';
+	let failedUrls: string[] = $state([]);
+	let src = $derived(
+		[imageUrl || FALLBACK_IMAGE, FALLBACK_IMAGE].find((url) => !failedUrls.includes(url))
+	);
+	const onImageError = () => {
+		if (src) failedUrls = [...failedUrls, src];
+	};
 </script>
 
 <button {draggable} {disabled} class={btnClassDerived} onclick={onClick}>
-	{#if showImage}
-		<img draggable={false} src={imageUrl} alt={imgAlt} class={imageClassDerived} />
+	{#if showImage && src}
+		<img draggable={false} {src} alt={imgAlt} class={imageClassDerived} onerror={onImageError} />
 	{/if}
 	{#if showText}
 		<h3 class={TextClassDerived}>
