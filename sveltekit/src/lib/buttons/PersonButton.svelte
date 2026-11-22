@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { PUBLIC_POCKETBASE_URL } from '$app/env/public';
-	import type { Student, StudentDaily, Teacher, TeacherDaily } from '#lib/pb/types.ts';
+	import type { Person } from '#lib/pb/types.ts';
 	import Button from './+button.svelte';
 
 	interface Props {
-		person: Student | Teacher;
+		person: Person;
 		orientation?: 'horizontal' | 'vertical';
 		buttonClass?: string;
 		avatarClass?: string;
@@ -45,7 +45,7 @@
 	let imageUrl = $derived(
 		person.avatar
 			? `${PUBLIC_POCKETBASE_URL}/api/files/${person.collectionId}/${person.id}/${person.avatar}`
-			: ''
+			: '/defaults/avatar.png'
 	);
 	let text = $derived(`${person.title || ''} ${person.name}`.trimStart());
 	let imgAlt = $derived(`${person.title || ''} ${person.name}`.trimStart());

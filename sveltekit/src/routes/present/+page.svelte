@@ -1,18 +1,17 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import { pb, updateClassDaily } from '#lib/pb/index.ts';
-	import type {
-		ClassDaily,
-		IconRecord,
-		GuestDaily,
-		Student,
-		StudentDaily,
-		Teacher,
-		TeacherDaily
-	} from '#lib/pb/types.ts';
+	import type { ClassDaily, IconRecord, GuestDaily, Person, PersonDaily } from '#lib/pb/types.ts';
 	import { onDestroy, onMount } from 'svelte';
 	import type { RecordSubscription } from 'pocketbase';
 	import { updateSound } from '#lib/sounds.ts';
+	import {
+		applyPersonEvent,
+		guestPeopleOf,
+		studentsOf,
+		teachersOf,
+		visibleGuestDailies
+	} from '#lib/slides/people.ts';
 	import Attendance from '#lib/slides/attendance/+slide.svelte';
 	import Calendar from '#lib/slides/calendar/+slide.svelte';
 
@@ -20,23 +19,28 @@
 
 	const todayISOString = data.todayISOString;
 	let classDaily: ClassDaily = $state(data.classDaily);
-	let students: Student[] = $state(data.students);
-	let teachers: Teacher[] = $state(data.teachers);
-	let studentDailyMap: Map<string, StudentDaily> = $state(data.studentDailyMap);
-	let teacherDailyMap: Map<string, TeacherDaily> = $state(data.teacherDailyMap);
+	// everyone, active or not; the lists below are what the slides show
+	let people: Person[] = $state(data.people);
+	let personDailyMap: Map<string, PersonDaily> = $state(data.personDailyMap);
 	let guestDailies: GuestDaily[] = $state(data.guestDailies);
 	let guestAvatarMap: Map<string, IconRecord> = data.guestAvatarMap;
-	// let currentPerson: Student | Teacher | undefined = $state(undefined);
+	// let currentPerson: Person | undefined = $state(undefined);
 
-	let activeStudents: Student[] = $derived(
-		students.some((student) => studentDailyMap.get(student.id)?.here === 'present')
-			? students.filter((student) => studentDailyMap.get(student.id)?.here === 'present')
-			: students.filter((student) => studentDailyMap.get(student.id)?.here !== 'absent')
+	let peopleById: Map<string, Person> = $derived(new Map(people.map((p) => [p.id, p])));
+	let students: Person[] = $derived(studentsOf(people));
+	let teachers: Person[] = $derived(teachersOf(people));
+	let guestPeople: Person[] = $derived(guestPeopleOf(people));
+	let visibleGuests: GuestDaily[] = $derived(visibleGuestDailies(guestDailies, peopleById));
+
+	let activeStudents: Person[] = $derived(
+		students.some((student) => personDailyMap.get(student.id)?.here === 'present')
+			? students.filter((student) => personDailyMap.get(student.id)?.here === 'present')
+			: students.filter((student) => personDailyMap.get(student.id)?.here !== 'absent')
 	);
-	let activeTeachers: Teacher[] = $derived(
-		teachers.some((teacher) => teacherDailyMap.get(teacher.id)?.here === 'present')
-			? teachers.filter((teacher) => teacherDailyMap.get(teacher.id)?.here === 'present')
-			: teachers.filter((teacher) => teacherDailyMap.get(teacher.id)?.here !== 'absent')
+	let activeTeachers: Person[] = $derived(
+		teachers.some((teacher) => personDailyMap.get(teacher.id)?.here === 'present')
+			? teachers.filter((teacher) => personDailyMap.get(teacher.id)?.here === 'present')
+			: teachers.filter((teacher) => personDailyMap.get(teacher.id)?.here !== 'absent')
 	);
 
 	// let searchParams: URLSearchParams = $state(data.searchParams);
@@ -54,52 +58,34 @@
 			}
 		});
 
-		pb.collection('student_dailies').subscribe('*', (e: RecordSubscription<StudentDaily>) => {
+		pb.collection('people_dailies').subscribe('*', (e: RecordSubscription<PersonDaily>) => {
 			if (e.record.date !== todayISOString) return;
-			const newStudentDailyMap = new Map(studentDailyMap);
+			const newPersonDailyMap = new Map(personDailyMap);
 			switch (e.action) {
 				case 'create':
-					newStudentDailyMap.set(e.record.student, e.record);
-					if (e.record.here) updateSound(e.record.student, e.record.here);
+					newPersonDailyMap.set(e.record.person, e.record);
+					if (e.record.here) updateSound(e.record.person, e.record.here);
 					break;
-				case 'update':
-					const oldRecord = newStudentDailyMap.get(e.record.student);
-					newStudentDailyMap.set(e.record.student, e.record);
+				case 'update': {
+					const oldRecord = newPersonDailyMap.get(e.record.person);
+					newPersonDailyMap.set(e.record.person, e.record);
 					if (!e.record.here && oldRecord?.here) {
-						updateSound(e.record.student, e.record.here);
+						updateSound(e.record.person, e.record.here);
 					} else if (e.record.here && e.record.here !== oldRecord?.here) {
-						updateSound(e.record.student, e.record.here);
+						updateSound(e.record.person, e.record.here);
 					}
 					break;
+				}
 				case 'delete':
-					newStudentDailyMap.delete(e.record.student);
+					newPersonDailyMap.delete(e.record.person);
 					break;
 			}
-			studentDailyMap = newStudentDailyMap;
+			personDailyMap = newPersonDailyMap;
 		});
 
-		pb.collection('teacher_dailies').subscribe('*', (e: RecordSubscription<TeacherDaily>) => {
-			if (e.record.date !== todayISOString) return;
-			const newTeacherDailyMap = new Map(teacherDailyMap);
-			switch (e.action) {
-				case 'create':
-					newTeacherDailyMap.set(e.record.teacher, e.record);
-					if (e.record.here) updateSound(e.record.teacher, e.record.here);
-					break;
-				case 'update':
-					const oldRecord = newTeacherDailyMap.get(e.record.teacher);
-					newTeacherDailyMap.set(e.record.teacher, e.record);
-					if (!e.record.here && oldRecord?.here) {
-						updateSound(e.record.teacher, e.record.here);
-					} else if (e.record.here && e.record.here !== oldRecord?.here) {
-						updateSound(e.record.teacher, e.record.here);
-					}
-					break;
-				case 'delete':
-					newTeacherDailyMap.delete(e.record.teacher);
-					break;
-			}
-			teacherDailyMap = newTeacherDailyMap;
+		// edits made on the people page (names, pictures, active, is_guest) show up right away
+		pb.collection('people').subscribe('*', (e: RecordSubscription<Person>) => {
+			people = applyPersonEvent(people, e.action, e.record);
 		});
 
 		pb.collection('guest_dailies').subscribe('*', (e: RecordSubscription<GuestDaily>) => {
@@ -123,8 +109,8 @@
 
 		onDestroy(() => {
 			// sounds multiply if not removed (mainly in dev mode)
-			pb.collection('student_dailies').unsubscribe('*');
-			pb.collection('teacher_dailies').unsubscribe('*');
+			pb.collection('people_dailies').unsubscribe('*');
+			pb.collection('people').unsubscribe('*');
 			pb.collection('guest_dailies').unsubscribe('*');
 		});
 	});
@@ -156,10 +142,11 @@
 	<Attendance
 		{students}
 		{teachers}
+		{guestPeople}
+		{peopleById}
 		{classDaily}
-		{studentDailyMap}
-		{teacherDailyMap}
-		{guestDailies}
+		{personDailyMap}
+		guestDailies={visibleGuests}
 		{guestAvatarMap}
 		{slideLeft}
 		{slideRight}
@@ -170,9 +157,8 @@
 		{students}
 		{teachers}
 		{classDaily}
-		{studentDailyMap}
-		{teacherDailyMap}
-		{guestDailies}
+		{personDailyMap}
+		guestDailies={visibleGuests}
 		{guestAvatarMap}
 		{slideLeft}
 		{slideRight}

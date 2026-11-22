@@ -1,15 +1,6 @@
 import { PUBLIC_POCKETBASE_URL } from '$app/env/public';
 import PocketBase from 'pocketbase';
-import type {
-	ClassDaily,
-	DailyRecord,
-	IconRecord,
-	GuestDaily,
-	Student,
-	StudentDaily,
-	Teacher,
-	TeacherDaily
-} from './types';
+import type { ClassDaily, IconRecord, GuestDaily, Person, PersonDaily } from './types';
 import { getCurrentISOString, isISOString } from '#lib';
 
 function createInstance() {
@@ -26,57 +17,27 @@ export const getPbImageUrl = (collectionId: string, recordId: string, fileId: st
 	return `${PUBLIC_POCKETBASE_URL}/api/files/${collectionId}/${recordId}/${fileId}`;
 };
 
-/**
- * Gets the collection name for daily records based on the input collection.
- * @param collection - The collection name to check.
- * @returns The collection name for daily records or "" if invalid.
- */
-const getDailyCollectionName = (collection: string) => {
-	switch (collection) {
-		case 'students':
-			return 'student_dailies';
-		case 'teachers':
-			return 'teacher_dailies';
-		case 'guests':
-			return 'guest_dailies';
-		case 'class_dailies':
-			return 'class_dailies';
-		default:
-			console.error(`${collection} is not a "students or "teachers"`);
-			return '';
-	}
+/** Every person's attendance lives here: one record per person and date. */
+const PEOPLE_DAILIES = 'people_dailies';
+
+/** Daily logs only belong to records of the `people` collection. */
+const isPersonRecord = (person: Person) => {
+	if (person?.collectionName === 'people') return true;
+	console.error('Invalid collection name');
+	return false;
 };
 
 /**
- * Gets all students from the PocketBase database.
- * @returns An array of Student objects. Empty array if error or no data.
- * @throws Error if the request fails.
+ * Gets everyone (students, teachers and regular guests, active or not), sorted by name.
+ * Which of them a slide shows is up to the slide (see #lib/slides/people.ts).
+ * @returns An array of Person objects. Empty array if error or no data.
  */
-export const getAllStudents = async (): Promise<Student[]> => {
-	console.log('Fetching all students...');
+export const getAllPeople = async (): Promise<Person[]> => {
+	console.log('Fetching all people...');
 	try {
-		const studentData = (await pb
-			.collection('students')
-			.getFullList({ sort: 'name' })) as Student[];
-		console.log('Fetched all students');
-		return studentData;
-	} catch (error) {
-		console.error(error);
-		return [];
-	}
-};
-
-/**
- * Gets all teachers from the PocketBase database.
- * @returns An array of Teacher objects. Empty array if error or no data.
- */
-export const getAllTeachers = async (): Promise<Teacher[]> => {
-	try {
-		const teacherData = (await pb.collection('teachers').getFullList({
-			sort: 'name'
-		})) as Teacher[];
-
-		return teacherData;
+		const people = (await pb.collection('people').getFullList({ sort: 'name' })) as Person[];
+		console.log('Fetched all people');
+		return people;
 	} catch (error) {
 		console.error(error);
 		return [];
@@ -132,56 +93,27 @@ export const getClassDaily = async (isoString?: string): Promise<ClassDaily> => 
 };
 
 /**
- * Gets a map of student IDs to DailyRecords for today.
- * @date - YYYY-MM-DD format. Defaults to today's date.
- * @returns A Map of student IDs to DailyRecords. Empty map if error or no data.
+ * Gets a map of person IDs to their daily logs for one date.
+ * @param isoString - YYYY-MM-DD format. Defaults to today's date.
+ * @returns A Map of person IDs to PersonDaily records. Empty map if error or no data.
  */
-export const getStudentDailyMap = async (
-	isoString?: string
-): Promise<Map<string, StudentDaily>> => {
-	const studentDailyMap = new Map<string, StudentDaily>();
+export const getPersonDailyMap = async (isoString?: string): Promise<Map<string, PersonDaily>> => {
+	const personDailyMap = new Map<string, PersonDaily>();
 	const dateString = isoString ?? getCurrentISOString();
-	if (!isISOString(dateString)) return studentDailyMap;
+	if (!isISOString(dateString)) return personDailyMap;
 
 	try {
-		const studentDailies = (await pb.collection('student_dailies').getFullList({
+		const personDailies = (await pb.collection(PEOPLE_DAILIES).getFullList({
 			filter: `date = "${dateString}"`,
 			sort: '-created'
-		})) as StudentDaily[];
-		studentDailies.forEach((daily) => {
-			studentDailyMap.set(daily.student, daily);
+		})) as PersonDaily[];
+		personDailies.forEach((daily) => {
+			personDailyMap.set(daily.person, daily);
 		});
-		return studentDailyMap;
+		return personDailyMap;
 	} catch (error) {
 		console.error(error);
-		return studentDailyMap;
-	}
-};
-
-/**
- * Gets a map of teacher IDs to DailyRecords for today.
- * @date - YYYY-MM-DD format. Defaults to today's date.
- * @returns A Map of teacher IDs to DailyRecords. Empty map if error or no data.
- */
-export const getTeacherDailyMap = async (
-	isoString?: string
-): Promise<Map<string, TeacherDaily>> => {
-	const teacherDailyMap = new Map<string, TeacherDaily>();
-	const dateString = isoString ?? getCurrentISOString();
-	if (!isISOString(dateString)) return teacherDailyMap;
-
-	try {
-		const teacherDailies = (await pb.collection('teacher_dailies').getFullList({
-			filter: `date = "${dateString}"`,
-			sort: '-created'
-		})) as TeacherDaily[];
-		teacherDailies.forEach((daily) => {
-			teacherDailyMap.set(daily.teacher, daily);
-		});
-		return teacherDailyMap;
-	} catch (error) {
-		console.error(error);
-		return teacherDailyMap;
+		return personDailyMap;
 	}
 };
 
@@ -278,12 +210,12 @@ export const updateClassDaily = async (daily: Partial<ClassDaily>) => {
 };
 
 /**
- * Creates a daily log for a student or teacher.
- * @param person - Student or Teacher object.
+ * Creates a daily log for a person.
+ * @param person - Person object.
  * @param daily - Daily log data.
- * @returns The created DailyRecord or null if an error occurs.
+ * @returns The created PersonDaily record. Throws if an error occurs.
  */
-const createPersonDaily = async (person: Student | Teacher, daily: Partial<DailyRecord>) => {
+const createPersonDaily = async (person: Person, daily: Partial<PersonDaily>) => {
 	// I don't need to recheck if this is only called from func updateDaily.
 	// uncomment if exporting this function.
 	//
@@ -291,49 +223,32 @@ const createPersonDaily = async (person: Student | Teacher, daily: Partial<Daily
 	// if (!isISOString(isoString)) return null
 	// daily = { ...daily, date: isoString }
 	//
-	// if (!["students", "teachers"].includes(person.collectionName)) {
-	// 	console.error("Invalid collection name")
-	// 	return null
-	// }
+	// if (!isPersonRecord(person)) return null
 
-	const dailyData: Partial<DailyRecord> = {
-		...daily,
-		...(person.collectionName === 'students' && { student: person.id }),
-		...(person.collectionName === 'teachers' && { teacher: person.id })
-	};
-	const collectionName = getDailyCollectionName(person.collectionName);
-	if (!collectionName) throw new Error(`Invalid collection name: ${person.collectionName}`);
+	const dailyData: Partial<PersonDaily> = { ...daily, person: person.id };
 	try {
-		const record = await pb.collection(collectionName).create(dailyData);
+		const record = await pb.collection(PEOPLE_DAILIES).create(dailyData);
 		return record;
 	} catch (error) {
-		throw new Error(`Error creating ${collectionName} record: ${error}`);
+		throw new Error(`Error creating ${PEOPLE_DAILIES} record: ${error}`);
 	}
 };
 
 /**
  * Updates a person's daily log with the given data.
  * Creates a new log if one does not exist.
- * @param person - Student or Teacher object.
+ * @param person - Person object.
  * @param daily - The data to update the daily log with.
- * @returns The updated DailyRecord or null if an error occurs.
+ * @returns The updated PersonDaily record or null if an error occurs.
  */
-export const updatePersonDaily = async (person: Student | Teacher, daily: Partial<DailyRecord>) => {
+export const updatePersonDaily = async (person: Person, daily: Partial<PersonDaily>) => {
 	const isoString = daily?.date || getCurrentISOString();
 	if (!isISOString(isoString)) throw new Error(`Invalid date string: ${isoString}`);
 	daily = { ...daily, date: isoString };
 
-	if (!['students', 'teachers'].includes(person.collectionName)) {
-		console.error('Invalid collection name');
-		return null;
-	}
+	if (!isPersonRecord(person)) return null;
 
-	let dailyMap: Map<string, DailyRecord>;
-	if (person.collectionName === 'students') {
-		dailyMap = await getStudentDailyMap();
-	} else {
-		dailyMap = await getTeacherDailyMap();
-	}
+	const dailyMap = await getPersonDailyMap();
 	const existingDaily = dailyMap.get(person.id);
 	if (!existingDaily) {
 		console.log(`No existing daily record found for ${person.name} on . Creating a new one.`);
@@ -342,10 +257,8 @@ export const updatePersonDaily = async (person: Student | Teacher, daily: Partia
 	}
 	// Update the existing daily record
 	const newDaily = { ...existingDaily, ...daily };
-	const collectionName = getDailyCollectionName(person.collectionName);
-	if (!collectionName) return null;
 	try {
-		const record = await pb.collection(collectionName).update(existingDaily.id, newDaily);
+		const record = await pb.collection(PEOPLE_DAILIES).update(existingDaily.id, newDaily);
 		return record;
 	} catch (error) {
 		console.error(error);
@@ -354,35 +267,25 @@ export const updatePersonDaily = async (person: Student | Teacher, daily: Partia
 };
 
 /**
- * Deletes a daily log for a student or teacher.
- * @param person - Student or Teacher object.
+ * Deletes a person's daily log.
+ * @param person - Person object.
  * @param isoString - The date of the daily log to delete. Defaults to today's date.
- * @returns The deleted DailyRecord or null if an error occurs.
+ * @returns true once deleted, or null if there is none or an error occurs.
  * */
-export const deletePersonDaily = async (person: Student | Teacher, isoString: string) => {
+export const deletePersonDaily = async (person: Person, isoString: string) => {
 	isoString = isoString ?? getCurrentISOString();
 	if (!isISOString(isoString)) throw new Error(`Invalid date string: ${isoString}`);
 
-	if (!['students', 'teachers'].includes(person.collectionName)) {
-		console.error('Invalid collection name');
-		return null;
-	}
+	if (!isPersonRecord(person)) return null;
 
-	let dailyMap: Map<string, DailyRecord>;
-	if (person.collectionName === 'students') {
-		dailyMap = await getStudentDailyMap(isoString);
-	} else {
-		dailyMap = await getTeacherDailyMap(isoString);
-	}
+	const dailyMap = await getPersonDailyMap(isoString);
 	const existingDaily = dailyMap.get(person.id);
 	if (!existingDaily) {
 		console.log(`No existing daily record found for ${person.name} on ${isoString}.`);
 		return null;
 	}
-	const collectionName = getDailyCollectionName(person.collectionName);
-	if (!collectionName) return null;
 	try {
-		const record = await pb.collection(collectionName).delete(existingDaily.id);
+		const record = await pb.collection(PEOPLE_DAILIES).delete(existingDaily.id);
 		return record;
 	} catch (error) {
 		console.error(error);
@@ -392,26 +295,18 @@ export const deletePersonDaily = async (person: Student | Teacher, isoString: st
 
 // findDaily
 /**
- * Finds a daily log for a student or teacher by date.
- * * @param person - Student or Teacher object.
+ * Finds a person's daily log by date.
+ * * @param person - Person object.
  * * @param isoString - The date of the daily log to find. Defaults to today's date.
- * * @returns The DailyRecord if found, or null if not found or an error occurs.
+ * * @returns The PersonDaily if found, or null if not found or an error occurs.
  */
-export const findPersonDaily = async (person: Student | Teacher, isoString?: string) => {
+export const findPersonDaily = async (person: Person, isoString?: string) => {
 	isoString = isoString ?? getCurrentISOString();
 	if (!isISOString(isoString)) throw new Error(`Invalid date string: ${isoString}`);
 
-	if (!['students', 'teachers'].includes(person.collectionName)) {
-		console.error('Invalid collection name');
-		return null;
-	}
+	if (!isPersonRecord(person)) return null;
 
-	let dailyMap: Map<string, DailyRecord>;
-	if (person.collectionName === 'students') {
-		dailyMap = await getStudentDailyMap(isoString);
-	} else {
-		dailyMap = await getTeacherDailyMap(isoString);
-	}
+	const dailyMap = await getPersonDailyMap(isoString);
 	const existingDaily = dailyMap.get(person.id);
 	if (!existingDaily) {
 		console.log(`No existing daily record found for ${person.name} on ${isoString}.`);

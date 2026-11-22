@@ -1,12 +1,13 @@
 <script lang="ts">
-	import { PUBLIC_POCKETBASE_URL } from '$app/env/public';
 	import { getGuestAvatar } from '#lib/pb/index.ts';
-	import type { IconRecord, GuestDaily } from '#lib/pb/types.ts';
+	import type { IconRecord, GuestDaily, Person } from '#lib/pb/types.ts';
+	import { guestPictureUrl } from '#lib/slides/people.ts';
 	import { onMount } from 'svelte';
 	import Button from './+button.svelte';
 
 	interface Props {
 		guest: GuestDaily;
+		person?: Person; // the regular guest this check-in belongs to (guest.person)
 		orientation?: 'horizontal' | 'vertical';
 		buttonClass?: string;
 		avatarClass?: string;
@@ -31,6 +32,7 @@
 
 	const {
 		guest: guest,
+		person,
 		orientation = 'horizontal',
 		buttonClass = '',
 		avatarClass = '',
@@ -50,19 +52,17 @@
 	onMount(async () => {
 		if (guestAvatarMap && guestAvatarMap.has(guest.avatar)) {
 			avatarRecord = guestAvatarMap.get(guest.avatar) || null;
-		} else {
+		} else if (guest.avatar) {
 			avatarRecord = await getGuestAvatar(guest.avatar);
 		}
-		if (!avatarRecord) {
+		// a regular guest may have been checked in without an icon: they use their own picture
+		if (!avatarRecord && !person?.avatar) {
 			console.error('Avatar not found for guest:', guest.avatar);
 		}
 	});
 
-	let imageUrl = $derived(
-		avatarRecord
-			? `${PUBLIC_POCKETBASE_URL}/api/files/${avatarRecord.collectionId}/${avatarRecord.id}/${avatarRecord.image}`
-			: '/defaults/avatar.png'
-	);
+	// the person's own picture, else the icon picked at check-in, else the default avatar
+	let imageUrl = $derived(guestPictureUrl(person, avatarRecord));
 	let text = $derived(`${guest.title || ''} ${guest.name}`.trimStart());
 	let imgAlt = $derived(`${guest.title || ''} ${guest.name}`.trimStart());
 </script>

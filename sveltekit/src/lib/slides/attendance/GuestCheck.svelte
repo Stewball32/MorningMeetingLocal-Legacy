@@ -1,5 +1,11 @@
 <script lang="ts">
-	import type { IconRecord, GuestDaily } from '#lib/pb/types.ts';
+	import type { IconRecord, GuestDaily, Person } from '#lib/pb/types.ts';
+	import {
+		guestNameOptions,
+		guestPerson,
+		guestPictureUrl,
+		type GuestNameOption
+	} from '#lib/slides/people.ts';
 	import { onMount } from 'svelte';
 	import { fade, fly } from 'svelte/transition';
 	import type { HTMLAttributes } from 'svelte/elements';
@@ -29,6 +35,8 @@
 		guestDailies?: GuestDaily[];
 		welcomeGuests?: boolean;
 		guestAvatarMap?: Map<string, IconRecord>;
+		guestPeople?: Person[]; // regular guests (active is_guest people), offered first by name
+		peopleById?: Map<string, Person>; // everyone, for the people guest check-ins belong to
 		pageLeft: () => void;
 		pageRight: () => void;
 		updateClassDailySlide: (
@@ -55,6 +63,8 @@
 		guestDailies = $bindable([]),
 		welcomeGuests = $bindable(false),
 		guestAvatarMap = $bindable(new Map<string, IconRecord>()),
+		guestPeople = [],
+		peopleById = new Map<string, Person>(),
 		pageLeft = () => {},
 		pageRight = () => {},
 		updateClassDailySlide = async (column: string, partialClassDaily: Partial<ClassProps>) => {}
@@ -70,7 +80,10 @@
 	};
 
 	let previousGuests: GuestDaily[] = $state([]);
-	let guestComboboxArray: ComboboxData[] = $state([]);
+	// the regular guests, then the earlier one-off guests (each name once)
+	let guestComboboxArray: GuestNameOption[] = $derived(
+		guestNameOptions(guestPeople, previousGuests, peopleById, guestAvatarMap)
+	);
 	let avatarComboboxArray: ComboboxData[] = $state([]);
 	guestAvatarMap.values().forEach((avatar) => {
 		avatarComboboxArray.push({
@@ -119,32 +132,35 @@
 		const beforeDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
 		previousGuests = await getGuestDailiesRange({ after: afterDate, before: beforeDate });
-		previousGuests.forEach((guestDaily) => {
-			let emoji = guestAvatarMap.get(guestDaily.avatar)?.emoji || '❔';
-			if (guestComboboxArray.some((guest) => guest.label === guestDaily.name)) return;
-			guestComboboxArray.push({
-				label: guestDaily.name,
-				value: guestDaily.id,
-				emoji: emoji
-			});
-		});
 	});
 
 	let selectedGuestName: string[] = $state([]);
 	let modalGuestName: string = $state('');
 	let selectedAvatarId: string[] = $state([]);
 	let selectedPronoun: 'he' | 'she' | undefined = $state(undefined);
+	// the regular guest picked from the list; undefined for a one-off guest
+	let selectedPerson = $state<Person | undefined>(undefined);
+	// a regular guest with their own picture needs no icon
+	let usesOwnPicture = $derived(!!selectedPerson?.avatar);
 	let modalOpen = $state(false);
 	const resetModal = (closeModal: boolean = true) => {
 		selectedGuestName = [];
 		selectedAvatarId = [];
 		selectedPronoun = undefined;
+		selectedPerson = undefined;
 		modalGuestName = '';
 		if (closeModal) modalOpen = false;
 	};
 
 	const reusePreviousGuest = (e: any) => {
 		console.log('Selected Guest', e);
+		selectedPerson = guestComboboxArray.find((option) => option.value === e.value[0])?.person;
+		if (selectedPerson) {
+			selectedPronoun = selectedPerson.pronoun || undefined;
+			selectedGuestName = [selectedPerson.name];
+			selectedAvatarId = [];
+			return;
+		}
 		let guest = previousGuests.find((guest) => guest.id === e.value[0]);
 		console.log('Guest', guest);
 		selectedPronoun = guest?.pronoun || undefined;
@@ -155,6 +171,8 @@
 	const updateModalGuestName = (guest: any) => {
 		if (guest.inputValue.length == 0 && modalGuestName.length > 1) return;
 		modalGuestName = guest.inputValue;
+		// typing a different name makes it a one-off guest again
+		if (selectedPerson && modalGuestName !== selectedPerson.name) selectedPerson = undefined;
 	};
 
 	const updateAvatar = (avatar: any) => {
@@ -162,7 +180,13 @@
 		console.log('Avatars', avatar.value);
 	};
 
+	// a regular guest checked in without an icon shows the same emoji as in the name list
+	const guestEmoji = (guest: GuestDaily) =>
+		guestAvatarMap.get(guest.avatar)?.emoji || (guest.person ? '👤' : '❔');
+
 	const avatarURL = (avatarId: string) => {
+		// like on the guest page, a regular guest's own picture comes before the icon
+		if (usesOwnPicture) return guestPictureUrl(selectedPerson, null);
 		let avatar = guestAvatarMap.get(avatarId);
 		if (!avatar) return '/defaults/avatar.png';
 		let url = getPbImageUrl(avatar.collectionId, avatar.id, avatar.image);
@@ -171,15 +195,24 @@
 	};
 
 	const addGuest = async (closeModal: boolean = true) => {
-		if (!modalGuestName || !selectedAvatarId[0]) {
+		if (!modalGuestName || (!selectedAvatarId[0] && !usesOwnPicture)) {
 			return alert('Please select a name and an avatar!');
 		}
 
-		await createGuestDaily({
-			name: modalGuestName,
-			pronoun: selectedPronoun,
-			avatar: selectedAvatarId[0]
-		});
+		if (selectedPerson) {
+			await createGuestDaily({
+				name: selectedPerson.name,
+				pronoun: selectedPronoun,
+				person: selectedPerson.id,
+				avatar: selectedAvatarId[0] ?? ''
+			});
+		} else {
+			await createGuestDaily({
+				name: modalGuestName,
+				pronoun: selectedPronoun,
+				avatar: selectedAvatarId[0]
+			});
+		}
 		resetModal(closeModal);
 	};
 
@@ -273,7 +306,7 @@
 											data-scope={null}
 											class="card p-2 preset-outlined-surface-200-800 bg-surface-50-950 space-y-1 {contentClasses}"
 										>
-											{#each options as option (option.label)}
+											{#each options as option (option.value)}
 												<Combobox.Item item={option}>
 													{#snippet element(attributes: AnyTagAttributes)}
 														{@const checked = attributes['data-state'] === 'checked'}
@@ -359,7 +392,7 @@
 															>
 																<div class="text-size-1 flex w-full justify-between space-x-2">
 																	<span class="truncate">{guest.name}</span>
-																	<span>{guestAvatarMap.get(guest.avatar)?.emoji || '❔'}</span>
+																	<span>{guestEmoji(guest)}</span>
 																</div>
 															</button>
 														{/each}
@@ -438,6 +471,7 @@
 				{#each guestDailies as guest (guest.id)}
 					<GuestButton
 						{guest}
+						person={guestPerson(guest, peopleById)}
 						{guestAvatarMap}
 						buttonClass="px-[2%] h-2/5"
 						nameClass="text-size-7"
@@ -542,7 +576,7 @@
 												avatarFilter = '';
 											}}
 											onFocusOutside={(e) => console.log('focus outside', e)}
-											placeholder="Avatar"
+											placeholder={usesOwnPicture ? 'Uses their picture' : 'Avatar'}
 										>
 											{#snippet element(attributes: AnyTagAttributes)}
 												<span {...attributes} data-scope={null} data-testid="combobox">

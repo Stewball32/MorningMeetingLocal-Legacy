@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { Student, Teacher } from '#lib/pb/types.ts';
+	import type { Person } from '#lib/pb/types.ts';
 	import PersonButton from '#lib/buttons/PersonButton.svelte';
 	import { Popover, Portal } from '@skeletonlabs/skeleton-svelte';
 	import { fade } from 'svelte/transition';
@@ -14,9 +14,9 @@
 	interface PeopleMathProps {
 		from?: 'left' | 'right';
 		peopleTogetherName?: string;
-		peopleSubtracted: Student[] | Teacher[];
+		peopleSubtracted: Person[];
 		peopleSubtractedName?: string;
-		peopleRemaining: Student[] | Teacher[];
+		peopleRemaining: Person[];
 		peopleRemainingName?: string;
 		mathProps?: MathClassProps;
 		mathPropsName: 'studentMath' | 'peopleMath';
@@ -46,8 +46,8 @@
 	}: PeopleMathProps = $props();
 
 	// svelte-ignore state_referenced_locally
-	let peopleTogether: (Student | Teacher)[] = [...peopleSubtracted, ...peopleRemaining].sort(
-		(a, b) => a.name.localeCompare(b.name)
+	let peopleTogether: Person[] = [...peopleSubtracted, ...peopleRemaining].sort((a, b) =>
+		a.name.localeCompare(b.name)
 	);
 
 	const optionsPerQuestion: number = 4;

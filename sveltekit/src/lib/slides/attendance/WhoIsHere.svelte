@@ -1,6 +1,5 @@
 <script lang="ts">
-	import type { Student, StudentDaily, Teacher, TeacherDaily } from '#lib/pb/types.ts';
-	import { onMount } from 'svelte';
+	import type { Person, PersonDaily } from '#lib/pb/types.ts';
 	import type { ClassProps } from './_types';
 	import { getPronounPresent, getPronounSubject, makeSearchParams } from '#lib';
 	import PersonBar from '#lib/slides/attendance/PersonBar.svelte';
@@ -8,10 +7,10 @@
 
 	interface WhoIsHereProps {
 		from?: 'left' | 'right';
-		people: Student[] | Teacher[];
-		dailyMap: Map<string, StudentDaily | TeacherDaily>;
-		updateAttendance: (person: Student | Teacher | undefined, isHere: boolean) => Promise<void>;
-		currentPerson: Student | Teacher | undefined;
+		people: Person[];
+		dailyMap: Map<string, PersonDaily>;
+		updateAttendance: (person: Person | undefined, isHere: boolean) => Promise<void>;
+		currentPerson: Person | undefined;
 		title?: string;
 		subtitle?: string;
 		prompt?: string;
@@ -36,7 +35,7 @@
 		updateClassDailySlide = async (column: string, partialClassDaily: Partial<ClassProps>) => {}
 	}: WhoIsHereProps = $props();
 
-	const youtubeUrl = (person: Student | Teacher, embedded: boolean = true) => {
+	const youtubeUrl = (person: Person, embedded: boolean = true) => {
 		const videoId = person.video_id;
 		const start = person.video_start ? `&start=${person.video_start}` : '';
 		const end = person.video_end ? `&end=${person.video_end}` : '';
@@ -46,7 +45,7 @@
 		return `${baseUrl}${videoId}?rel=0&enablejsapi=1&autoplay=0${start}${end}`;
 	};
 
-	const updateCurrentPerson = (person?: Student | Teacher) => {
+	const updateCurrentPerson = (person?: Person) => {
 		currentPerson = person;
 		const partial = {
 			currentPerson: person?.id
@@ -54,20 +53,18 @@
 		updateClassDailySlide('attendance', partial);
 	};
 
-	let collectionNames: string[] = $state([]);
-	onMount(() => {
-		people.forEach((person) => {
-			if (!collectionNames.includes(person.collectionName)) {
-				collectionNames.push(person.collectionName);
-			}
-		});
-	});
+	// The current person is shared by the student and teacher pages; each page only shows them
+	// (and lets the up/down keys set their attendance) when they are one of its people. Taking
+	// them from `people` also picks up live edits (name, picture, video) from the people page.
+	let pagePerson: Person | undefined = $derived(
+		currentPerson ? people.find((p) => p.id === currentPerson?.id) : undefined
+	);
 
-	const getPersonIndex = (person: Student | Teacher) => {
+	const getPersonIndex = (person: Person) => {
 		return people.findIndex((p) => p.id === person.id);
 	};
 
-	const getButtonPreset = (person: Student | Teacher) => {
+	const getButtonPreset = (person: Person) => {
 		const daily = dailyMap.get(person.id);
 		if (!daily) return 'surface';
 		if (daily.here === 'present') return 'success';
@@ -78,16 +75,16 @@
 	function onKeydown(event: KeyboardEvent) {
 		if (event.key === 'ArrowUp') {
 			event.preventDefault();
-			if (!currentPerson) return;
-			updateAttendance(currentPerson, true);
+			if (!pagePerson) return;
+			updateAttendance(pagePerson, true);
 		} else if (event.key === 'ArrowDown') {
 			event.preventDefault();
-			if (!currentPerson) return;
-			updateAttendance(currentPerson, false);
+			if (!pagePerson) return;
+			updateAttendance(pagePerson, false);
 		}
 		if (event.key === 'ArrowLeft') {
 			event.preventDefault();
-			let newPerson: Student | Teacher | undefined;
+			let newPerson: Person | undefined;
 			if (currentPerson === undefined) {
 				newPerson = people[people.length - 1];
 			} else {
@@ -99,7 +96,7 @@
 			updateCurrentPerson(newPerson);
 		} else if (event.key === 'ArrowRight') {
 			event.preventDefault();
-			let newPerson: Student | Teacher | undefined;
+			let newPerson: Person | undefined;
 			if (currentPerson === undefined) {
 				newPerson = people[0];
 			} else {
@@ -116,13 +113,13 @@
 <svelte:window on:keydown={onKeydown} />
 
 <PersonBar {people} {dailyMap} {currentPerson} onClick={updateCurrentPerson} />
-{#if currentPerson && collectionNames.includes(currentPerson.collectionName)}
+{#if pagePerson}
 	<div class="h-8/12 top-2/12 absolute flex w-full flex-col justify-center py-2">
 		<div class="h-9/12 flex w-full items-center justify-center pb-2">
 			<!--iFrame of youtube video with 16/9 ratio-->
 			<iframe
 				class="rounded-4xl aspect-video h-full"
-				src={youtubeUrl(currentPerson)}
+				src={youtubeUrl(pagePerson)}
 				title="YouTube video player"
 				frameborder="0"
 				allowfullscreen
@@ -131,8 +128,8 @@
 		<div class="h-3/12 flex w-full items-center justify-center gap-2">
 			<h1 class="text-size-6 font-bold">Is</h1>
 			<PersonButton
-				person={currentPerson}
-				buttonPreset={getButtonPreset(currentPerson)}
+				person={pagePerson}
+				buttonPreset={getButtonPreset(pagePerson)}
 				buttonClass="h-full"
 				avatarClass="-px-6"
 				nameClass="text-size-6 font-bold"
@@ -144,15 +141,15 @@
 
 	<div class="h-2/12 absolute bottom-0 flex w-full justify-evenly pt-1">
 		<button
-			onclick={() => updateAttendance(currentPerson, true)}
+			onclick={() => updateAttendance(pagePerson, true)}
 			class="btn preset-filled-success-500 text-size-4 col-span-2 w-1/4 rounded-full border font-semibold"
 		>
-			{getPronounSubject(currentPerson)}
-			{getPronounPresent(currentPerson)}
+			{getPronounSubject(pagePerson)}
+			{getPronounPresent(pagePerson)}
 			here!
 		</button>
 		<a
-			href={youtubeUrl(currentPerson, false)}
+			href={youtubeUrl(pagePerson, false)}
 			target="_blank"
 			rel="noopener noreferrer"
 			class="btn col-span-1 overflow-hidden rounded-full"
@@ -160,11 +157,11 @@
 			<img class="h-full rounded-full" src="/youtube.png" alt="" />
 		</a>
 		<button
-			onclick={() => updateAttendance(currentPerson, false)}
+			onclick={() => updateAttendance(pagePerson, false)}
 			class="btn preset-filled-error-500 text-size-4 col-span-2 w-1/4 rounded-full border font-semibold"
 		>
-			{getPronounSubject(currentPerson)}
-			{getPronounPresent(currentPerson) + "n't"}
+			{getPronounSubject(pagePerson)}
+			{getPronounPresent(pagePerson) + "n't"}
 			here.
 		</button>
 	</div>

@@ -1,24 +1,15 @@
 <script lang="ts">
-	import type {
-		ClassDaily,
-		IconRecord,
-		GuestDaily,
-		Student,
-		StudentDaily,
-		Teacher,
-		TeacherDaily
-	} from '#lib/pb/types.ts';
+	import type { ClassDaily, IconRecord, GuestDaily, Person, PersonDaily } from '#lib/pb/types.ts';
 	import NavArrows from '../NavArrows.svelte';
 	import FindTheDate from './FindTheDate.svelte';
 	import MonthView from './MonthView.svelte';
 	import type { ClassProps, Month, Weekday } from './_types';
 
 	interface SlideProps {
-		students: Student[];
-		teachers: Teacher[];
+		students: Person[];
+		teachers: Person[];
 		classDaily: ClassDaily;
-		studentDailyMap: Map<string, StudentDaily>;
-		teacherDailyMap: Map<string, TeacherDaily>;
+		personDailyMap: Map<string, PersonDaily>;
 		guestDailies: GuestDaily[];
 		guestAvatarMap: Map<string, IconRecord>;
 		slideLeft: () => void;
@@ -33,8 +24,7 @@
 		students = $bindable([]),
 		teachers = $bindable([]),
 		classDaily = $bindable({} as ClassDaily),
-		studentDailyMap = $bindable(new Map<string, StudentDaily>()),
-		teacherDailyMap = $bindable(new Map<string, TeacherDaily>()),
+		personDailyMap = $bindable(new Map<string, PersonDaily>()),
 		guestDailies = $bindable([]),
 		guestAvatarMap = $bindable(new Map<string, IconRecord>()),
 		slideLeft = () => {},
