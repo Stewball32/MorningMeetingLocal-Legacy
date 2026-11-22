@@ -21,6 +21,7 @@
 		MIN_YEAR,
 		setYearly,
 		startOfDay,
+		yearlyEntry,
 		type DayEntry
 	} from './dates.ts';
 
@@ -81,6 +82,10 @@
 		return true;
 	}
 
+	/** The entry for a picked 'YYYY-MM-DD' (a yearly one shows its next date). */
+	const picked = (pickedDay: string, yearly: boolean): DayEntry =>
+		yearly ? yearlyEntry(pickedDay, today) : { kind: 'once', day: pickedDay };
+
 	function addDay() {
 		if (disabled) return;
 		const issue = dayProblem(day, dayYearly);
@@ -90,7 +95,7 @@
 			dayInput?.focus();
 			return;
 		}
-		const entry: DayEntry = { kind: dayYearly ? 'yearly' : 'once', day };
+		const entry = picked(day, dayYearly);
 		if (add([entry], describeEntry(entry))) {
 			day = '';
 			dayYearly = false;
@@ -111,13 +116,12 @@
 			fromInput?.focus();
 			return;
 		}
-		const kind = rangeYearly ? 'yearly' : 'once';
 		const skipped = result.skippedWeekends
 			? ` (${plural(result.skippedWeekends, 'weekend day')} left out)`
 			: '';
 		if (
 			add(
-				result.days.map((day) => ({ kind, day }) as DayEntry),
+				result.days.map((d) => picked(d, rangeYearly)),
 				plural(result.days.length, 'day'),
 				skipped
 			)
@@ -130,7 +134,7 @@
 	}
 
 	function toggleYearly(index: number, yearly: boolean) {
-		const result = setYearly(entries, index, yearly);
+		const result = setYearly(entries, index, yearly, today);
 		if ('error' in result) {
 			problem = result.error;
 			message = '';

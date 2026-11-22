@@ -95,10 +95,16 @@ export function dayProblem(text: string, yearly = false): string {
 export type DayEntry =
 	/** That day only. */
 	| { kind: 'once'; day: string }
-	/** Every year on `day`'s month and day ('MM-DD' when saved); `day` is the date picked. */
+	/**
+	 * Every year on `day`'s month and day ('MM-DD' when saved); `day` is its next date (today
+	 * included), as yearlyEntry and entryFromSaved make it.
+	 */
 	| { kind: 'yearly'; day: string }
-	/** Saved in the PocketBase dashboard in a form the editor doesn't handle: kept as it is. */
-	| { kind: 'other'; text: string };
+	/**
+	 * Saved in the PocketBase dashboard in a form the editor doesn't handle: `value` is saved back
+	 * exactly as it was (any JSON value); `text` shows it.
+	 */
+	| { kind: 'other'; text: string; value: unknown };
 
 /** The next time a yearly 'MM-DD' comes (today included), as 'YYYY-MM-DD'. */
 export function nextYearly(monthDay: string, today: Date): string {
@@ -107,15 +113,28 @@ export function nextYearly(monthDay: string, today: Date): string {
 	return dayDate(thisYear) >= startOfDay(today) ? thisYear : `${pad(year + 1, 4)}-${monthDay}`;
 }
 
+/**
+ * Every year on the month and day of `day` ('YYYY-MM-DD', e.g. the date picked), shown with its
+ * next date from `today`: a day picked in a month that has passed comes next year.
+ */
+export const yearlyEntry = (day: string, today: Date): DayEntry => ({
+	kind: 'yearly',
+	day: nextYearly(day.slice(5), today)
+});
+
 /** A saved `dates` entry, for the form. */
 export function entryFromSaved(value: unknown, today: Date): DayEntry {
 	if (typeof value === 'string' && isDayString(value)) return { kind: 'once', day: value };
 	if (typeof value === 'string' && isYearlyString(value))
 		return { kind: 'yearly', day: nextYearly(value, today) };
-	return { kind: 'other', text: typeof value === 'string' ? value : JSON.stringify(value) };
+	const text = typeof value === 'string' ? value : JSON.stringify(value);
+	return { kind: 'other', text: text ?? String(value), value };
 }
 
-/** What is saved for an entry. An 'other' entry that wasn't text is saved back as it was. */
+/**
+ * What is saved for an entry, as text (to compare entries). savedDates saves an 'other' entry's
+ * own value, which may not be text.
+ */
 export function savedValue(entry: DayEntry): string {
 	if (entry.kind === 'once') return entry.day;
 	if (entry.kind === 'yearly') return entry.day.slice(5);
@@ -153,15 +172,16 @@ export function sortEntries(entries: readonly DayEntry[]): DayEntry[] {
 
 /**
  * What `dates` saves for the entries: one-time days in date order, then the yearly ones in
- * month-day order, then the rest as they were. Duplicates are left out.
+ * month-day order, then the rest exactly as they were saved (a number stays a number).
+ * Duplicates are left out.
  */
-export function savedDates(entries: readonly DayEntry[]): string[] {
+export function savedDates(entries: readonly DayEntry[]): unknown[] {
 	const once = entries.flatMap((entry) => (entry.kind === 'once' ? [entry.day] : [])).sort();
 	const yearly = entries
 		.flatMap((entry) => (entry.kind === 'yearly' ? [entry.day.slice(5)] : []))
 		.sort();
-	const others = entries.flatMap((entry) => (entry.kind === 'other' ? [entry.text] : []));
-	return [...new Set([...once, ...yearly, ...others])];
+	const others = entries.flatMap((entry) => (entry.kind === 'other' ? [entry.value] : []));
+	return [...new Set<unknown>([...once, ...yearly, ...others])];
 }
 
 export interface AddResult {
@@ -201,12 +221,14 @@ export function addEntries(entries: readonly DayEntry[], adding: readonly DayEnt
 
 /**
  * Switches "every year" on or off for the entry at `index`. Turning it on drops one-time days on
- * that month and day; an entry that is then a duplicate is merged. Feb 29 can't repeat.
+ * that month and day, and shows its next date from `today`; turning it off keeps the date shown.
+ * An entry that is then a duplicate is merged. Feb 29 can't repeat.
  */
 export function setYearly(
 	entries: readonly DayEntry[],
 	index: number,
-	yearly: boolean
+	yearly: boolean,
+	today: Date
 ): { entries: DayEntry[] } | { error: string } {
 	const entry = entries[index];
 	if (!entry || entry.kind === 'other' || (entry.kind === 'yearly') === yearly)
@@ -216,7 +238,9 @@ export function setYearly(
 		if (problem) return { error: problem };
 	}
 	const rest = entries.filter((_, at) => at !== index);
-	const changed: DayEntry = { kind: yearly ? 'yearly' : 'once', day: entry.day };
+	const changed: DayEntry = yearly
+		? yearlyEntry(entry.day, today)
+		: { kind: 'once', day: entry.day };
 	return { entries: addEntries(rest, [changed]).entries };
 }
 

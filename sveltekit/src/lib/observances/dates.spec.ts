@@ -19,11 +19,13 @@ import {
 	savedValue,
 	setYearly,
 	sortEntries,
+	yearlyEntry,
 	type DayEntry
 } from './dates';
 
 const once = (day: string): DayEntry => ({ kind: 'once', day });
 const yearly = (day: string): DayEntry => ({ kind: 'yearly', day });
+const other = (text: string): DayEntry => ({ kind: 'other', text, value: text });
 const TODAY = new Date(2026, 10, 22, 15, 30); // Sun Nov 22, 2026, afternoon
 
 describe('local days', () => {
@@ -95,17 +97,39 @@ describe('saved entries', () => {
 		expect(entryFromSaved('11-25', TODAY)).toEqual(yearly('2026-11-25'));
 		expect(entryFromSaved('11-22', TODAY)).toEqual(yearly('2026-11-22')); // today counts
 		expect(entryFromSaved('11-19', TODAY)).toEqual(yearly('2027-11-19'));
-		expect(entryFromSaved('2026-02-30', TODAY)).toEqual({ kind: 'other', text: '2026-02-30' });
-		expect(entryFromSaved('02-29', TODAY)).toEqual({ kind: 'other', text: '02-29' });
+		expect(entryFromSaved('2026-02-30', TODAY)).toEqual(other('2026-02-30'));
+		expect(entryFromSaved('02-29', TODAY)).toEqual(other('02-29'));
 		expect(entryFromSaved('2026-12-21 P5D', TODAY).kind).toBe('other');
-		expect(entryFromSaved(42, TODAY)).toEqual({ kind: 'other', text: '42' });
+		expect(entryFromSaved(42, TODAY)).toEqual({ kind: 'other', text: '42', value: 42 });
+	});
+
+	it('saves entries written in the dashboard back exactly as they were', () => {
+		const rule = { a: 1 };
+		const saved = [42, rule, 'easter 49', null, true, '2026-11-25'];
+		const entries = saved.map((value) => entryFromSaved(value, TODAY));
+		expect(entries.map((entry) => entry.kind === 'other' && entry.text)).toEqual([
+			'42',
+			'{"a":1}',
+			'easter 49',
+			'null',
+			'true',
+			false
+		]);
+		const again = savedDates(entries);
+		expect(again).toEqual(['2026-11-25', 42, { a: 1 }, 'easter 49', null, true]);
+		expect(again[2]).toBe(rule);
+		// A number and the same number as text are two different entries.
+		expect(savedDates([entryFromSaved(42, TODAY), entryFromSaved('42', TODAY)])).toEqual([
+			42,
+			'42'
+		]);
 	});
 
 	it('saves one-time days, then yearly ones, then the rest, without duplicates', () => {
 		const entries = [
 			yearly('2027-01-05'),
 			once('2026-12-01'),
-			{ kind: 'other', text: 'easter 49' } as DayEntry,
+			other('easter 49'),
 			once('2026-11-25'),
 			yearly('2026-11-30'),
 			once('2026-11-25')
@@ -156,16 +180,29 @@ describe('adding days without duplicates', () => {
 
 	it('switches every year on and off, merging duplicates; Feb 29 refused', () => {
 		const list = [once('2026-11-19'), yearly('2027-11-19'), once('2028-02-29')];
-		const off = setYearly(list, 1, false);
+		const off = setYearly(list, 1, false, TODAY);
 		expect('entries' in off && savedDates(off.entries)).toEqual([
 			'2026-11-19',
 			'2027-11-19',
 			'2028-02-29'
 		]);
-		const on = setYearly(list, 0, true);
+		const on = setYearly(list, 0, true, TODAY);
 		expect('entries' in on && savedDates(on.entries)).toEqual(['2028-02-29', '11-19']);
-		const leap = setYearly(list, 2, true);
+		const leap = setYearly(list, 2, true, TODAY);
 		expect('error' in leap && leap.error).toMatch(/Feb 29/);
+	});
+
+	it('shows a yearly day with its next date, also when the date picked has passed', () => {
+		// TODAY is Sun, Nov 22, 2026.
+		expect(yearlyEntry('2026-03-04', TODAY)).toEqual(yearly('2027-03-04'));
+		expect(yearlyEntry('2026-11-22', TODAY)).toEqual(yearly('2026-11-22')); // today counts
+		expect(yearlyEntry('2030-12-25', TODAY)).toEqual(yearly('2026-12-25'));
+		// The same when "every year" is ticked on a one-time day that has passed.
+		const on = setYearly([once('2025-03-04'), once('2026-12-01')], 0, true, TODAY);
+		expect('entries' in on && on.entries).toEqual([once('2026-12-01'), yearly('2027-03-04')]);
+		// Unticked again, it keeps the date it showed.
+		const off = 'entries' in on ? setYearly(on.entries, 1, false, TODAY) : on;
+		expect('entries' in off && off.entries).toEqual([once('2026-12-01'), once('2027-03-04')]);
 	});
 });
 
@@ -230,6 +267,6 @@ describe('wording', () => {
 		expect(describeEntry(once('2026-11-25'))).toBe('Wed, Nov 25, 2026');
 		expect(describeEntry(yearly('2027-11-19'))).toBe('Every year on Nov 19');
 		expect(formatMonthDay('02-29')).toBe('Feb 29');
-		expect(describeEntry({ kind: 'other', text: 'easter 49' })).toBe('easter 49');
+		expect(describeEntry(other('easter 49'))).toBe('easter 49');
 	});
 });

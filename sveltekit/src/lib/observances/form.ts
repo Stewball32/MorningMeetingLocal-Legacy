@@ -38,11 +38,15 @@ export interface ObservanceFormValues {
 export type FormField = keyof ObservanceFormValues | 'image';
 export type FormErrors = FieldErrors<FormField>;
 
-/** The record fields the form writes (the uploaded picture is handled separately). */
+/**
+ * The record fields the form writes (the uploaded picture is handled separately). `dates` may
+ * hold entries written in the PocketBase dashboard that aren't text: they are saved back as they
+ * were (see savedDates).
+ */
 export type ObservanceFields = Pick<
 	CalendarObservance,
-	'name' | 'dates' | 'school' | 'description' | 'is_active'
-> & { hidden: boolean; icon: string };
+	'name' | 'school' | 'description' | 'is_active'
+> & { dates: unknown[]; hidden: boolean; icon: string };
 
 /** Starting values for a new record (e.g. "Customize" on a built-in holiday). */
 export interface FormPreset {
