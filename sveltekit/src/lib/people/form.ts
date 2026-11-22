@@ -104,6 +104,19 @@ export function fieldsFromForm(values: PersonFormValues): PersonFields {
 	};
 }
 
+/**
+ * The fields that differ between two versions. Saving only these means a change made meanwhile
+ * in another window (say, Active switched off there) is not overwritten by an edit that never
+ * touched it.
+ */
+export function changedFields(before: PersonFields, after: PersonFields): Partial<PersonFields> {
+	const changes: Partial<PersonFields> = {};
+	for (const key of Object.keys(after) as (keyof PersonFields)[]) {
+		if (before[key] !== after[key]) Object.assign(changes, { [key]: after[key] });
+	}
+	return changes;
+}
+
 /** PocketBase field names -> form fields, for showing its validation errors next to the input. */
 export const FORM_FIELD_OF: Record<string, FormField> = {
 	name: 'name',

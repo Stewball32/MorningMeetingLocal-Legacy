@@ -71,7 +71,8 @@
 	let status: 'loading' | 'ready' | 'error' = $state('loading');
 	let loadError = $state('');
 	let retrying = $state(false);
-	let people: Person[] = $state([]);
+	// Records are only ever replaced, never changed in place, so they needn't be deeply reactive.
+	let people: Person[] = $state.raw([]);
 	/** The realtime connection that keeps this list in step with other windows. */
 	let live: 'connecting' | 'live' | 'offline' = $state('connecting');
 	const groups = $derived(groupPeople(people));
@@ -236,8 +237,8 @@
 	// --- Add / edit / delete -----------------------------------------------------------------
 
 	let formOpen = $state(false);
-	let editing: Person | null = $state(null);
-	let formPreset: Partial<PersonFormValues> = $state({});
+	let editing: Person | null = $state.raw(null);
+	let formPreset: Partial<PersonFormValues> = $state.raw({});
 
 	function openAdd(preset: Partial<PersonFormValues> = {}) {
 		editing = null;
@@ -261,7 +262,7 @@
 	}
 
 	let deleteOpen = $state(false);
-	let deleteTarget: Person | null = $state(null);
+	let deleteTarget: Person | null = $state.raw(null);
 
 	function openDelete(person: Person) {
 		deleteTarget = person;

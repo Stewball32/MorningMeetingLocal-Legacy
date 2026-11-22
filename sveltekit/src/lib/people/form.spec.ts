@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Person } from '#lib/pb/types.ts';
-import { emptyForm, fieldsFromForm, formFromPerson, validateForm } from './form.ts';
+import { changedFields, emptyForm, fieldsFromForm, formFromPerson, validateForm } from './form.ts';
 
 const record = (fields: Partial<Person>): Person => ({
 	id: 'abcdefghijklmno',
@@ -149,6 +149,42 @@ describe('fieldsFromForm', () => {
 			video_end: person.video_end,
 			is_guest: person.is_guest,
 			active: person.active
+		});
+	});
+});
+
+describe('changedFields', () => {
+	it('keeps only what the form changed', () => {
+		const person = record({ role: 'teacher', title: 'Ms.', active: true });
+		const before = fieldsFromForm(formFromPerson(person));
+		expect(changedFields(before, before)).toEqual({});
+
+		const form = formFromPerson(person);
+		form.name = 'Dora Marquez';
+		form.start = '20';
+		expect(changedFields(before, fieldsFromForm(form))).toEqual({
+			name: 'Dora Marquez',
+			video_start: 20
+		});
+	});
+
+	it('leaves untouched switches alone, so a change made elsewhere survives', () => {
+		const person = record({ active: true, is_guest: false });
+		const before = fieldsFromForm(formFromPerson(person));
+		const form = formFromPerson(person);
+		form.pronoun = '';
+		const changes = changedFields(before, fieldsFromForm(form));
+		expect(changes).toEqual({ pronoun: '' });
+		expect('active' in changes).toBe(false);
+	});
+
+	it('clears the title when a teacher becomes a student', () => {
+		const person = record({ role: 'teacher', title: 'Mr.' });
+		const form = formFromPerson(person);
+		form.role = 'student';
+		expect(changedFields(fieldsFromForm(formFromPerson(person)), fieldsFromForm(form))).toEqual({
+			role: 'student',
+			title: ''
 		});
 	});
 });

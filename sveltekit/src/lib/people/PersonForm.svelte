@@ -10,6 +10,7 @@
 	import { AVATAR_ACCEPT, prepareAvatar } from './avatar.ts';
 	import { describeError } from './errors.ts';
 	import {
+		changedFields,
 		emptyForm,
 		fieldsFromForm,
 		formFromPerson,
@@ -195,7 +196,11 @@
 		try {
 			const fields = fieldsFromForm(values);
 			const saved = original
-				? await updatePerson(original.id, fields, newPicture ?? (removePicture ? null : undefined))
+				? await updatePerson(
+						original.id,
+						changedFields(fieldsFromForm(formFromPerson(original)), fields),
+						newPicture ?? (removePicture ? null : undefined)
+					)
 				: await createPerson(fields, newPicture);
 			onSaved(saved, !original);
 		} catch (error) {
@@ -233,11 +238,11 @@
 {/snippet}
 
 <form class="flex min-h-0 flex-1 flex-col" novalidate onsubmit={save} data-person-form>
-	<header class="border-surface-200-800 shrink-0 border-b px-6 py-4">
+	<header class="border-surface-200-800 shrink-0 border-b px-6 py-3">
 		<Dialog.Title class="h4 truncate">{title}</Dialog.Title>
 	</header>
 
-	<div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
+	<div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-3">
 		<div class="flex flex-col gap-5 md:flex-row">
 			<!-- Picture: choose, drop, replace, remove -->
 			<div
@@ -438,7 +443,7 @@
 		</div>
 
 		<!-- Welcome video -->
-		<fieldset class="border-surface-200-800 rounded-container space-y-3 border p-4">
+		<fieldset class="border-surface-200-800 rounded-container space-y-2 border px-4 pt-2 pb-3">
 			<legend class="label-text px-1">Welcome video</legend>
 			<div class="grid gap-3 sm:grid-cols-[1fr_9rem_9rem]">
 				<div class="space-y-1">
@@ -524,7 +529,7 @@
 		</fieldset>
 	</div>
 
-	<footer class="border-surface-200-800 shrink-0 space-y-3 border-t px-6 py-4">
+	<footer class="border-surface-200-800 shrink-0 space-y-3 border-t px-6 py-3">
 		{#if message}
 			<p class="card preset-tonal-error px-3 py-2 text-sm font-semibold" role="alert">
 				{message}
