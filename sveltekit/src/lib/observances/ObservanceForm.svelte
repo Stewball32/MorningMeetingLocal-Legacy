@@ -687,7 +687,8 @@
 						class="-ml-2"
 					/>
 					<p id={id('active-help')} class="text-sm opacity-80">
-						Off: the calendar shows {builtIn?.name ?? 'the holiday'} as it comes, as if it was never changed.
+						Off: the picture, school day and notes above aren't used; {builtIn?.name ??
+							'the holiday'} shows as it comes (unless it is hidden).
 					</p>
 				</div>
 			</div>

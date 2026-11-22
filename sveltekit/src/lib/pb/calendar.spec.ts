@@ -197,11 +197,30 @@ describe('observancesForMonth', () => {
 		});
 	});
 
-	it('hides a built-in holiday whose settings say so, unless the record is off', () => {
+	it('hides a built-in holiday whose settings say so, even with "Use these changes" off', () => {
 		const hide = record({ name: 'Day after Thanksgiving Day', hidden: true });
 		expect(day(observancesForMonth([hide], 2026, 10), 27)).toEqual([]);
-		const off = record({ name: 'Day after Thanksgiving Day', hidden: true, is_active: false });
-		expect(day(observancesForMonth([off], 2026, 10), 27)).toHaveLength(1);
+		// off: its picture, school day and notes don't count, but Hide still does
+		const off = record({
+			name: 'Day after Thanksgiving Day',
+			hidden: true,
+			is_active: false,
+			school: 'none'
+		});
+		expect(day(observancesForMonth([off], 2026, 10), 27)).toEqual([]);
+		const shown = record({
+			name: 'Veterans Day',
+			hidden: false,
+			is_active: false,
+			school: 'short'
+		});
+		expect(day(observancesForMonth([shown], 2026, 10), 11)[0]).toMatchObject({ school: 'none' });
+		// a newer record that is off and not hidden doesn't show it again; one that is on does
+		const older = record({ name: 'Tax Day', hidden: true });
+		const newerOff = record({ name: 'Tax Day', is_active: false });
+		expect(day(observancesForMonth([older, newerOff], 2026, 3), 15)).toEqual([]);
+		const newerOn = record({ name: 'Tax Day' });
+		expect(day(observancesForMonth([older, newerOn], 2026, 3), 15)).toHaveLength(1);
 	});
 
 	it('ignores inactive records and settings for a name that is no built-in holiday', () => {

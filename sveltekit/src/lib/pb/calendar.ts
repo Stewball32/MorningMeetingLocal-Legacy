@@ -7,7 +7,8 @@
 //   hiding it);
 // - with dates: the class's own day(s), 'YYYY-MM-DD' (that year only) or 'MM-DD' (every year).
 //   Any other date-holidays rule written in the PocketBase dashboard still works as before.
-// Records with is_active = false are ignored.
+// Records with is_active = false are ignored, except that a built-in holiday's settings record
+// still hides the holiday while `hidden` is on (its picture, school day and notes are then unused).
 //
 // Dates: date-holidays' `date` strings ('YYYY-MM-DD hh:mm:ss') are read as local days. Never use
 // its `start`: US holidays are computed in New York time.
@@ -209,14 +210,16 @@ export function holidaySettings(
 ): Map<string, HolidaySettings> {
 	const settings = new Map<string, HolidaySettings>();
 	for (const record of [...records].sort(byCreated)) {
-		if (!record.is_active || !isSettingsRecord(record)) continue;
+		if (!isSettingsRecord(record)) continue;
 		const key = normalizeHolidayName(record.name ?? '');
 		const before = settings.get(key);
+		// "Use these changes" off: the picture, school day and notes don't count, but Hide does
+		const used = !!record.is_active;
 		settings.set(key, {
-			description: record.description || before?.description || '',
-			school: record.school || before?.school || '',
-			image: observancePicture(record, iconOf(record)) || before?.image || '',
-			hidden: !!record.hidden
+			description: (used && record.description) || before?.description || '',
+			school: (used && record.school) || before?.school || '',
+			image: (used && observancePicture(record, iconOf(record))) || before?.image || '',
+			hidden: !!record.hidden || (!used && !!before?.hidden)
 		});
 	}
 	return settings;
@@ -294,12 +297,13 @@ export function observancesForMonth(
 }
 
 /**
- * Every active observance record, with its icon (for observancesForMonth). `signal` can end the
- * request (e.g. AbortSignal.timeout for a page that must not wait forever).
+ * Every observance record the calendar uses, with its icon (for observancesForMonth): the active
+ * ones, and inactive ones that hide a built-in holiday. `signal` can end the request (e.g.
+ * AbortSignal.timeout for a page that must not wait forever).
  */
 export function getActiveObservances(signal?: AbortSignal): Promise<CalendarObservance[]> {
 	return pb.collection(OBSERVANCES).getFullList<CalendarObservance>({
-		filter: 'is_active = true',
+		filter: 'is_active = true || hidden = true',
 		expand: 'icon',
 		requestKey: null,
 		...(signal && { signal })

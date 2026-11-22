@@ -22,7 +22,6 @@
 		type DeleteTarget
 	} from '#lib/observances/DeleteObservanceDialog.svelte';
 	import { builtInOf, type FormPreset } from '#lib/observances/form.ts';
-	import { HideMemory } from '#lib/observances/hide-memory.ts';
 	import ObservanceFormDialog from '#lib/observances/ObservanceFormDialog.svelte';
 	import ObservancePicture from '#lib/observances/ObservancePicture.svelte';
 	import {
@@ -144,9 +143,6 @@
 		}
 	}
 
-	/** Which records Hide had to turn on, so Show can turn them off again (see hide-memory.ts). */
-	const hideMemory = new HideMemory();
-
 	async function setHidden(holiday: BuiltInHoliday, hidden: boolean, undoable = true) {
 		const key = `builtin:${holiday.name}`;
 		if (pending.has(key)) return;
@@ -161,16 +157,10 @@
 			}
 			// One set of changes per holiday: check PocketBase itself before making one.
 			if (!record) record = settingsRecordsFor(await listSettingsRecords(), holiday.name)[0];
-			// Hiding only counts while the changes are used: Hide turns them on if they are off,
-			// and Show turns them off again if Hide did that (and nothing changed them since).
-			const turnOn = hidden && !!record && !record.is_active;
-			const turnOff = !hidden && !!record && hideMemory.turnedOn(record);
+			// Hide and Show only change `hidden`: it hides the holiday whether or not the record's
+			// other changes ("Use these changes") are on, so Show can't switch old changes back on.
 			const saved = record
-				? await updateObservance(record.id, {
-						hidden,
-						...(turnOn ? { is_active: true } : {}),
-						...(turnOff ? { is_active: false } : {})
-					})
+				? await updateObservance(record.id, { hidden })
 				: await createObservance({
 						name: holiday.name,
 						dates: [],
@@ -180,15 +170,13 @@
 						hidden,
 						icon: ''
 					});
-			if (turnOn) hideMemory.remember(saved);
-			else hideMemory.forget(saved.id);
 			observances.upsert(saved);
 			notices.show({
 				text: hidden
 					? `${holiday.name} is hidden: it isn't on the calendar any more.`
-					: turnOff
-						? `${holiday.name} is back on the calendar (your changes to it stay off).`
-						: `${holiday.name} is back on the calendar.`,
+					: saved.is_active
+						? `${holiday.name} is back on the calendar.`
+						: `${holiday.name} is back on the calendar (your changes to it stay off).`,
 				tone: 'success',
 				undo: undoable ? () => setHidden(holiday, !hidden, false) : undefined
 			});
