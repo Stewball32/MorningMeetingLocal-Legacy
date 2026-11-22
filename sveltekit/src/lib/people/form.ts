@@ -1,6 +1,6 @@
 // The Add / Edit person form: its values, validation and the record fields it saves.
 import type { Person } from '#lib/pb/types.ts';
-import { formatTime, parseTime, parseYouTube } from './youtube.ts';
+import { MAX_SECONDS, formatTime, parseTime, parseYouTube } from './youtube.ts';
 
 /** What the form holds while the teacher types: text exactly as typed, so nothing is lost. */
 export interface PersonFormValues {
@@ -68,41 +68,72 @@ export function formFromPerson(person: Person): PersonFormValues {
 }
 
 const TIME_HELP = 'Use seconds (like 90) or minutes:seconds (like 1:30).';
+const TOO_LONG = `Times can be up to 24 hours (${formatTime(MAX_SECONDS)}).`;
 
-export function validateForm(values: PersonFormValues): FormErrors {
+/** Whether the teacher changed this field (spaces around it don't count). */
+const edited = (
+	values: PersonFormValues,
+	start: PersonFormValues | undefined,
+	field: 'video' | 'start' | 'end'
+) => !start || values[field].trim() !== start[field].trim();
+
+/**
+ * Checks the form. `start` is what the form started with when editing someone: the video and
+ * times are only checked once they are changed, so an odd value saved long ago (say a video ID
+ * that isn't 11 characters) doesn't block saving the rest; it is kept as it is.
+ */
+export function validateForm(values: PersonFormValues, start?: PersonFormValues): FormErrors {
 	const errors: FormErrors = {};
 	if (!values.name.trim()) errors.name = 'Please enter a name.';
 	if (values.role !== 'student' && values.role !== 'teacher')
 		errors.role = 'Choose Student or Teacher.';
 
-	if (parseYouTube(values.video).kind === 'invalid')
+	if (edited(values, start, 'video') && parseYouTube(values.video).kind === 'invalid')
 		errors.video = "That doesn't look like a YouTube link or video ID.";
 
-	const start = parseTime(values.start);
-	const end = parseTime(values.end);
-	if (values.start.trim() && start === undefined) errors.start = TIME_HELP;
-	if (values.end.trim() && end === undefined) errors.end = TIME_HELP;
-	if (start !== undefined && end !== undefined && end <= start)
-		errors.end = `The end must be after the start (${formatTime(start)}).`;
+	if (!edited(values, start, 'start') && !edited(values, start, 'end')) return errors;
+	const from = parseTime(values.start);
+	const to = parseTime(values.end);
+	if (values.start.trim() && from === undefined) errors.start = TIME_HELP;
+	else if (from !== undefined && from > MAX_SECONDS) errors.start = TOO_LONG;
+	if (values.end.trim() && to === undefined) errors.end = TIME_HELP;
+	else if (to !== undefined && to > MAX_SECONDS) errors.end = TOO_LONG;
+	else if (from !== undefined && to !== undefined && to <= from)
+		errors.end = `The end must be after the start (${formatTime(from)}).`;
 	return errors;
 }
 
 /** The record fields for valid form values (run validateForm first). */
 export function fieldsFromForm(values: PersonFormValues): PersonFields {
 	const video = parseYouTube(values.video);
+	// Without a video there is nothing to start or end.
+	const timed = video.kind !== 'empty';
 	return {
 		name: values.name.trim(),
 		role: values.role,
 		// A title only belongs to teachers; it stays in the form in case the role is switched back.
 		title: values.role === 'teacher' ? values.title.trim() : '',
 		pronoun: values.pronoun,
-		video_id: video.kind === 'video' ? video.id : '',
-		video_start: parseTime(values.start) ?? 0,
-		video_end: parseTime(values.end) ?? 0,
+		// An unreadable video only gets past validateForm unchanged: then it is kept as it was.
+		video_id: video.kind === 'video' ? video.id : values.video.trim(),
+		video_start: (timed && parseTime(values.start)) || 0,
+		video_end: (timed && parseTime(values.end)) || 0,
 		is_guest: values.is_guest,
 		active: values.active
 	};
 }
+
+/** Whether two sets of form values are the same (ignoring spaces around text). */
+export function sameForm(a: PersonFormValues, b: PersonFormValues): boolean {
+	return (Object.keys(a) as (keyof PersonFormValues)[]).every((field) =>
+		typeof a[field] === 'string'
+			? String(a[field]).trim() === String(b[field]).trim()
+			: a[field] === b[field]
+	);
+}
+
+/** How a save went: a new person, saved changes, or nothing to save. */
+export type SaveOutcome = 'created' | 'saved' | 'unchanged';
 
 /**
  * The fields that differ between two versions. Saving only these means a change made meanwhile

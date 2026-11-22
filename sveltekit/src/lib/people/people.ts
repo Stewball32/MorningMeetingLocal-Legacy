@@ -75,3 +75,33 @@ export function removePerson(people: readonly Person[], id: string): Person[] {
 export function plural(count: number, one: string, many = `${one}s`): string {
 	return `${count} ${count === 1 ? one : many}`;
 }
+
+/**
+ * The history deleted with a person, in words: ["12 days of attendance history",
+ * "3 guest check-ins"], leaving out what they have none of.
+ */
+export function historyParts(history: { days: number; guestCheckIns: number }): string[] {
+	const parts: string[] = [];
+	if (history.days > 0) parts.push(`${plural(history.days, 'day')} of attendance history`);
+	if (history.guestCheckIns > 0) parts.push(plural(history.guestCheckIns, 'guest check-in'));
+	return parts;
+}
+
+/** The message after one of a person's switches in the list was saved. */
+export function flagMessage(
+	person: Pick<Person, 'name' | 'title' | 'role' | 'is_guest' | 'active'>,
+	flag: Flag
+): string {
+	const name = displayName(person);
+	if (flag === 'active')
+		return person.active
+			? `${name} is active again and back on the slides.`
+			: `${name} is now inactive: hidden from the slides, history kept.`;
+	if (person.is_guest)
+		return person.active
+			? `${name} is now a guest: only offered in the guest list.`
+			: `${name} is now a guest, but inactive: the guest list only offers them once Active is turned back on.`;
+	return person.active
+		? `${name} is no longer a guest and is back on the ${person.role} attendance page.`
+		: `${name} is no longer a guest.`;
+}

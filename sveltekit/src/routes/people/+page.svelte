@@ -7,19 +7,28 @@
 	import UserPlus from '@lucide/svelte/icons/user-plus';
 	import WifiOff from '@lucide/svelte/icons/wifi-off';
 	import X from '@lucide/svelte/icons/x';
+	import type { RecordSubscription } from 'pocketbase';
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { Person } from '#lib/pb/types.ts';
-	import { listPeople, POCKETBASE_URL, updatePerson, watchPeople } from '#lib/pb/people.ts';
+	import {
+		listPeople,
+		POCKETBASE_URL,
+		updatePerson,
+		watchPeople,
+		type PersonHistory
+	} from '#lib/pb/people.ts';
 	import DeletePersonDialog from '#lib/people/DeletePersonDialog.svelte';
 	import { describeError } from '#lib/people/errors.ts';
-	import type { PersonFormValues } from '#lib/people/form.ts';
+	import type { PersonFormValues, SaveOutcome } from '#lib/people/form.ts';
 	import PersonFormDialog from '#lib/people/PersonFormDialog.svelte';
 	import PersonRow from '#lib/people/PersonRow.svelte';
 	import {
 		displayName,
+		flagMessage,
+		groupOf,
 		groupPeople,
-		plural,
+		historyParts,
 		removePerson,
 		upsertPerson,
 		type Flag,
@@ -83,14 +92,24 @@
 	let stopWatching: (() => Promise<void>) | undefined;
 	let watching = false;
 
+	const applyChange = (list: Person[], event: RecordSubscription<Person>) =>
+		event.action === 'delete'
+			? removePerson(list, event.record.id)
+			: upsertPerson(list, event.record);
+	/** Live changes that arrived while a load was on its way, one list per load. */
+	const changesDuringLoads = new Set<RecordSubscription<Person>[]>();
+
 	/** (Re)loads everyone. A failure only replaces the list with an error before the first load. */
 	async function load() {
 		clearTimeout(retryTimer);
 		if (status === 'error') retrying = true;
+		const changes: RecordSubscription<Person>[] = [];
+		changesDuringLoads.add(changes);
 		try {
 			const list = await listPeople();
 			if (destroyed) return;
-			people = list;
+			// The answer may have been put together before those changes: apply them again on top.
+			people = changes.reduce(applyChange, list);
 			status = 'ready';
 			loadError = '';
 			startWatching();
@@ -101,6 +120,7 @@
 			status = 'error';
 			retryTimer = setTimeout(load, 5000);
 		} finally {
+			changesDuringLoads.delete(changes);
 			retrying = false;
 		}
 	}
@@ -110,10 +130,8 @@
 		watching = true;
 		watchPeople({
 			onChange: (event) => {
-				people =
-					event.action === 'delete'
-						? removePerson(people, event.record.id)
-						: upsertPerson(people, event.record);
+				for (const changes of changesDuringLoads) changes.push(event);
+				people = applyChange(people, event);
 			},
 			onConnect: () => {
 				const missedChanges = live === 'offline';
@@ -178,18 +196,6 @@
 	const busyFlags = (id: string): Flag[] =>
 		(['active', 'is_guest'] as const).filter((flag) => pending.has(`${id}:${flag}`));
 
-	function flagMessage(person: Person, flag: Flag): string {
-		const name = displayName(person);
-		if (flag === 'active')
-			return person.active
-				? `${name} is active again and back on the slides.`
-				: `${name} is now inactive: hidden from the slides, history kept.`;
-		if (person.is_guest) return `${name} is now a guest: only offered in the guest list.`;
-		return person.active
-			? `${name} is no longer a guest and is back on the ${person.role} attendance page.`
-			: `${name} is no longer a guest.`;
-	}
-
 	/**
 	 * Applies a change that can move a person's row to another group, where it is created anew.
 	 * If one of the row's switches has focus, it is taken off first (zag would otherwise handle the
@@ -236,48 +242,98 @@
 
 	// --- Add / edit / delete -----------------------------------------------------------------
 
+	// Each opening of a dialog gets a new session number, so it starts with fresh content.
 	let formOpen = $state(false);
+	let formSession = $state(0);
 	let editing: Person | null = $state.raw(null);
 	let formPreset: Partial<PersonFormValues> = $state.raw({});
 
+	/**
+	 * Where focus goes when a dialog closes. zag gives it back to the button that opened the
+	 * dialog, but that button is gone when the save moved the row to another group or the person
+	 * was deleted: then it goes to the person's row (wherever it is now), a neighbouring row,
+	 * the group's Add button or, last, Add person.
+	 */
+	let returnFocus: { opener: Element | null; ids: string[]; group: GroupKey | null } = {
+		opener: null,
+		ids: [],
+		group: null
+	};
+	function rememberFocus(person: Person | null) {
+		const group = person ? groupOf(person) : null;
+		const list = group ? groups[group] : [];
+		const index = person ? list.findIndex((p) => p.id === person.id) : -1;
+		const neighbours = index >= 0 ? [list[index + 1], list[index - 1]] : [];
+		returnFocus = {
+			opener: document.activeElement,
+			ids: [person, ...neighbours].flatMap((p) => (p ? [p.id] : [])),
+			group
+		};
+	}
+	function finalFocusEl(): HTMLElement | null {
+		const { opener, ids, group } = returnFocus;
+		if (opener instanceof HTMLElement && opener.isConnected && opener !== document.body)
+			return opener;
+		for (const id of ids) {
+			const edit = document.querySelector<HTMLElement>(`li[data-person="${id}"] [data-edit]`);
+			if (edit) return edit;
+		}
+		return (
+			document.querySelector<HTMLElement>(`[data-group="${group}"] header button`) ??
+			document.querySelector<HTMLElement>('[data-add-person]')
+		);
+	}
+
 	function openAdd(preset: Partial<PersonFormValues> = {}) {
+		rememberFocus(null);
 		editing = null;
 		formPreset = preset;
+		formSession++;
 		formOpen = true;
 	}
 
 	function openEdit(person: Person) {
+		rememberFocus(person);
 		editing = person;
 		formPreset = {};
+		formSession++;
 		formOpen = true;
 	}
 
-	function onSaved(person: Person, created: boolean) {
-		people = upsertPerson(people, person);
+	function onSaved(person: Person, outcome: SaveOutcome) {
 		formOpen = false;
-		show({
-			text: created ? `Added ${displayName(person)}.` : `Saved ${displayName(person)}.`,
-			tone: 'success'
-		});
+		const name = displayName(person);
+		if (outcome === 'unchanged') {
+			// `person` is the copy the form started with: keep the list's (maybe newer) record.
+			show({ text: `No changes to save for ${name}.`, tone: 'success' });
+			return;
+		}
+		people = upsertPerson(people, person);
+		if (outcome === 'created') returnFocus.ids = [person.id];
+		show({ text: outcome === 'created' ? `Added ${name}.` : `Saved ${name}.`, tone: 'success' });
 	}
 
 	let deleteOpen = $state(false);
+	let deleteSession = $state(0);
 	let deleteTarget: Person | null = $state.raw(null);
 
 	function openDelete(person: Person) {
+		rememberFocus(person);
 		deleteTarget = person;
+		deleteSession++;
 		deleteOpen = true;
 	}
 
-	function onDeleted(person: Person, days: number | null, alreadyGone: boolean) {
+	function onDeleted(person: Person, history: PersonHistory | null, alreadyGone: boolean) {
 		people = removePerson(people, person.id);
 		deleteOpen = false;
 		const name = displayName(person);
+		const parts = history ? historyParts(history) : [];
 		show({
 			text: alreadyGone
 				? `${name} had already been deleted (in another window).`
-				: days
-					? `Deleted ${name} and ${plural(days, 'day')} of attendance history.`
+				: parts.length > 0
+					? `Deleted ${name} and ${parts.join(' and ')}.`
 					: `Deleted ${name}.`,
 			tone: 'success'
 		});
@@ -318,6 +374,7 @@
 			type="button"
 			class="btn preset-filled-primary-500 px-5 py-3 text-lg"
 			disabled={status !== 'ready'}
+			data-add-person
 			onclick={() => openAdd()}
 		>
 			<UserPlus class="size-6" aria-hidden="true" />
@@ -446,18 +503,22 @@
 
 <PersonFormDialog
 	open={formOpen}
+	session={formSession}
 	person={editing}
 	preset={formPreset}
 	{onSaved}
 	onClose={() => (formOpen = false)}
+	{finalFocusEl}
 />
 
 <DeletePersonDialog
 	open={deleteOpen}
+	session={deleteSession}
 	person={deleteTarget}
 	onClose={() => (deleteOpen = false)}
 	{onDeleted}
 	{onDeactivate}
+	{finalFocusEl}
 />
 
 <div

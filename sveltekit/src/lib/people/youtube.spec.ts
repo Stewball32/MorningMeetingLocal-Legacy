@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { formatTime, parseTime, parseYouTube, slideVideoUrl } from './youtube.ts';
+import {
+	describeTimeIssues,
+	formatTime,
+	MAX_SECONDS,
+	parseTime,
+	parseYouTube,
+	slideVideoUrl
+} from './youtube.ts';
 
 const ID = 'dQw4w9WgXcQ';
 
@@ -13,6 +20,8 @@ describe('parseTime', () => {
 		['90.7', 90],
 		['2m', 120],
 		['1m30s', 90],
+		['1m30', 90],
+		['2h1m30', 7290],
 		['1m5s', 65],
 		['1h', 3600],
 		['1h2m3s', 3723],
@@ -25,7 +34,11 @@ describe('parseTime', () => {
 		expect(parseTime(text)).toBe(seconds);
 	});
 
-	it.each(['', '   ', 'abc', '-5', '1:75', '1:02:75', '1m30', 'm', 's', '1.5m', '1:2:3:4', '10 s'])(
+	it('reads huge numbers as they are (the form says they are too long)', () => {
+		expect(parseTime('99999999999999999999')).toBeGreaterThan(MAX_SECONDS);
+	});
+
+	it.each(['', '   ', 'abc', '-5', '1:75', '1:02:75', '1h30', 'm', 's', '1.5m', '1:2:3:4', '10 s'])(
 		'rejects %j',
 		(text) => {
 			expect(parseTime(text)).toBeUndefined();
@@ -114,8 +127,54 @@ describe('parseYouTube', () => {
 		expect(parseYouTube(embedded)).toEqual({ kind: 'video', id: ID, start: 14, end: 30 });
 	});
 
-	it('ignores a start time it cannot read', () => {
-		expect(parseYouTube(`https://youtu.be/${ID}?t=soon`)).toEqual({ kind: 'video', id: ID });
+	it('reports a start time it cannot read', () => {
+		expect(parseYouTube(`https://youtu.be/${ID}?t=soon`)).toEqual({
+			kind: 'video',
+			id: ID,
+			issues: [{ param: 't', value: 'soon', problem: 'unreadable' }]
+		});
+		expect(parseYouTube(`https://youtu.be/${ID}?t=-5&end=30`)).toEqual({
+			kind: 'video',
+			id: ID,
+			end: 30,
+			issues: [{ param: 't', value: '-5', problem: 'unreadable' }]
+		});
+	});
+
+	it('reports times over 24 hours instead of using them', () => {
+		expect(parseYouTube(`https://youtu.be/${ID}?t=99999999999999999999`)).toEqual({
+			kind: 'video',
+			id: ID,
+			issues: [{ param: 't', value: '99999999999999999999', problem: 'too-long' }]
+		});
+		expect(parseYouTube(`https://youtu.be/${ID}?t=${MAX_SECONDS}`)).toMatchObject({
+			start: MAX_SECONDS
+		});
+	});
+
+	it('ignores an empty t=', () => {
+		expect(parseYouTube(`https://youtu.be/${ID}?t=&si=x`)).toEqual({ kind: 'video', id: ID });
+	});
+
+	it.each([
+		[`youtu.be/${ID}&t=30`, 30],
+		[`https://youtu.be/${ID}?si=abc&t=1m30`, 90],
+		[`https://www.youtube.com/watch?v=${ID}?t=45`, 45],
+		[`https://www.youtube.com/watch?v=${ID}&start=12`, 12]
+	])('finds the time in a link typed slightly wrong: %s', (url, start) => {
+		expect(parseYouTube(url)).toEqual({ kind: 'video', id: ID, start });
+	});
+
+	it('understands an embed snippet', () => {
+		const snippet = `<iframe width="560" height="315" src="https://www.youtube.com/embed/${ID}?si=Ab_c&amp;start=12&amp;end=20" title="YouTube video player" frameborder="0" allowfullscreen></iframe>`;
+		expect(parseYouTube(snippet)).toEqual({ kind: 'video', id: ID, start: 12, end: 20 });
+		expect(parseYouTube(`<iframe src='https://www.youtube-nocookie.com/embed/${ID}'>`)).toEqual({
+			kind: 'video',
+			id: ID
+		});
+		expect(parseYouTube('<iframe src="https://vimeo.com/123"></iframe>')).toEqual({
+			kind: 'invalid'
+		});
 	});
 
 	it.each([
@@ -157,5 +216,25 @@ describe('slideVideoUrl', () => {
 		expect(slideVideoUrl({ video_id: ID })).toBe(
 			`https://www.youtube.com/watch?v=${ID}?rel=0&enablejsapi=1&autoplay=0`
 		);
+	});
+});
+
+describe('describeTimeIssues', () => {
+	it('says which link times could not be used, and why', () => {
+		expect(describeTimeIssues([{ param: 't', value: '-5', problem: 'unreadable' }])).toBe(
+			"Couldn't read t=-5 in the link."
+		);
+		expect(
+			describeTimeIssues([
+				{ param: 't', value: '99999999999999999999', problem: 'too-long' },
+				{ param: 'end', value: 'x', problem: 'unreadable' }
+			])
+		).toBe(
+			"The link's t=99999999999999999999 is more than 24 hours. Couldn't read end=x in the link."
+		);
+		expect(describeTimeIssues([{ param: 't', value: '1'.repeat(30), problem: 'too-long' }])).toBe(
+			`The link's t=${'1'.repeat(20)}… is more than 24 hours.`
+		);
+		expect(describeTimeIssues([])).toBe('');
 	});
 });

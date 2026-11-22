@@ -14,22 +14,31 @@
 		emptyForm,
 		fieldsFromForm,
 		formFromPerson,
+		sameForm,
 		validateForm,
 		type FormErrors,
 		type FormField,
-		type PersonFormValues
+		type PersonFormValues,
+		type SaveOutcome
 	} from './form.ts';
 	import LabeledSwitch from './LabeledSwitch.svelte';
 	import PersonAvatar from './PersonAvatar.svelte';
 	import { displayName, groupOf } from './people.ts';
-	import { formatTime, parseTime, parseYouTube, slideVideoUrl } from './youtube.ts';
+	import {
+		MAX_SECONDS,
+		describeTimeIssues,
+		formatTime,
+		parseTime,
+		parseYouTube,
+		slideVideoUrl
+	} from './youtube.ts';
 
 	interface Props {
 		/** The person to edit, or null to add someone new. */
 		person: Person | null;
 		/** Starting values for someone new (e.g. Add teacher). */
 		preset?: Partial<PersonFormValues>;
-		onSaved: (person: Person, created: boolean) => void;
+		onSaved: (person: Person, outcome: SaveOutcome) => void;
 		onCancel: () => void;
 	}
 
@@ -38,11 +47,14 @@
 	// The form works on its own copy, taken when the dialog opens: a live update to this person
 	// from another window never overwrites what is being typed here.
 	const original = untrack(() => person);
-	let values: PersonFormValues = $state(
-		untrack(() => (original ? formFromPerson(original) : emptyForm(preset)))
+	/** What the form started with, to tell what the teacher changed. */
+	const initial: PersonFormValues = untrack(() =>
+		original ? formFromPerson(original) : emptyForm(preset)
 	);
+	let values: PersonFormValues = $state({ ...initial });
 	let errors: FormErrors = $state({});
 	let message = $state('');
+	/** A save is on its way, or done (the dialog is then closing): the form takes no more input. */
 	let saving = $state(false);
 
 	const clearError = (field: FormField) => {
@@ -68,13 +80,27 @@
 		newPicture = null;
 		newPictureUrl = '';
 	};
-	onDestroy(forgetNewPicture);
+	/**
+	 * Counts picture choices. Getting a big one ready takes a moment; only the latest choice's
+	 * result is used, so a slow one can't replace a picture chosen after it.
+	 */
+	let pictureChoice = 0;
+	const dropPictureInProgress = () => {
+		pictureChoice++;
+		preparingPicture = false;
+	};
+	onDestroy(() => {
+		dropPictureInProgress();
+		forgetNewPicture();
+	});
 
 	async function usePicture(file: File | null | undefined) {
-		if (!file) return;
+		if (!file || saving) return;
 		clearError('avatar');
+		const choice = ++pictureChoice;
 		preparingPicture = true;
 		const result = await prepareAvatar(file);
+		if (choice !== pictureChoice) return;
 		preparingPicture = false;
 		if ('error' in result) {
 			errors.avatar = result.error;
@@ -93,12 +119,14 @@
 	}
 
 	function onRemovePicture() {
+		dropPictureInProgress();
 		forgetNewPicture();
 		removePicture = !!currentPictureUrl;
 		clearError('avatar');
 	}
 
 	function onKeepPicture() {
+		dropPictureInProgress();
 		forgetNewPicture();
 		removePicture = false;
 		clearError('avatar');
@@ -109,6 +137,12 @@
 	// --- Video -------------------------------------------------------------------------------
 
 	const video = $derived(parseYouTube(values.video));
+	/** A video ID saved long ago that isn't one: it is kept as it is unless it is changed. */
+	const oddSavedVideo = $derived(
+		video.kind === 'invalid' &&
+			!!initial.video.trim() &&
+			values.video.trim() === initial.video.trim()
+	);
 	const start = $derived(parseTime(values.start));
 	const end = $derived(parseTime(values.end));
 	const testUrl = $derived(
@@ -116,40 +150,79 @@
 			? slideVideoUrl({ video_id: video.id, video_start: start ?? 0, video_end: end ?? 0 })
 			: ''
 	);
-	let timesFromLink = $state(false);
+
+	/** Which times were filled in from the link (until they are edited). */
+	let fromLink = $state({ start: false, end: false });
+	/** The times were cleared because another video was chosen. */
+	let timesReset = $state(false);
+	/** The video the times belong to; '' when they were typed with no video (for the next one). */
+	let timesFor = untrack(() => {
+		const parsed = parseYouTube(initial.video);
+		return parsed.kind === 'video' ? parsed.id : initial.video.trim();
+	});
 	// A pasted link with ?t=90 fills in the start time once; editing the start afterwards sticks,
 	// even if the link text is touched again.
 	let appliedLink = '';
-	function applyLinkTimes(text: string) {
+	function applyLink(text: string) {
 		const parsed = parseYouTube(text);
 		if (parsed.kind !== 'video') return;
 		const key = `${parsed.id}|${parsed.start ?? ''}|${parsed.end ?? ''}`;
 		if (key === appliedLink) return;
 		appliedLink = key;
-		if (parsed.start !== undefined) {
-			values.start = String(parsed.start);
-			clearError('start');
-			timesFromLink = true;
+		if (timesFor && timesFor !== parsed.id) {
+			// Another video: the old one's times don't fit it.
+			timesReset = !!(values.start.trim() || values.end.trim());
+			values.start = '';
+			values.end = '';
+			fromLink = { start: false, end: false };
 		}
-		if (parsed.end !== undefined) {
-			values.end = String(parsed.end);
-			clearError('end');
-			timesFromLink = true;
+		timesFor = parsed.id;
+		for (const field of ['start', 'end'] as const) {
+			const seconds = parsed[field];
+			if (seconds !== undefined) {
+				values[field] = String(seconds);
+				fromLink[field] = true;
+			} else if (fromLink[field]) {
+				// It came from an earlier version of the link, which had it.
+				values[field] = '';
+				fromLink[field] = false;
+			}
+			clearError(field);
 		}
 	}
+
+	/** After "Video <id>": where the times came from, and link times that couldn't be used. */
+	const videoNote = $derived.by(() => {
+		if (video.kind !== 'video') return '';
+		const times =
+			fromLink.start || fromLink.end
+				? ', times taken from the link'
+				: timesReset
+					? ', times reset for the new video'
+					: '';
+		const issues = video.issues
+			? `. ${describeTimeIssues(video.issues)} Enter the time below.`
+			: '';
+		return times + issues;
+	});
 
 	type TextField = 'name' | 'title' | 'video' | 'start' | 'end';
 	function setText(field: TextField, text: string) {
 		values[field] = text;
 		clearError(field);
-		if (field === 'start' || field === 'end') timesFromLink = false;
-		if (field === 'video') applyLinkTimes(text);
+		if (field === 'video') applyLink(text);
+		if (field === 'start' || field === 'end') {
+			fromLink[field] = false;
+			timesReset = false;
+			if (video.kind !== 'invalid') timesFor = video.kind === 'video' ? video.id : '';
+		}
 	}
 
 	const timeHint = (seconds: number | undefined, text: string, empty: string) => {
 		if (!text.trim()) return empty;
-		if (seconds === undefined) return '';
-		return `${formatTime(seconds)} (${seconds} ${seconds === 1 ? 'second' : 'seconds'})`;
+		if (seconds === undefined || seconds > MAX_SECONDS) return '';
+		const shown = `${formatTime(seconds)} (${seconds} ${seconds === 1 ? 'second' : 'seconds'})`;
+		return video.kind === 'empty' ? `${shown}; not used without a video` : shown;
 	};
 
 	// --- Where they show up ------------------------------------------------------------------
@@ -183,7 +256,7 @@
 	async function save(event: SubmitEvent) {
 		event.preventDefault();
 		if (saving || preparingPicture) return;
-		const problems = validateForm(values);
+		const problems = validateForm(values, original ? initial : undefined);
 		errors = { ...problems, avatar: errors.avatar };
 		if (Object.values(problems).some(Boolean)) {
 			message = 'Please fix the highlighted fields.';
@@ -191,29 +264,41 @@
 			return;
 		}
 
+		const fields = fieldsFromForm(values);
+		const avatar = newPicture ?? (removePicture ? null : undefined);
+		const changes = original ? changedFields(fieldsFromForm(initial), fields) : fields;
+		// Once saved, the form stays locked while the dialog closes: a second Enter in that moment
+		// must not save (or add the person) again.
 		saving = true;
 		message = '';
+		if (original && Object.keys(changes).length === 0 && avatar === undefined) {
+			// Nothing to send: no request, no realtime update for every open presenter.
+			onSaved(original, 'unchanged');
+			return;
+		}
 		try {
-			const fields = fieldsFromForm(values);
 			const saved = original
-				? await updatePerson(
-						original.id,
-						changedFields(fieldsFromForm(formFromPerson(original)), fields),
-						newPicture ?? (removePicture ? null : undefined)
-					)
+				? await updatePerson(original.id, changes, avatar)
 				: await createPerson(fields, newPicture);
-			onSaved(saved, !original);
+			onSaved(saved, original ? 'saved' : 'created');
 		} catch (error) {
+			saving = false;
 			const problem = describeError(
 				error,
-				original ? `save ${displayName(original)}` : `add ${values.name.trim()}`
+				original ? `save ${displayName(original)}` : `add ${values.name.trim()}`,
+				{ form: true }
 			);
 			errors = problem.fields;
 			message = problem.message;
 			if (Object.keys(problem.fields).length > 0) focusFirstError();
-		} finally {
-			saving = false;
 		}
+	}
+
+	/** For Escape: the dialog stays open while saving, and asks before changes are thrown away. */
+	export function canClose(): boolean {
+		if (saving) return false;
+		if (!pictureChanged && !preparingPicture && sameForm(values, initial)) return true;
+		return confirm('Discard your changes?');
 	}
 
 	const roleItems = [
@@ -279,7 +364,7 @@
 					<button
 						type="button"
 						class="btn preset-tonal-primary px-3 py-2"
-						disabled={preparingPicture}
+						disabled={preparingPicture || saving}
 						aria-describedby={id('picture-status')}
 						onclick={() => fileInput?.click()}
 					>
@@ -290,7 +375,7 @@
 						<button
 							type="button"
 							class="btn preset-tonal-error px-3 py-2"
-							disabled={preparingPicture}
+							disabled={preparingPicture || saving}
 							onclick={onRemovePicture}
 						>
 							<ImageOff class="size-5" aria-hidden="true" />
@@ -298,7 +383,12 @@
 						</button>
 					{/if}
 					{#if pictureChanged && currentPictureUrl}
-						<button type="button" class="btn preset-tonal px-3 py-2" onclick={onKeepPicture}>
+						<button
+							type="button"
+							class="btn preset-tonal px-3 py-2"
+							disabled={saving}
+							onclick={onKeepPicture}
+						>
 							<Undo class="size-5" aria-hidden="true" />
 							Keep the old picture
 						</button>
@@ -463,11 +553,12 @@
 					</label>
 					<p id={id('video-hint')} class="text-sm opacity-80">
 						{#if video.kind === 'video'}
-							Video <code class="font-mono">{video.id}</code>{timesFromLink
-								? ', times taken from the link'
-								: ''}
+							Video <code class="font-mono">{video.id}</code>{videoNote}
 						{:else if video.kind === 'empty'}
 							A YouTube link (watch, youtu.be, shorts, embed) or an 11-character video ID.
+						{:else if oddSavedVideo}
+							The saved video ID <code class="font-mono break-all">{initial.video.trim()}</code> doesn't
+							look like a YouTube video ID; it is kept as it is unless you change it.
 						{/if}
 					</p>
 					{@render fieldError('video')}
@@ -536,7 +627,10 @@
 			</p>
 		{/if}
 		<div class="flex flex-wrap justify-end gap-3">
-			<button type="button" class="btn preset-tonal px-5 py-2" onclick={onCancel}>Cancel</button>
+			<!-- Not while saving: the dialog would close with the save still on its way. -->
+			<button type="button" class="btn preset-tonal px-5 py-2" disabled={saving} onclick={onCancel}>
+				Cancel
+			</button>
 			<button
 				type="submit"
 				class="btn preset-filled-primary-500 px-5 py-2"

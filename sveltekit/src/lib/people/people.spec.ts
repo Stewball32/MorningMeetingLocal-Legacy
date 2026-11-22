@@ -3,8 +3,10 @@ import type { Person } from '#lib/pb/types.ts';
 import {
 	compareByName,
 	displayName,
+	flagMessage,
 	groupOf,
 	groupPeople,
+	historyParts,
 	plural,
 	pronounLabel,
 	removePerson,
@@ -145,5 +147,40 @@ describe('upsertPerson / removePerson', () => {
 
 		expect(removePerson(list, a.id)).toEqual([b]);
 		expect(removePerson(list, 'missing')).toEqual(list);
+	});
+});
+
+describe('historyParts', () => {
+	it('names what is deleted with a person, leaving out what they have none of', () => {
+		expect(historyParts({ days: 12, guestCheckIns: 3 })).toEqual([
+			'12 days of attendance history',
+			'3 guest check-ins'
+		]);
+		expect(historyParts({ days: 1, guestCheckIns: 0 })).toEqual(['1 day of attendance history']);
+		expect(historyParts({ days: 0, guestCheckIns: 1 })).toEqual(['1 guest check-in']);
+		expect(historyParts({ days: 0, guestCheckIns: 0 })).toEqual([]);
+	});
+});
+
+describe('flagMessage', () => {
+	const ms = (fields: Partial<Person>) =>
+		person({ name: 'Smith', title: 'Ms.', role: 'teacher', ...fields });
+
+	it('says where someone now shows up', () => {
+		expect(flagMessage(ms({ is_guest: true }), 'is_guest')).toBe(
+			'Ms. Smith is now a guest: only offered in the guest list.'
+		);
+		expect(flagMessage(ms({}), 'is_guest')).toBe(
+			'Ms. Smith is no longer a guest and is back on the teacher attendance page.'
+		);
+		expect(flagMessage(ms({ active: false }), 'active')).toMatch(/now inactive/);
+		expect(flagMessage(ms({}), 'active')).toMatch(/active again/);
+	});
+
+	it("doesn't promise the guest list for someone inactive", () => {
+		const message = flagMessage(ms({ is_guest: true, active: false }), 'is_guest');
+		expect(message).not.toMatch(/only offered in the guest list/);
+		expect(message).toMatch(/inactive/);
+		expect(flagMessage(ms({ active: false }), 'is_guest')).toBe('Ms. Smith is no longer a guest.');
 	});
 });
