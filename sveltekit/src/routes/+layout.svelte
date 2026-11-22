@@ -24,6 +24,8 @@
 	</div>
 {/if}
 
-<div class="relative min-h-screen min-w-screen">
+<!-- w-full, not min-w-screen: 100vw counts the scrollbar, so a page that scrolls down would be a
+     few pixels wider than the window and scroll sideways too (Firefox). -->
+<div class="relative min-h-screen w-full">
 	{@render children()}
 </div>
