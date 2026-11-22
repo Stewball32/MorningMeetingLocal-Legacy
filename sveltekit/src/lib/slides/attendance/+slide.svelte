@@ -3,7 +3,7 @@
 	import type { ClassDaily, IconRecord, GuestDaily, Person, PersonDaily } from '#lib/pb/types.ts';
 	import { displayName } from '#lib/people/people.ts';
 	import { isNewer } from '#lib/present/classDaily.ts';
-	import { reportSaveError } from '#lib/present/saveStatus.svelte.ts';
+	import { clearSaveError, reportSaveError } from '#lib/present/saveStatus.svelte.ts';
 	import { onMount } from 'svelte';
 	import WhoIsHere from '#lib/slides/attendance/WhoIsHere.svelte';
 	import type { ClassProps, MathClassProps } from './_types';
@@ -100,8 +100,14 @@
 			}
 			try {
 				lastSaved[person.id] = await updatePersonDaily(person, { date, here, known: daily });
+				clearSaveError(`attendance:${person.id}`);
 			} catch (error) {
-				reportSaveError(error, `${displayName(person)}'s attendance`);
+				reportSaveError(
+					error,
+					`${displayName(person)}'s attendance`,
+					false,
+					`attendance:${person.id}`
+				);
 			}
 		};
 		const next = (saving[person.id] ?? Promise.resolve()).then(save);

@@ -73,8 +73,8 @@
 		write: saveClassDaily,
 		onChange: (record) => (classDaily = record),
 		// an unsaved change is sent again when the connection comes back (see reloadToday)
-		onError: (error) => reportSaveError(error, undefined, isUnreachable(error)),
-		onSaved: clearSaveError
+		onError: (error) => reportSaveError(error, undefined, isUnreachable(error), 'class_dailies'),
+		onSaved: () => clearSaveError('class_dailies')
 	});
 
 	// let searchParams: URLSearchParams = $state(data.searchParams);
@@ -190,6 +190,8 @@
 		subscriptions.add('icons/*', () =>
 			pb.collection('icons').subscribe('*', (e: RecordSubscription<IconRecord>) => {
 				changes.icons++;
+				// a new Map per event (like personDailyMap): the slides get a new object to react to
+				// eslint-disable-next-line svelte/prefer-svelte-reactivity
 				const icons = new Map(guestAvatarMap);
 				if (e.action === 'delete') icons.delete(e.record.id);
 				else icons.set(e.record.id, e.record);
@@ -238,7 +240,7 @@
 			type="button"
 			class="btn-icon size-6 rounded-full font-bold hover:bg-black/10"
 			aria-label="Close this message"
-			onclick={clearSaveError}
+			onclick={() => clearSaveError()}
 		>
 			×
 		</button>

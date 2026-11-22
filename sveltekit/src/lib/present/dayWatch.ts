@@ -9,6 +9,8 @@ import { getCurrentISOString } from '#lib';
 export const CHECK_EVERY_MS = 60_000;
 /** Screens that notice the new day at the same moment don't all reload at once. */
 export const RELOAD_JITTER_MS = 3_000;
+/** Input that could save something: checked for a changed date before any slide sees it. */
+export const GUARDED_EVENTS = ['pointerdown', 'mousedown', 'click', 'keydown'] as const;
 /** While a dialog is open (e.g. Add Guest), check again this often. */
 export const BUSY_RETRY_MS = 5_000;
 
@@ -39,6 +41,11 @@ export interface DayWatchOptions {
 /**
  * Checks the date every minute and whenever the page becomes visible or gets the focus, and
  * reloads (after a short random wait, and once no dialog is open) when it changed.
+ *
+ * A click or key press after the date changed (e.g. a laptop that just woke up, before the next
+ * check) is stopped before any slide sees it and the page reloads at once, so it can't change
+ * yesterday's attendance. While a dialog is open the input goes through (the reload waits until
+ * it is closed; a guest added there is saved for the real date).
  * @returns A function that stops watching.
  */
 export const watchDay = ({
@@ -52,28 +59,44 @@ export const watchDay = ({
 	let reloadTimer: ReturnType<typeof setTimeout> | undefined;
 	let stopped = false;
 
+	let reloaded = false;
+	const reloadNow = () => {
+		reloaded = true;
+		clearTimeout(reloadTimer);
+		reload();
+	};
 	const tryReload = () => {
-		if (stopped) return;
+		if (stopped || reloaded) return;
 		if (isBusy()) {
 			reloadTimer = setTimeout(tryReload, BUSY_RETRY_MS);
 			return;
 		}
-		reload();
+		reloadNow();
 	};
 	const check = () => {
-		if (stopped || reloadTimer !== undefined) return;
+		if (stopped || reloaded || reloadTimer !== undefined) return;
 		if (!dayChanged(pageDate, today())) return;
 		reloadTimer = setTimeout(tryReload, reloadDelay(random()));
+	};
+
+	const guard = (event: Event) => {
+		if (stopped || !dayChanged(pageDate, today())) return;
+		if (isBusy()) return check();
+		event.preventDefault();
+		event.stopImmediatePropagation();
+		if (!reloaded) reloadNow();
 	};
 
 	const interval = setInterval(check, CHECK_EVERY_MS);
 	target.addEventListener('visibilitychange', check);
 	target.addEventListener('focus', check);
+	for (const type of GUARDED_EVENTS) target.addEventListener(type, guard, { capture: true });
 	return () => {
 		stopped = true;
 		clearInterval(interval);
 		clearTimeout(reloadTimer);
 		target.removeEventListener('visibilitychange', check);
 		target.removeEventListener('focus', check);
+		for (const type of GUARDED_EVENTS) target.removeEventListener(type, guard, { capture: true });
 	};
 };

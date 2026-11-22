@@ -105,6 +105,42 @@ describe('watchDay', () => {
 		expect(reload).toHaveBeenCalledTimes(1);
 	});
 
+	it('stops a click or key press after the date changed and reloads at once', () => {
+		const slide = vi.fn();
+		for (const type of ['click', 'keydown']) target.addEventListener(type, slide);
+		today = '2026-11-24';
+		const click = new Event('click', { cancelable: true });
+		target.dispatchEvent(click);
+		target.dispatchEvent(new Event('keydown', { cancelable: true }));
+		expect(slide).not.toHaveBeenCalled();
+		expect(click.defaultPrevented).toBe(true);
+		expect(reload).toHaveBeenCalledTimes(1);
+		vi.advanceTimersByTime(CHECK_EVERY_MS * 2);
+		expect(reload).toHaveBeenCalledTimes(1);
+	});
+
+	it('lets input through on the same day', () => {
+		const slide = vi.fn();
+		target.addEventListener('click', slide);
+		target.dispatchEvent(new Event('click', { cancelable: true }));
+		expect(slide).toHaveBeenCalledTimes(1);
+		expect(reload).not.toHaveBeenCalled();
+	});
+
+	it('lets input through while a dialog is open, then reloads once it is closed', () => {
+		const dialog = vi.fn();
+		target.addEventListener('keydown', dialog);
+		today = '2026-11-24';
+		busy = true;
+		target.dispatchEvent(new Event('keydown', { cancelable: true }));
+		expect(dialog).toHaveBeenCalledTimes(1);
+		vi.advanceTimersByTime(reloadDelay(0.5) + BUSY_RETRY_MS);
+		expect(reload).not.toHaveBeenCalled();
+		busy = false;
+		vi.advanceTimersByTime(BUSY_RETRY_MS);
+		expect(reload).toHaveBeenCalledTimes(1);
+	});
+
 	it('stops when told to', () => {
 		stop();
 		today = '2026-11-24';

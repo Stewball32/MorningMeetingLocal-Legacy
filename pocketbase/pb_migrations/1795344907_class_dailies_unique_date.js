@@ -8,8 +8,11 @@
 // Up first merges any dates that already have several records, so the index can be created:
 // - the earliest created record is kept (older presenters look a day's record up by date and get
 //   that one);
-// - each field (slide, attendance, calendar) gets the value of the most recently updated record
-//   that has one (not 0, null, "" or an empty {} / []);
+// - slide gets the value of the most recently updated record that has one (not 0);
+// - attendance and calendar get the fullest value among the records (the longest JSON; the most
+//   recently updated one if several are as long), never an empty one (null, "", {} or []) when
+//   another record has something: a screen that created an extra record usually saved little to
+//   it, so "newest" alone could replace a whole morning's answers with a stub;
 // - the other records of that date are deleted;
 // - every merge is printed.
 //
@@ -75,7 +78,15 @@ migrate(
 			const merged = {};
 			const sources = [];
 			for (const field of ['slide', 'attendance', 'calendar']) {
-				const source = rows.find((row) => !isEmpty(field, row[field])) || keep;
+				const filled = rows.filter((row) => !isEmpty(field, row[field]));
+				// rows are newest first, so the first of the longest is the newest of them
+				const source =
+					field === 'slide'
+						? filled[0] || keep
+						: filled.reduce(
+								(best, row) => (best && best[field].length >= row[field].length ? best : row),
+								null
+							) || keep;
 				merged[field] = source[field];
 				sources.push(`${field} from ${source.id}`);
 			}
@@ -84,8 +95,8 @@ migrate(
 			app
 				.db()
 				.newQuery(
-					`UPDATE class_dailies SET slide = {:slide}, attendance = {:attendance},
-						calendar = {:calendar}, updated = {:updated} WHERE id = {:id}`
+					`UPDATE class_dailies SET slide = {:slide}, attendance = NULLIF({:attendance}, 'null'),
+						calendar = NULLIF({:calendar}, 'null'), updated = {:updated} WHERE id = {:id}`
 				)
 				.bind(Object.assign({}, merged, { updated: rows[0].updated, id: keep.id }))
 				.execute();

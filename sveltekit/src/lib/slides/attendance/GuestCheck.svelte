@@ -295,7 +295,7 @@
 		try {
 			await deleteGuestDaily(guest);
 		} catch (error) {
-			reportSaveError(error, `Removing ${guestName(guest)}`);
+			reportSaveError(error, `Removing ${guestName(guest)}`, false, 'guests');
 		}
 	};
 </script>
