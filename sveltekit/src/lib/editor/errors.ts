@@ -28,6 +28,16 @@ export const isPbError = (error: unknown): error is PbErrorLike =>
 export const OFFLINE_MESSAGE =
 	"Can't reach PocketBase. Check that it is running (and this computer is on the classroom network), then try again.";
 
+/**
+ * Plain words for PocketBase validation codes whose own message is too technical, by code. The
+ * file fields are all pictures: PocketBase says "validation_invalid_mime_type" for a file whose
+ * bytes aren't one of the field's picture types, whatever its name says (e.g. a renamed PDF).
+ */
+const PLAIN_VALIDATION_MESSAGES: Record<string, string> = {
+	validation_invalid_mime_type:
+		"That file isn't a picture that can be used here (JPEG, PNG, GIF, WebP or SVG). Please choose another."
+};
+
 export interface DescribeOptions<Field extends string = string> {
 	/**
 	 * PocketBase field name -> form field, for an Add / Edit form's own request: validation errors
@@ -89,10 +99,15 @@ export function describeError<Field extends string = string>(
 	const unplaced: string[] = [];
 	if (data && typeof data === 'object') {
 		for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+			const code =
+				value && typeof value === 'object' && 'code' in value
+					? String((value as { code: unknown }).code)
+					: '';
 			const text =
-				value && typeof value === 'object' && 'message' in value
+				PLAIN_VALIDATION_MESSAGES[code] ??
+				(value && typeof value === 'object' && 'message' in value
 					? String((value as { message: unknown }).message)
-					: String(value);
+					: String(value));
 			const field = fieldOf?.[key];
 			if (field) problem.fields[field] = text;
 			else unplaced.push(`${key}: ${text}`);

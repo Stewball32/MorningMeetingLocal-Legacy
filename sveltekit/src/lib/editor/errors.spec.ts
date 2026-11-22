@@ -38,6 +38,35 @@ describe('describeError', () => {
 		expect(problem.message).toBe("Couldn't add the person. Please fix the highlighted fields.");
 	});
 
+	it('says plainly that a file is not a usable picture', () => {
+		// What PocketBase 0.26 answers for a file that is named .png but isn't a picture.
+		const error = new ClientResponseError({
+			status: 400,
+			response: {
+				status: 400,
+				message: 'Failed to create record.',
+				data: {
+					image: {
+						code: 'validation_invalid_mime_type',
+						message:
+							'"fake_ptdw7qf8s2.png" mime type must be one of: image/jpeg, image/png, image/svg+xml, image/gif, image/webp.',
+						params: { file: 'fake_ptdw7qf8s2.png' }
+					}
+				}
+			}
+		});
+		const plain =
+			"That file isn't a picture that can be used here (JPEG, PNG, GIF, WebP or SVG). Please choose another.";
+		// Under the picture in the form, which asks to fix the highlighted field.
+		const problem = describeError(error, 'add Fake', { fieldOf: { image: 'image' } });
+		expect(problem.fields).toEqual({ image: plain });
+		expect(problem.message).toBe("Couldn't add Fake. Please fix the highlighted fields.");
+		// Without the form's map, in the message itself.
+		expect(describeError(error, 'add Fake').message).toBe(
+			`Couldn't add Fake: Failed to create record. (image: ${plain})`
+		);
+	});
+
 	it('only speaks of highlighted fields for the form', () => {
 		// What PocketBase answered when deleting a regular guest clashed with the guest_dailies
 		// unique index (before guest check-ins were deleted with the person).
