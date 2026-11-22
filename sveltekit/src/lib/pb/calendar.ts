@@ -293,12 +293,16 @@ export function observancesForMonth(
 	return map;
 }
 
-/** Every active observance record, with its icon (for observancesForMonth). */
-export function getActiveObservances(): Promise<CalendarObservance[]> {
+/**
+ * Every active observance record, with its icon (for observancesForMonth). `signal` can end the
+ * request (e.g. AbortSignal.timeout for a page that must not wait forever).
+ */
+export function getActiveObservances(signal?: AbortSignal): Promise<CalendarObservance[]> {
 	return pb.collection(OBSERVANCES).getFullList<CalendarObservance>({
 		filter: 'is_active = true',
 		expand: 'icon',
-		requestKey: null
+		requestKey: null,
+		...(signal && { signal })
 	});
 }
 

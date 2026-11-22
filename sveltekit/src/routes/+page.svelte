@@ -3,6 +3,7 @@
 	import CalendarDays from '@lucide/svelte/icons/calendar-days';
 	import Images from '@lucide/svelte/icons/images';
 	import Presentation from '@lucide/svelte/icons/presentation';
+	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Users from '@lucide/svelte/icons/users';
 	import WifiOff from '@lucide/svelte/icons/wifi-off';
 	import { onMount } from 'svelte';
@@ -17,7 +18,7 @@
 		type ObservedDay,
 		type UpcomingDay
 	} from '#lib/home/summary.ts';
-	import { getHolidayMap } from '#lib/pb/calendar.ts';
+	import { getActiveObservances, observancesForMonth } from '#lib/pb/calendar.ts';
 	import { pb } from '#lib/pb/index.ts';
 	import { POCKETBASE_URL } from '#lib/pb/requests.ts';
 	import type { IconRecord, Person } from '#lib/pb/types.ts';
@@ -29,24 +30,12 @@
 	type Summary<T> =
 		{ state: 'loading' } | { state: 'ready'; value: T } | { state: 'failed'; offline: boolean };
 
+	/** A request that gets no answer in this time fails as "can't reach PocketBase". */
 	const TIMEOUT_MS = 10_000;
-	const readOptions = () => ({ requestKey: null, signal: AbortSignal.timeout(TIMEOUT_MS) });
-
-	class TimedOut extends Error {}
-	const withTimeout = <T,>(promise: Promise<T>) =>
-		new Promise<T>((done, fail) => {
-			const timer = setTimeout(() => fail(new TimedOut('PocketBase took too long')), TIMEOUT_MS);
-			promise.then(
-				(value) => {
-					clearTimeout(timer);
-					done(value);
-				},
-				(error) => {
-					clearTimeout(timer);
-					fail(error);
-				}
-			);
-		});
+	const timeout = () => AbortSignal.timeout(TIMEOUT_MS);
+	const readOptions = () => ({ requestKey: null, signal: timeout() });
+	/** While PocketBase can't be reached, the summaries are tried again this often. */
+	const RETRY_MS = 7_000;
 
 	async function countPeople(): Promise<string> {
 		const people = await pb
@@ -64,11 +53,11 @@
 
 	/** The next 3 days the calendar slide shows something on (built-in holidays included). */
 	async function nextObservances(): Promise<UpcomingDay[]> {
+		// What the slide's getHolidayMap does for each month, from one request.
+		const records = await getActiveObservances(timeout());
 		const found: ObservedDay[] = [];
-		// One month after another: getHolidayMap's requests would cancel each other in parallel.
 		for (const { year, month } of monthsFrom(today, 3)) {
-			const map = await withTimeout(getHolidayMap(year, month));
-			for (const list of map.values()) found.push(...list);
+			for (const list of observancesForMonth(records, year, month).values()) found.push(...list);
 			if (upcomingDays(found, today).length >= 3) break;
 		}
 		return upcomingDays(found, today);
@@ -86,16 +75,14 @@
 			set({ state: 'ready', value: await get() });
 		} catch (error) {
 			console.error(`Could not load the ${what} summary`, error);
-			set({
-				state: 'failed',
-				offline: error instanceof TimedOut || (isPbError(error) && error.status === 0)
-			});
+			// Status 0: no answer (refused, or timed out).
+			set({ state: 'failed', offline: isPbError(error) && error.status === 0 });
 		}
 	}
 
 	/** When the summaries were (last) loaded; the calendar's "Today" and "Tomorrow" go by it. */
 	let today = $state(new Date());
-	let loading = false;
+	let loading = $state(false);
 	async function loadSummaries() {
 		if (loading) return;
 		loading = true;
@@ -109,6 +96,13 @@
 	}
 
 	onMount(loadSummaries);
+	// Can't reach PocketBase: try again every few seconds, so the summaries come back by
+	// themselves once it is running again (a try still under way is not started twice).
+	$effect(() => {
+		if (!offline) return;
+		const timer = setInterval(loadSummaries, RETRY_MS);
+		return () => clearInterval(timer);
+	});
 	/** Coming back to this tab or window (e.g. after editing elsewhere): bring the summaries up to date. */
 	function refresh() {
 		if (document.visibilityState === 'visible' && Date.now() - today.getTime() > 5000)
@@ -167,14 +161,28 @@
 			</div>
 
 			{#if offline}
-				<p class="card preset-tonal-warning flex items-start gap-3 p-3 text-sm" role="status">
+				<div
+					class="card preset-tonal-warning flex flex-wrap items-start gap-3 p-3 text-sm"
+					data-offline
+				>
 					<WifiOff class="mt-0.5 size-5 shrink-0" aria-hidden="true" />
-					<span>
+					<!-- Only the words are a live region: the button's Trying… comes back every few seconds. -->
+					<p class="min-w-48 flex-1" role="status">
 						Can't reach PocketBase at <code class="font-mono">{POCKETBASE_URL}</code>, so the
 						summaries are missing. The presenter and the editors need it too: check that it is
-						running.
-					</span>
-				</p>
+						running. This page tries again by itself every few seconds.
+					</p>
+					<!-- aria-disabled, not disabled: the keyboard stays on the button while it tries. -->
+					<button
+						type="button"
+						class="btn preset-filled-primary-500 px-4 py-1.5 aria-disabled:opacity-50"
+						aria-disabled={loading}
+						onclick={loadSummaries}
+					>
+						<RefreshCw class="size-4 {loading ? 'animate-spin' : ''}" aria-hidden="true" />
+						{loading ? 'Trying…' : 'Try again'}
+					</button>
+				</div>
 			{/if}
 
 			<ul class="grid gap-3 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1.6fr]">
