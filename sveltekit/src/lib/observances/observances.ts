@@ -267,8 +267,11 @@ export function ownGroups(
 			last: onceDays.length ? dayDate(onceDays[onceDays.length - 1]) : null,
 			unreadable: entries.filter((entry) => entry.kind === 'other').length
 		};
-		// A day saved as some other rule may still come: keep it with the days to come.
-		if (next || row.unreadable > 0) groups.upcoming.push(row);
+		// A day saved as some other rule may still come: keep it with the days to come. So is a day
+		// earlier this month: the month page still shows it (only older ones are offered for cleanup).
+		const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+		if (next || row.unreadable > 0 || (row.last && row.last >= thisMonth))
+			groups.upcoming.push(row);
 		else groups.past.push(row);
 	}
 	const time = (date: Date | null) => date?.getTime() ?? Infinity;

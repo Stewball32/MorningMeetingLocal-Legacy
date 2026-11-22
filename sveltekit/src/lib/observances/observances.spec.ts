@@ -149,6 +149,15 @@ describe('ownGroups', () => {
 		expect(groups.attention[1].reason).toMatch(/no built-in holiday is called/);
 		expect(groups.attention[0].reason).toMatch(/Another set of changes to Veterans Day/);
 	});
+
+	it('keeps a day earlier this month with the days to come: the month page still shows it', () => {
+		const earlier = record({ name: 'Minimum Day', dates: ['2026-11-02'] });
+		const lastMonth = record({ name: 'Picture Day', dates: ['2026-10-30'] });
+		const groups = ownGroups([earlier, lastMonth], holidays, TODAY);
+		expect(groups.upcoming.map((r) => r.record.name)).toEqual(['Minimum Day']);
+		expect(groups.upcoming[0].next).toBeNull();
+		expect(groups.past.map((r) => r.record.name)).toEqual(['Picture Day']);
+	});
 });
 
 describe('scheduleText', () => {
