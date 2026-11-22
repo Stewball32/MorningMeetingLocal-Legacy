@@ -35,6 +35,15 @@ describe('changedFields', () => {
 			notes: ''
 		});
 	});
+
+	it('compares lists item by item (e.g. dates built anew by the form)', () => {
+		const before = { name: 'Fair', dates: ['2026-11-25', '11-19'] };
+		expect(changedFields(before, { name: 'Fair', dates: ['2026-11-25', '11-19'] })).toEqual({});
+		expect(changedFields(before, { name: 'Fair', dates: ['11-19', '2026-11-25'] })).toEqual({
+			dates: ['11-19', '2026-11-25']
+		});
+		expect(changedFields(before, { name: 'Fair', dates: [] })).toEqual({ dates: [] });
+	});
 });
 
 describe('hasErrors', () => {
