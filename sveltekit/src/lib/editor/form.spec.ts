@@ -44,6 +44,18 @@ describe('changedFields', () => {
 		});
 		expect(changedFields(before, { name: 'Fair', dates: [] })).toEqual({ dates: [] });
 	});
+
+	it('compares object items by content (a form copy is a $state proxy, never the same object)', () => {
+		const before = { name: 'Fair', dates: ['2026-12-01', 42, { a: 1 }, ['x'], null] };
+		const copy = { name: 'Fair', dates: ['2026-12-01', 42, { a: 1 }, ['x'], null] };
+		expect(changedFields(before, copy)).toEqual({});
+		expect(changedFields(before, { ...copy, name: 'Fun Fair' })).toEqual({ name: 'Fun Fair' });
+		expect(
+			changedFields(before, { ...copy, dates: ['2026-12-01', 42, { a: 2 }, ['x'], null] })
+		).toEqual({
+			dates: ['2026-12-01', 42, { a: 2 }, ['x'], null]
+		});
+	});
 });
 
 describe('hasErrors', () => {

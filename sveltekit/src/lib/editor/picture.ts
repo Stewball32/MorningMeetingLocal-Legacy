@@ -18,6 +18,8 @@ export const PICTURE_ACCEPT = PICTURE_TYPES.join(',');
 export const PICTURE_MAX_BYTES = 5 * 1024 * 1024;
 /** Pictures wider or higher than this are scaled down, however few bytes they take. */
 export const PICTURE_MAX_SIDE = 2000;
+/** With a smaller maxSide, a still up to this many bytes is kept as it is (see planPicture). */
+export const SMALL_ENOUGH_BYTES = 200 * 1024;
 /** The longer side a scaled-down picture gets (the next one if that is still over 5 MB). */
 const SHRINK_SIDES = [1600, 1000];
 /**
@@ -94,6 +96,15 @@ export function planPicture(
 	// PocketBase sees an animated PNG as another file type and refuses it.
 	if (type === 'image/png' && animated) return { error: APNG_ERROR };
 	if (!tooHeavy && !tooBig) return { use: 'as-is' };
+	// With a smaller maxSide (pictures shown small): a light still within the usual limit is kept as
+	// it is. Redrawing it wouldn't save much, and PocketBase can still make list thumbnails of a
+	// JPEG or PNG (it can't for WebP, which a redrawn picture becomes).
+	if (
+		!animated &&
+		size <= SMALL_ENOUGH_BYTES &&
+		Math.max(width ?? 0, height ?? 0) <= PICTURE_MAX_SIDE
+	)
+		return { use: 'as-is' };
 	// Redrawing a GIF or an animated WebP smaller would stop it moving: within the size in bytes it
 	// is uploaded as it is, however many pixels it has (as before the editor scaled pictures).
 	if (animated) {

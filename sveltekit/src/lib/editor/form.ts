@@ -25,10 +25,19 @@ export function sameValues<T extends object>(a: T, b: T): boolean {
 	);
 }
 
+/** `===`, or the same JSON for two objects (a form's $state copy is a proxy, never `===`). */
+const sameItem = (a: unknown, b: unknown): boolean =>
+	a === b ||
+	(typeof a === 'object' &&
+		a !== null &&
+		typeof b === 'object' &&
+		b !== null &&
+		JSON.stringify(a) === JSON.stringify(b));
+
 /** `===`, except that two arrays are the same when their items are (e.g. a list of dates). */
 const sameField = (a: unknown, b: unknown): boolean =>
 	Array.isArray(a) && Array.isArray(b)
-		? a.length === b.length && a.every((item, index) => item === b[index])
+		? a.length === b.length && a.every((item, index) => sameItem(item, b[index]))
 		: a === b;
 
 /**

@@ -7,6 +7,7 @@ import {
 	looksAnimated,
 	planPicture,
 	shrinkSides,
+	SMALL_ENOUGH_BYTES,
 	SMALL_PICTURE_SIDE,
 	type PictureFacts
 } from './picture.ts';
@@ -95,10 +96,24 @@ describe('planPicture', () => {
 	it('scales still pictures down to a smaller side when asked (icons)', () => {
 		const side = SMALL_PICTURE_SIDE;
 		expect(side).toBe(640);
-		// The default (people's pictures) leaves 800 x 600 alone; icons get it smaller.
-		expect(planPicture(facts({ width: 800, height: 600 }))).toEqual({ use: 'as-is' });
-		expect(planPicture(facts({ width: 800, height: 600 }), side)).toEqual({ use: 'smaller' });
-		expect(planPicture(facts({ type: 'image/webp', width: 600, height: 700 }), side)).toEqual({
+		// The default (people's pictures) leaves 800 x 600 alone; icons get a heavy one smaller.
+		const heavy = { size: 900_000 };
+		expect(planPicture(facts({ ...heavy, width: 800, height: 600 }))).toEqual({ use: 'as-is' });
+		expect(planPicture(facts({ ...heavy, width: 800, height: 600 }), side)).toEqual({
+			use: 'smaller'
+		});
+		expect(
+			planPicture(facts({ ...heavy, type: 'image/webp', width: 600, height: 700 }), side)
+		).toEqual({ use: 'smaller' });
+		// A light one (up to 200 KB) within the usual 2000 px stays as it is: redrawing it saves
+		// little, and PocketBase can still make list thumbnails of a PNG or JPEG.
+		expect(
+			planPicture(facts({ size: SMALL_ENOUGH_BYTES, width: 1200, height: 1200 }), side)
+		).toEqual({ use: 'as-is' });
+		expect(
+			planPicture(facts({ size: SMALL_ENOUGH_BYTES + 1, width: 1200, height: 1200 }), side)
+		).toEqual({ use: 'smaller' });
+		expect(planPicture(facts({ size: 50_000, width: 2600, height: 2600 }), side)).toEqual({
 			use: 'smaller'
 		});
 		expect(planPicture(facts({ width: side, height: side }), side)).toEqual({ use: 'as-is' });
