@@ -54,8 +54,7 @@
 	const optionsPerQuestion: number = 4;
 
 	let oneAnswer = $derived(peopleTogether.length);
-	// svelte-ignore state_referenced_locally
-	let oneOptDist = $state(mathProps?.oneOptDist ?? 0);
+	let oneOptDist = $derived(mathProps?.oneOptDist ?? 0);
 	let oneAnsIndex = $derived(Math.round(oneOptDist * (optionsPerQuestion - 1)));
 	let oneStart = $derived(oneAnswer - oneAnsIndex > 0 ? oneAnswer - oneAnsIndex : 0);
 	let oneOptions: number[] = $derived(
@@ -63,8 +62,7 @@
 	);
 
 	let twoAnswer = $derived(peopleSubtracted.length);
-	// svelte-ignore state_referenced_locally
-	let twoOptDist = $state(mathProps?.twoOptDist ?? 0);
+	let twoOptDist = $derived(mathProps?.twoOptDist ?? 0);
 	let twoAnsIndex = $derived(Math.round(twoOptDist * (optionsPerQuestion - 1)));
 	let twoStart = $derived(twoAnswer - twoAnsIndex > 0 ? twoAnswer - twoAnsIndex : 0);
 	let twoOptions: number[] = $derived(
@@ -72,8 +70,7 @@
 	);
 
 	let resultAnswer = $derived(peopleRemaining.length);
-	// svelte-ignore state_referenced_locally
-	let resultOptDist = $state(mathProps?.resultOptDist ?? 0);
+	let resultOptDist = $derived(mathProps?.resultOptDist ?? 0);
 	let resultAnsIndex = $derived(Math.round(resultOptDist * (optionsPerQuestion - 1)));
 	let resultStart = $derived(resultAnswer - resultAnsIndex > 0 ? resultAnswer - resultAnsIndex : 0);
 	let resultOptions: number[] = $derived(
@@ -107,8 +104,7 @@
 		}
 	});
 
-	// svelte-ignore state_referenced_locally
-	let oneGuesses: number[] = $state(mathProps?.oneGuesses ?? []);
+	let oneGuesses: number[] = $derived(mathProps?.oneGuesses ?? []);
 	let oneSelected: number | undefined = $derived(oneGuesses[0] ?? undefined);
 	let openStateOne = $state(false);
 	function popoverOneClose() {
@@ -116,8 +112,8 @@
 	}
 	const updateOne = async (value: number) => {
 		if (oneSelected == oneAnswer) return;
-		let updatedOneGuesses = oneGuesses ?? [];
-		updatedOneGuesses.unshift(value);
+		// a new array: the guesses are the saved state's (never changed in place)
+		const updatedOneGuesses = [value, ...oneGuesses];
 		oneGuesses = updatedOneGuesses;
 		let partial: Partial<ClassProps> = {};
 		partial[mathPropsName] = {
@@ -130,8 +126,7 @@
 		await updateClassDailySlide('attendance', partial);
 	};
 
-	// svelte-ignore state_referenced_locally
-	let twoGuesses: number[] = $state(mathProps?.twoGuesses ?? []);
+	let twoGuesses: number[] = $derived(mathProps?.twoGuesses ?? []);
 	let twoSelected: number | undefined = $derived(twoGuesses[0] ?? undefined);
 	let openStateTwo = $state(false);
 	function popoverTwoClose() {
@@ -139,8 +134,8 @@
 	}
 	const updateTwo = async (value: number) => {
 		if (twoSelected == twoAnswer) return;
-		let updatedTwoGuesses = twoGuesses ?? [];
-		updatedTwoGuesses.unshift(value);
+		// a new array: the guesses are the saved state's (never changed in place)
+		const updatedTwoGuesses = [value, ...twoGuesses];
 		twoGuesses = updatedTwoGuesses;
 		let partial: Partial<ClassProps> = {};
 		partial[mathPropsName] = {
@@ -153,8 +148,7 @@
 		await updateClassDailySlide('attendance', partial);
 	};
 
-	// svelte-ignore state_referenced_locally
-	let resultGuesses: number[] = $state(mathProps?.resultGuesses ?? []);
+	let resultGuesses: number[] = $derived(mathProps?.resultGuesses ?? []);
 	let resultSelected: number | undefined = $derived(resultGuesses[0] ?? undefined);
 	let openStateResult = $state(false);
 	function popoverResultClose() {
@@ -162,8 +156,8 @@
 	}
 	const updateResult = async (value: number) => {
 		if (resultSelected == resultAnswer) return;
-		let updatedResultGuesses = resultGuesses ?? [];
-		updatedResultGuesses.unshift(value);
+		// a new array: the guesses are the saved state's (never changed in place)
+		const updatedResultGuesses = [value, ...resultGuesses];
 		resultGuesses = updatedResultGuesses;
 		let partial: Partial<ClassProps> = {};
 		partial[mathPropsName] = {

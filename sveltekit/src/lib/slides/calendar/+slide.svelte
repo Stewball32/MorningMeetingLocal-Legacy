@@ -4,6 +4,7 @@
 	import FindTheDate from './FindTheDate.svelte';
 	import MonthView from './MonthView.svelte';
 	import type { ClassProps, Month, Weekday } from './_types';
+	import { dateOf } from './dates.ts';
 
 	interface SlideProps {
 		students: Person[];
@@ -32,18 +33,22 @@
 		updateClassDailySlide = async (column: string, partialClassDaily: Partial<ClassDaily>) => {}
 	}: SlideProps = $props();
 
-	let calendarProps: ClassProps = $state(classDaily.calendar ?? ({} as ClassProps));
+	// The answers follow the saved state (the presenter applies every change to it right away), so
+	// they survive page changes and resets, and a second screen shows them too.
+	let calendarProps: ClassProps = $derived(classDaily.calendar ?? ({} as ClassProps));
+	// each screen keeps its own page; it starts on the saved one
+	// svelte-ignore state_referenced_locally
 	let page = $state(calendarProps?.page ?? 0);
-	let currentCheck = $state(classDaily?.calendar?.currentCheck);
-	let weekdayGuesses: Weekday[] = $state(classDaily?.calendar?.weekdayGuesses ?? []);
-	let monthGuesses: Month[] = $state(classDaily?.calendar?.monthGuesses ?? []);
-	let dayGuesses = $state(classDaily?.calendar?.dayGuesses ?? []);
-	let yearGuesses = $state(classDaily?.calendar?.yearGuesses ?? []);
-	let calendarGuesses = $state(classDaily?.calendar?.calendarGuesses ?? []);
-	let dayOpt;
+	let currentCheck = $derived(calendarProps.currentCheck);
+	let weekdayGuesses: Weekday[] = $derived(calendarProps.weekdayGuesses ?? []);
+	let monthGuesses: Month[] = $derived(calendarProps.monthGuesses ?? []);
+	let dayGuesses = $derived(calendarProps.dayGuesses ?? []);
+	let yearGuesses = $derived(calendarProps.yearGuesses ?? []);
+	let calendarGuesses = $derived(calendarProps.calendarGuesses ?? []);
 	let startWithSunday = $state(true);
 
-	const today = new Date();
+	// The presenter's day (it reloads itself when the date changes).
+	const today = dateOf(classDaily.date) ?? new Date();
 	const yesterday = new Date(today);
 	yesterday.setDate(today.getDate() - 1);
 
@@ -106,7 +111,6 @@
 
 {#if page === 0}
 	<FindTheDate
-		{classDaily}
 		{today}
 		{todayWeekday}
 		{yesterdayWeekday}
@@ -130,7 +134,6 @@
 	/>
 {:else if page === 1}
 	<MonthView
-		{classDaily}
 		{startWithSunday}
 		{calendarGuesses}
 		{todayDay}

@@ -1,9 +1,11 @@
 <script lang="ts">
 	import type { Person, PersonDaily } from '#lib/pb/types.ts';
 	import type { ClassProps } from './_types';
-	import { getPronounPresent, getPronounSubject, makeSearchParams } from '#lib';
+	import { getPronounPresent, getPronounSubject } from '#lib';
 	import PersonBar from '#lib/slides/attendance/PersonBar.svelte';
 	import PersonButton from '#lib/buttons/PersonButton.svelte';
+	import { DEFAULT_AVATAR, guestPictureUrl } from '#lib/slides/people.ts';
+	import { releaseVideoFocus, youtubeEmbedUrl, youtubeWatchUrl } from './video.ts';
 
 	interface WhoIsHereProps {
 		from?: 'left' | 'right';
@@ -36,13 +38,8 @@
 	}: WhoIsHereProps = $props();
 
 	const youtubeUrl = (person: Person, embedded: boolean = true) => {
-		const videoId = person.video_id;
-		const start = person.video_start ? `&start=${person.video_start}` : '';
-		const end = person.video_end ? `&end=${person.video_end}` : '';
-		const baseUrl = embedded
-			? 'https://www.youtube.com/embed/'
-			: 'https://www.youtube.com/watch?v=';
-		return `${baseUrl}${videoId}?rel=0&enablejsapi=1&autoplay=0${start}${end}`;
+		const clip = { id: person.video_id ?? '', start: person.video_start, end: person.video_end };
+		return embedded ? youtubeEmbedUrl(clip) : youtubeWatchUrl(clip);
 	};
 
 	const updateCurrentPerson = (person?: Person) => {
@@ -110,20 +107,35 @@
 	}
 </script>
 
-<svelte:window on:keydown={onKeydown} />
+<!-- the legacy on: syntax, like the keydown handler (the two can't be mixed in one component) -->
+<svelte:window on:keydown={onKeydown} on:blur={releaseVideoFocus} />
 
 <PersonBar {people} {dailyMap} {currentPerson} onClick={updateCurrentPerson} />
 {#if pagePerson}
 	<div class="h-8/12 top-2/12 absolute flex w-full flex-col justify-center py-2">
 		<div class="h-9/12 flex w-full items-center justify-center pb-2">
-			<!--iFrame of youtube video with 16/9 ratio-->
-			<iframe
-				class="rounded-4xl aspect-video h-full"
-				src={youtubeUrl(pagePerson)}
-				title="YouTube video player"
-				frameborder="0"
-				allowfullscreen
-			></iframe>
+			{#if pagePerson.video_id}
+				<!--iFrame of youtube video with 16/9 ratio-->
+				<iframe
+					class="aspect-video h-full rounded-4xl"
+					src={youtubeUrl(pagePerson)}
+					title="YouTube video player"
+					frameborder="0"
+					allowfullscreen
+				></iframe>
+			{:else}
+				<!-- no welcome video: their picture, large (the name is right below) -->
+				<img
+					class="aspect-square h-full rounded-4xl object-cover"
+					src={guestPictureUrl(pagePerson, null)}
+					alt=""
+					draggable={false}
+					onerror={(e) => {
+						const img = e.currentTarget as HTMLImageElement;
+						if (!img.src.endsWith(DEFAULT_AVATAR)) img.src = DEFAULT_AVATAR;
+					}}
+				/>
+			{/if}
 		</div>
 		<div class="h-3/12 flex w-full items-center justify-center gap-2">
 			<h1 class="text-size-6 font-bold">Is</h1>
@@ -148,14 +160,16 @@
 			{getPronounPresent(pagePerson)}
 			here!
 		</button>
-		<a
-			href={youtubeUrl(pagePerson, false)}
-			target="_blank"
-			rel="noopener noreferrer"
-			class="btn col-span-1 overflow-hidden rounded-full"
-		>
-			<img class="h-full rounded-full" src="/youtube.png" alt="" />
-		</a>
+		{#if pagePerson.video_id}
+			<a
+				href={youtubeUrl(pagePerson, false)}
+				target="_blank"
+				rel="noopener noreferrer"
+				class="btn col-span-1 overflow-hidden rounded-full"
+			>
+				<img class="h-full rounded-full" src="/youtube.png" alt="" />
+			</a>
+		{/if}
 		<button
 			onclick={() => updateAttendance(pagePerson, false)}
 			class="btn preset-filled-error-500 text-size-4 col-span-2 w-1/4 rounded-full border font-semibold"

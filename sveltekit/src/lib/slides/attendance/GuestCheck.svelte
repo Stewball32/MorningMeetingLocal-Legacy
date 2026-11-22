@@ -4,12 +4,15 @@
 		checkedInPeople,
 		guestCheckInError,
 		guestDisplayName,
+		guestIconOptions,
 		guestNameOptions,
 		guestPerson,
 		guestPictureUrl,
 		regularGuestProblem,
 		type GuestNameOption
 	} from '#lib/slides/people.ts';
+	import { reportSaveError } from '#lib/present/saveStatus.svelte.ts';
+	import { releaseVideoFocus, youtubeEmbedUrl } from './video.ts';
 	import { displayName } from '#lib/people/people.ts';
 	import { onMount } from 'svelte';
 	import { fade, fly } from 'svelte/transition';
@@ -93,14 +96,10 @@
 	let guestComboboxArray: GuestNameOption[] = $derived(
 		guestNameOptions(guestPeople, previousGuests, peopleById, guestAvatarMap, checkedInToday)
 	);
-	let avatarComboboxArray: ComboboxData[] = $state([]);
-	guestAvatarMap.values().forEach((avatar) => {
-		avatarComboboxArray.push({
-			label: avatar.name,
-			value: avatar.id,
-			emoji: avatar.emoji
-		});
-	});
+	// the icons for guests, by name; follows the Icons page live
+	let avatarComboboxArray: ComboboxData[] = $derived(guestIconOptions(guestAvatarMap));
+	const isOffered = (iconId: string | undefined) =>
+		!!iconId && avatarComboboxArray.some((option) => option.value === iconId);
 
 	// Skeleton 3's Combobox filtered its own list: typing kept the items whose label contains the
 	// text (case-insensitive) and every open/close showed the whole list again. Skeleton 5 leaves
@@ -170,21 +169,21 @@
 	const reusePreviousGuest = (e: any) => {
 		console.log('Selected Guest', e);
 		selectedPerson = guestComboboxArray.find((option) => option.value === e.value[0])?.person;
+		// the combobox's value is the option's value (its id); zag shows that option's label
+		selectedGuestName = e.value[0] ? [e.value[0]] : [];
 		if (selectedPerson) {
 			selectedPronoun = selectedPerson.pronoun || undefined;
-			selectedGuestName = [displayName(selectedPerson)];
 			selectedAvatarId = [];
 			return;
 		}
 		let guest = previousGuests.find((guest) => guest.id === e.value[0]);
 		console.log('Guest', guest);
 		selectedPronoun = guest?.pronoun || undefined;
-		selectedGuestName = [guest?.name || e.label];
-		selectedAvatarId = [guest?.avatar ?? ''];
+		// their icon from last time, if it is still offered (it may be gone from the Icons page)
+		selectedAvatarId = isOffered(guest?.avatar) ? [guest!.avatar] : [];
 	};
 
 	const updateModalGuestName = (guest: any) => {
-		if (guest.inputValue.length == 0 && modalGuestName.length > 1) return;
 		modalGuestName = guest.inputValue;
 		// typing a different name makes it a one-off guest again (the list shows the display name)
 		if (selectedPerson && modalGuestName !== displayName(selectedPerson))
@@ -214,6 +213,11 @@
 	const addGuest = async (closeModal: boolean = true) => {
 		if (!modalGuestName || (!selectedAvatarId[0] && !usesOwnPicture)) {
 			return alert('Please select a name and an avatar!');
+		}
+		if (selectedAvatarId[0] && !isOffered(selectedAvatarId[0])) {
+			// removed (or no longer for guests) on the Icons page while the dialog was open
+			selectedAvatarId = [];
+			if (!usesOwnPicture) return alert('That icon was just removed. Please pick another one.');
 		}
 		if (adding) return;
 
@@ -284,12 +288,18 @@
 		}
 	};
 
-	const youtubeId = 'batjBLqr8ck';
-	const youtubeStart = 201;
-	const youtubeEnd = 223;
-	const youtubeParam = `?rel=0&enablejsapi=1&autoplay=0&start=${youtubeStart}&end=${youtubeEnd}`;
-	const youtubeEmbeddedUrl = `https://www.youtube.com/embed/${youtubeId}${youtubeParam}`;
-	const youtubeUrl = `https://www.youtube.com/watch?v=${youtubeId}${youtubeParam}`;
+	const welcomeVideo = { id: 'batjBLqr8ck', start: 201, end: 223 };
+	const youtubeEmbeddedUrl = youtubeEmbedUrl(welcomeVideo);
+	// (spelled out: the linter only recognises a literal https: link as external)
+	const youtubeUrl = `https://www.youtube.com/watch?v=${welcomeVideo.id}&t=${welcomeVideo.start}s`;
+
+	const removeGuest = async (guest: GuestDaily) => {
+		try {
+			await deleteGuestDaily(guest);
+		} catch (error) {
+			reportSaveError(error, `Removing ${guestName(guest)}`, false, 'guests');
+		}
+	};
 </script>
 
 <!--
@@ -378,7 +388,7 @@
 	</Combobox.Context>
 {/snippet}
 
-<svelte:window onkeydown={onKeydown} />
+<svelte:window onkeydown={onKeydown} onblur={releaseVideoFocus} />
 
 {#if hasGuests != undefined}
 	<div class="h-1/12 absolute bottom-2 left-2 flex w-4/12 justify-start gap-[2%]">
@@ -428,7 +438,7 @@
 															<button
 																type="button"
 																class="btn preset-tonal-error-500 w-full rounded-full text-left"
-																onclick={() => deleteGuestDaily(guest)}
+																onclick={() => removeGuest(guest)}
 															>
 																<div class="text-size-1 flex w-full justify-between space-x-2">
 																	<span class="truncate">{guestName(guest)}</span>

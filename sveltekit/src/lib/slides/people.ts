@@ -133,6 +133,26 @@ export const guestNameOptions = (
 	return options;
 };
 
+export interface GuestIconOption {
+	label: string;
+	value: string;
+	emoji: string;
+}
+
+/** Icons switched on for guests (the `for_guests` field). */
+export const isGuestIcon = (icon: IconRecord) =>
+	(icon as IconRecord & { for_guests?: boolean }).for_guests === true;
+
+/**
+ * The icons offered in the Add Guest dialog: those for guests, by name (in PocketBase's order,
+ * like the people), from the presenter's live map of every icon.
+ */
+export const guestIconOptions = (icons: ReadonlyMap<string, IconRecord>): GuestIconOption[] =>
+	[...icons.values()]
+		.filter(isGuestIcon)
+		.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : 1))
+		.map((icon) => ({ label: icon.name, value: icon.id, emoji: icon.emoji }));
+
 /**
  * Why a regular guest picked in the Add Guest dialog can't be checked in (anymore), or undefined
  * if they can. `current` is the person as the slides know them now (undefined once deleted): the
@@ -175,5 +195,7 @@ export const guestCheckInError = (name: string, error: unknown): string => {
 		return `${name} is already checked in today.`;
 	if (fields.person?.code === 'validation_missing_rel_records')
 		return `${name} was deleted on the People page, so they can't be checked in.`;
+	if (fields.avatar?.code === 'validation_missing_rel_records')
+		return `The icon picked for ${name} was just deleted on the Icons page. Please pick another one.`;
 	return `Couldn't add ${name}. Please try again.`;
 };

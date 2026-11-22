@@ -7,7 +7,9 @@ import {
 	checkedInPeople,
 	guestCheckInError,
 	guestDisplayName,
+	guestIconOptions,
 	guestNameOptions,
+	isGuestIcon,
 	guestPeopleOf,
 	guestPerson,
 	guestPictureUrl,
@@ -299,6 +301,18 @@ describe('guestCheckInError', () => {
 		);
 	});
 
+	it('reports an icon deleted meanwhile', () => {
+		const iconGone = pbError({
+			avatar: {
+				code: 'validation_missing_rel_records',
+				message: 'Failed to find all relation records with the provided ids.'
+			}
+		});
+		expect(guestCheckInError('Visitor', wrapped(iconGone))).toBe(
+			'The icon picked for Visitor was just deleted on the Icons page. Please pick another one.'
+		);
+	});
+
 	it('says it could not add them otherwise', () => {
 		const offline = new ClientResponseError({ url: 'x', status: 0, isAbort: false });
 		expect(guestCheckInError('Visitor', wrapped(offline))).toBe(
@@ -308,6 +322,34 @@ describe('guestCheckInError', () => {
 			"Couldn't add Visitor. Please try again."
 		);
 		expect(guestCheckInError('Visitor', undefined)).toBe("Couldn't add Visitor. Please try again.");
+	});
+});
+
+describe('guestIconOptions', () => {
+	const named = (id: string, name: string, forGuests: boolean) =>
+		({ ...icon(id, '🙂'), name, for_guests: forGuests }) as IconRecord;
+
+	it('offers only the icons for guests, by name, from the live map', () => {
+		const icons = new Map(
+			[
+				named('z', 'Zebra', true),
+				named('c', 'Calendar only', false),
+				named('a', 'Ant', true),
+				named('b', 'bee', true) // lowercase sorts after uppercase, like PocketBase
+			].map((i) => [i.id, i])
+		);
+		expect(guestIconOptions(icons).map((option) => option.label)).toEqual(['Ant', 'Zebra', 'bee']);
+		expect(guestIconOptions(icons)[0]).toEqual({ label: 'Ant', value: 'a', emoji: '🙂' });
+	});
+
+	it('follows icons switched off for guests or deleted', () => {
+		const icons = new Map(
+			[named('a', 'Ant', true), named('z', 'Zebra', true)].map((i) => [i.id, i])
+		);
+		icons.set('a', named('a', 'Ant', false));
+		icons.delete('z');
+		expect(guestIconOptions(icons)).toEqual([]);
+		expect(isGuestIcon(named('x', 'X', true))).toBe(true);
 	});
 });
 

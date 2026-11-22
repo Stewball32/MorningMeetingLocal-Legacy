@@ -48,12 +48,16 @@
 		onClick
 	}: Props = $props();
 
-	let avatarRecord = $state<IconRecord | null>(null);
+	// With a map (the presenter's live map of every icon) the icon follows it: an icon changed or
+	// deleted on the Icons page shows up right away (a deleted one as the default picture).
+	// Without one, the icon is fetched once.
+	let fetchedRecord = $state<IconRecord | null>(null);
+	let avatarRecord = $derived(
+		guestAvatarMap ? (guestAvatarMap.get(guest.avatar) ?? null) : fetchedRecord
+	);
 	onMount(async () => {
-		if (guestAvatarMap && guestAvatarMap.has(guest.avatar)) {
-			avatarRecord = guestAvatarMap.get(guest.avatar) || null;
-		} else if (guest.avatar) {
-			avatarRecord = await getGuestAvatar(guest.avatar);
+		if (!guestAvatarMap && guest.avatar) {
+			fetchedRecord = await getGuestAvatar(guest.avatar);
 		}
 		// no icon ('') is fine: a regular guest with their own picture is checked in without one
 		if (guest.avatar && !avatarRecord) {
