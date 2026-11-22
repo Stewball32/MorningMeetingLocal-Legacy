@@ -233,7 +233,7 @@
 	const errorFocus: [FormField, () => string[]][] = [
 		['holiday', () => [`[id="${id('holiday')}"]`]],
 		['name', () => [`[id="${id('name')}"]`]],
-		['entries', () => ['[data-days] input[type="date"]']],
+		['entries', () => ['[data-days] [data-pending]', '[data-days] input[type="date"]']],
 		['school', () => ['[data-school] [data-state="checked"] input', '[data-school] input']],
 		['icon', () => ['[data-icon-choice] input:checked', '[data-icon-choice] input']],
 		['image', () => ['[data-upload] button:not(:disabled)']]
@@ -252,10 +252,19 @@
 
 	const hasUpload = () => picture instanceof File || (!!original?.image && picture === undefined);
 
+	let daysEditor: ReturnType<typeof DaysEditor> | undefined = $state();
+	/** A day picked in the days list but not added yet ('' when none; see DaysEditor). */
+	const pendingDays = () => (values.kind === 'custom' ? (daysEditor?.pendingPick() ?? '') : '');
+
 	async function save(event: SubmitEvent) {
 		event.preventDefault();
 		if (saving || preparingPicture) return;
-		const problems = validateForm(values, { holidays, takenBy, hasUpload: hasUpload() });
+		const problems = validateForm(values, {
+			holidays,
+			takenBy,
+			hasUpload: hasUpload(),
+			pendingDays: pendingDays()
+		});
 		// A message about a picture that couldn't be used stays while "Upload" is chosen.
 		errors = {
 			...problems,
@@ -332,7 +341,8 @@
 	/** For Escape: the dialog stays open while saving, and asks before changes are thrown away. */
 	export function canClose(): boolean {
 		if (saving) return false;
-		if (picture === undefined && !preparingPicture && sameForm(values, initial)) return true;
+		if (picture === undefined && !preparingPicture && sameForm(values, initial) && !pendingDays())
+			return true;
 		return confirm('Discard your changes?');
 	}
 
@@ -500,6 +510,7 @@
 
 			<div data-invalid={errors.entries ? '' : undefined}>
 				<DaysEditor
+					bind:this={daysEditor}
 					entries={values.entries}
 					onChange={(entries: DayEntry[]) => {
 						values.entries = entries;

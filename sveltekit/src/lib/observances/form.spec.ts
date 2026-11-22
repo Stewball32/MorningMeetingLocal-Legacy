@@ -107,6 +107,18 @@ describe('validateForm', () => {
 		expect(valid(ok)).toEqual({});
 	});
 
+	it('refuses to save while a picked day is not added', () => {
+		const pendingDays = "You picked Wed, Dec 9, 2026 but didn't add it: press Add day.";
+		const values = { ...emptyForm({}, holidays), name: 'Fair' };
+		expect(valid(values, { pendingDays }).entries).toBe(pendingDays);
+		values.entries = [{ kind: 'once', day: '2026-11-25' }];
+		expect(valid(values, { pendingDays })).toEqual({ entries: pendingDays });
+		expect(valid(values, { pendingDays: '' })).toEqual({});
+		// Only your own days have a days list.
+		const builtIn = { ...emptyForm({ holiday: 'Halloween' }, holidays) };
+		expect(valid(builtIn, { pendingDays }).entries).toBeUndefined();
+	});
+
 	it('needs a holiday, and refuses a second set of changes to one', () => {
 		const values = emptyForm({ kind: 'builtin' }, holidays);
 		expect(valid(values).holiday).toBe('Please choose the holiday to change.');

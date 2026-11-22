@@ -109,6 +109,11 @@ export interface ValidateContext {
 	takenBy?: CalendarObservance;
 	/** For "Upload": a picture is chosen, or the saved one is kept. */
 	hasUpload: boolean;
+	/**
+	 * A day (or days in a row) picked in the days list but not added, in words (DaysEditor's
+	 * pendingPick); '' or left out when there is none. Saving would leave it out.
+	 */
+	pendingDays?: string;
 }
 
 export function validateForm(values: ObservanceFormValues, context: ValidateContext): FormErrors {
@@ -120,7 +125,8 @@ export function validateForm(values: ObservanceFormValues, context: ValidateCont
 			errors.holiday = `You've already changed ${holiday.name}. Edit those changes instead.`;
 	} else {
 		if (!values.name.trim()) errors.name = 'Please enter a name.';
-		if (values.entries.length === 0) errors.entries = 'Please add at least one day.';
+		if (context.pendingDays) errors.entries = context.pendingDays;
+		else if (values.entries.length === 0) errors.entries = 'Please add at least one day.';
 	}
 	if (!['none', 'short', 'full'].includes(values.school))
 		errors.school = 'Choose No school, Short day or Regular day.';

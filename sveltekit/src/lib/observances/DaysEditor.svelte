@@ -3,6 +3,9 @@
 	The days of the class's own observance, in the Add / Edit form: the list (each one-time or
 	every year), "Add a day" with the date picker, and "Add several days" (a range, expanded to
 	single days, weekends skipped if asked). Duplicates are never added. See dates.ts.
+
+	A day picked but not added yet is not in `entries`: the form asks `pendingPick()` (through
+	bind:this) before saving or closing, so it isn't silently left out.
 -->
 <script lang="ts">
 	import CalendarPlus from '@lucide/svelte/icons/calendar-plus';
@@ -12,11 +15,13 @@
 	import { plural } from '#lib/editor/list.ts';
 	import {
 		addEntries,
+		covers,
 		dayDate,
 		dayProblem,
 		describeEntry,
 		expandRange,
 		formatDay,
+		isDayString,
 		MAX_YEAR,
 		MIN_YEAR,
 		setYearly,
@@ -106,6 +111,41 @@
 	const range = $derived(
 		from && to ? expandRange(from, to, { skipWeekends, yearly: rangeYearly }) : null
 	);
+
+	// --- Picked but not added ------------------------------------------------------------------
+
+	/** Whether the list already has all of these days. */
+	const listed = (adding: DayEntry[]) =>
+		adding.every((entry) => entries.some((existing) => covers(existing, entry)));
+	/** A day is picked in "Add a day" that isn't in the list. */
+	const dayPending = $derived(
+		!!day && (!!dayProblem(day, dayYearly) || !listed([picked(day, dayYearly)]))
+	);
+	/** Days in a row are (partly) picked that aren't all in the list. */
+	const rangePending = $derived(
+		!!(from || to) &&
+			!(range && 'days' in range && listed(range.days.map((d) => picked(d, rangeYearly))))
+	);
+	const rangeLabel = $derived(
+		range && 'days' in range ? `Add ${plural(range.days.length, 'day')}` : 'Add days'
+	);
+	const dayWords = (text: string) => (isDayString(text) ? formatDay(dayDate(text)) : text);
+
+	/**
+	 * What was picked but not added yet, in words for the form ('' when nothing): saving now would
+	 * leave it out, and closing would throw it away.
+	 */
+	export function pendingPick(): string {
+		const parts: string[] = [];
+		if (dayPending) parts.push(`You picked ${dayWords(day)} but didn't add it: press Add day.`);
+		if (rangePending)
+			parts.push(
+				from && to
+					? `You picked the days from ${dayWords(from)} to ${dayWords(to)} but didn't add them: press ${rangeLabel}.`
+					: `You picked ${from ? `a first day (${dayWords(from)})` : `a last day (${dayWords(to)})`} for several days in a row but didn't add them: pick both days and press Add days, or clear it.`
+			);
+		return parts.join(' ');
+	}
 
 	function addRange() {
 		if (disabled) return;
@@ -256,6 +296,7 @@
 					{disabled}
 					onclick={addDay}
 					data-add-day
+					data-pending={dayPending ? '' : undefined}
 				>
 					<CalendarPlus class="size-5" aria-hidden="true" />
 					Add day
@@ -309,9 +350,10 @@
 					{disabled}
 					onclick={addRange}
 					data-add-range
+					data-pending={rangePending ? '' : undefined}
 				>
 					<CalendarRange class="size-5" aria-hidden="true" />
-					{range && 'days' in range ? `Add ${plural(range.days.length, 'day')}` : 'Add days'}
+					{rangeLabel}
 				</button>
 			</div>
 		</div>
