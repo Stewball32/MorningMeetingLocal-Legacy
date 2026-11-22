@@ -7,8 +7,9 @@
 	import { getHolidayMap as getObservationMap } from '#lib/pb/calendar.ts';
 	import type { Holiday } from '#lib/pb/calendar.ts';
 	import DayInMonth from './DayInMonth.svelte';
-	import { MoonPhase } from 'astronomy-engine';
 	import { getZodiacSign } from './zodiac';
+	import { MOON_PHASES, moonPhaseDays } from './moon.ts';
+	import { weekLabels } from './dates.ts';
 
 	interface MonthViewProps {
 		today: Date;
@@ -67,40 +68,22 @@
 	// object, Key: day of the month, Value: MoonPhaseData
 	let astronomyData: Record<number, AstronomyData[]> = $state({});
 	const moonImgDir = `/moons/`;
-	// Lookup table: index 0 = New Moon, 1 = Waxing Crescent, …, 7 = Waning Crescent
-	const moonPhaseArray = [
-		['New Moon', 'new-moon.png'],
-		['Waxing Crescent', 'waxing-crescent.png'],
-		['First Quarter', 'first-quarter.png'],
-		['Waxing Gibbous', 'waxing-gibbous.png'],
-		['Full Moon', 'full-moon.png'],
-		['Waning Gibbous', 'waning-gibbous.png'],
-		['Last Quarter', 'last-quarter.png'],
-		['Waning Crescent', 'waning-crescent.png']
-	];
 	const zodiacDir = '/zodiac/';
 
 	const updateAstronomy = () => {
 		const newAstronomyData: Record<number, AstronomyData[]> = {};
 
-		const getPhaseIndex = (rawAngle: number) => {
-			// Normalize angle into [0, 360), then bucket into one of 8 octants
-			const normalized = ((rawAngle % 360) + 360) % 360;
-			return Math.round(normalized / 45) % 8;
-		};
-
-		// 1) Compute the phase index of the last day of the previous month:
+		// each phase on the local day the Moon reaches it (see moonPhaseDays)
+		const moonDays = moonPhaseDays(currentYear, currentMonth);
 		const lastOfPrevMonth = new Date(currentYear, currentMonth, 0); // day 0 = last day of previous month
-		let prevMoonIdx = getPhaseIndex(MoonPhase(lastOfPrevMonth));
 		let prevZodiacSign = getZodiacSign(lastOfPrevMonth);
 
-		// 2) Loop through each day of the current month, compute phase index, and record if it changes
+		// Loop through each day of the current month: its moon phase, and a zodiac sign change
 		for (let day = 1; day <= daysInMonth; day++) {
 			const loopDate = new Date(currentYear, currentMonth, day);
-			const loopMoonIdx = getPhaseIndex(MoonPhase(loopDate));
-			if (loopMoonIdx !== prevMoonIdx) {
-				// We have a phase transition on "day"
-				const [phaseName, fileName] = moonPhaseArray[loopMoonIdx];
+			const phaseIndex = moonDays.get(day);
+			if (phaseIndex !== undefined) {
+				const [phaseName, fileName] = MOON_PHASES[phaseIndex];
 				const entry: AstronomyData = {
 					name: phaseName,
 					imgSrc: moonImgDir + fileName
@@ -111,7 +94,6 @@
 				}
 				newAstronomyData[day].push(entry);
 			}
-			prevMoonIdx = loopMoonIdx;
 
 			const loopZodiacSign = getZodiacSign(loopDate);
 			if (loopZodiacSign[0] !== prevZodiacSign[0]) {
@@ -250,7 +232,7 @@
 		class="flex h-[74%] items-center justify-center"
 	>
 		<div class={`grid h-full w-[6%] ${gridRows()}  py-[.5%] text-center font-bold`}>
-			{#each [...Array(startDay > 1 ? 2 : 1).fill(null), ...Array(Math.ceil((daysInMonth + startDay) / 7) - (startDay > 0 ? 1 : 0)).keys()] as i}
+			{#each weekLabels(startDay, daysInMonth) as i}
 				{#if i == null}
 					<div class=""></div>
 				{:else}
