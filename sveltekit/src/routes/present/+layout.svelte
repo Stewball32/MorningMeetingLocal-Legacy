@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
+	import House from '@lucide/svelte/icons/house';
 	import Maximize from '@lucide/svelte/icons/maximize';
 	import Minimize from '@lucide/svelte/icons/minimize';
 	import { slideStyle } from '#lib';
@@ -72,6 +74,14 @@
 			<Maximize class="size-6" />
 		{/if}
 	</button>
+	<a
+		href={resolve('/')}
+		class="btn preset-filled-surface-400-600 m-0 border-2 p-[1%]"
+		title="Home"
+		aria-label="Home"
+	>
+		<House class="size-6" aria-hidden="true" />
+	</a>
 </div>
 <!-- the window: the stage is scaled to fit in it and centred -->
 <div class="absolute inset-0 overflow-hidden">
