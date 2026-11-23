@@ -42,6 +42,7 @@
 		formFromRecord,
 		imageChange,
 		sameForm,
+		savedFields,
 		validateForm,
 		type FormErrors,
 		type FormField,
@@ -287,8 +288,9 @@
 
 		const fields = fieldsFromForm(values, holidays);
 		const image = imageChange(values.picture, picture, !!original?.image);
-		const before = fieldsFromForm(initial, holidays);
-		const changes = original ? changedFields(before, fields) : fields;
+		// What the record holds now: only what changed is sent (see savedFields).
+		const before = original ? savedFields(original, initial, values, holidays) : null;
+		const changes = before ? changedFields(before, fields) : fields;
 		// Once saved, the form stays locked while the dialog closes: a second Enter in that moment
 		// must not save (or add the record) again.
 		saving = true;
@@ -307,7 +309,7 @@
 			// have just added one) before making a record one.
 			const becomesSettings =
 				values.kind === 'builtin' &&
-				(!original || before.name !== fields.name || before.dates.length > 0);
+				(!before || before.name !== fields.name || before.dates.length > 0);
 			if (becomesSettings) {
 				const fresh = await listSettingsRecords();
 				const other = settingsRecordsFor(fresh, fields.name).find((r) => r.id !== original?.id);

@@ -117,6 +117,18 @@ describe('builtInRows', () => {
 		expect(find('Halloween').displayName).toBe('');
 		expect(find('Veterans Day').displayName).toBe('');
 	});
+
+	it("gives none for one that is just the holiday's own name (typed in the dashboard)", () => {
+		const vets = record({ name: 'Veterans Day', display_name: 'Veterans Day' });
+		const valentine = record({ name: "Valentine's Day", display_name: 'Valentine’s Day' });
+		const result = builtInRows(holidays, [vets, valentine], TODAY, noIcons);
+		const find = (name: string) => result.find((r) => r.holiday.name === name)!;
+		expect(find('Veterans Day').displayName).toBe('');
+		expect(find("Valentine's Day").displayName).toBe('');
+		// nor next to it on Coming up
+		const feb = comingUp([valentine], new Date(2027, 1, 14), noIcons, 1);
+		expect(feb[0].observances.map((o) => builtInNameOf(o))).toEqual(['']);
+	});
 });
 
 describe('builtInNameOf', () => {

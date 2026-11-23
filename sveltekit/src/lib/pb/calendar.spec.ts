@@ -10,8 +10,10 @@ import {
 	isSameHolidayName,
 	isSettingsRecord,
 	localDay,
+	normalizeHolidayName,
 	observancePicture,
 	observancesForMonth,
+	otherHolidayName,
 	rawDates,
 	type Holiday
 } from './calendar';
@@ -404,6 +406,38 @@ describe('another name for a built-in holiday (display_name)', () => {
 		expect(day(observancesForMonth([newest, newer, older], 2026, 10), 26)[0].name).toBe(
 			'Feast Day'
 		);
+	});
+
+	it("is no other name when it is just the holiday's own (typed in the dashboard)", () => {
+		for (const [name, displayName] of [
+			['Thanksgiving Day', 'Thanksgiving Day'],
+			['Veterans Day', '  Veterans Day '],
+			["Valentine's Day", 'Valentine’s Day'],
+			['Valentine’s Day', "Valentine's Day"]
+		]) {
+			const same = record({ name, display_name: displayName });
+			expect(holidaySettings([same]).get(normalizeHolidayName(name))?.displayName).toBe('');
+		}
+		// the slide shows the holiday as it comes: date-holidays' own name, apostrophe and all
+		const valentine = record({ name: "Valentine's Day", display_name: 'Valentine’s Day' });
+		expect(day(observancesForMonth([valentine], 2027, 1), 14)[0].name).toBe(
+			builtInDays(2027).find((d) => d.holiday === "Valentine's Day")?.name
+		);
+		// a newer record with the own name leaves an older other name alone, like an empty one
+		const older = record({
+			name: 'Thanksgiving Day',
+			display_name: 'Turkey Day',
+			created: '2026-01-01 00:00:00.000Z'
+		});
+		const newer = record({
+			name: 'Thanksgiving Day',
+			display_name: 'Thanksgiving Day',
+			created: '2026-02-01 00:00:00.000Z'
+		});
+		expect(holidaySettings([newer, older]).get('Thanksgiving Day')?.displayName).toBe('Turkey Day');
+		expect(otherHolidayName(' Turkey Day ', 'Thanksgiving Day')).toBe('Turkey Day');
+		expect(otherHolidayName('Valentine’s Party', "Valentine's Day")).toBe('Valentine’s Party');
+		expect(otherHolidayName('   ', 'Thanksgiving Day')).toBe('');
 	});
 
 	it('is not used by a hidden holiday, nor by your own days', () => {

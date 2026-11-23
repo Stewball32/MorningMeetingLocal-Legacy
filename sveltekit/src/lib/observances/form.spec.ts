@@ -11,6 +11,7 @@ import {
 	imageChange,
 	MAX_DISPLAY_NAME,
 	sameForm,
+	savedFields,
 	validateForm,
 	type ObservanceFormValues
 } from './form';
@@ -234,6 +235,32 @@ describe("a built-in holiday's name on the calendar (display_name)", () => {
 		expect(formFromRecord(own, holidays, TODAY).displayName).toBe('');
 	});
 
+	it("starts empty for one that is just the holiday's own name (typed in the dashboard)", () => {
+		for (const [name, displayName] of [
+			['Thanksgiving Day', 'Thanksgiving Day'],
+			['Veterans Day', ' Veterans Day '],
+			["Valentine's Day", 'Valentine’s Day']
+		]) {
+			const same = record({ name, display_name: displayName });
+			expect(formFromRecord(same, holidays, TODAY).displayName).toBe('');
+		}
+		expect(
+			formFromRecord(
+				record({ name: 'Thanksgiving Day', display_name: ' Turkey Day ' }),
+				holidays,
+				TODAY
+			).displayName
+		).toBe('Turkey Day');
+	});
+
+	it('keeps the one held by a record the calendar ignores, for when it becomes a holiday', () => {
+		const orphan = record({ name: 'Old Thing', display_name: ' Leftover ' });
+		expect(formFromRecord(orphan, holidays, TODAY)).toMatchObject({
+			kind: 'custom',
+			displayName: 'Leftover'
+		});
+	});
+
 	it("saves it trimmed, and '' when it is empty or the holiday's own name", () => {
 		const values = turkey();
 		expect(fieldsFromForm({ ...values, displayName: '  Turkey Day ' }, holidays).display_name).toBe(
@@ -291,6 +318,72 @@ describe("a built-in holiday's name on the calendar (display_name)", () => {
 		expect(changedFields(fieldsFromForm(same, holidays), fieldsFromForm(same, holidays))).toEqual(
 			{}
 		);
+	});
+
+	describe('savedFields: what is sent is compared with what the record really holds', () => {
+		const changes = (
+			saved: CalendarObservance,
+			change: (values: ObservanceFormValues) => Partial<ObservanceFormValues>
+		) => {
+			const initial = formFromRecord(saved, holidays, TODAY);
+			const values = { ...initial, ...change(initial) };
+			return changedFields(
+				savedFields(saved, initial, values, holidays),
+				fieldsFromForm(values, holidays)
+			);
+		};
+
+		it('sends a new name, an emptied one, and nothing when it is left alone', () => {
+			const turkey = record({ name: 'Thanksgiving Day', display_name: 'Turkey Day' });
+			expect(changes(turkey, () => ({}))).toEqual({});
+			expect(changes(turkey, () => ({ displayName: 'Feast Day' }))).toEqual({
+				display_name: 'Feast Day'
+			});
+			expect(changes(turkey, () => ({ displayName: '' }))).toEqual({ display_name: '' });
+			expect(changes(turkey, () => ({ displayName: ' Thanksgiving Day ' }))).toEqual({
+				display_name: ''
+			});
+		});
+
+		it("sends nothing for a saved one that is just the holiday's own name", () => {
+			for (const [name, displayName] of [
+				['Veterans Day', 'Veterans Day'],
+				["Valentine's Day", 'Valentine’s Day']
+			]) {
+				const same = record({ name, display_name: displayName });
+				expect(changes(same, () => ({}))).toEqual({});
+				expect(changes(same, () => ({ displayName: '' }))).toEqual({});
+				expect(changes(same, () => ({ displayName: 'Hearts Day' }))).toEqual({
+					display_name: 'Hearts Day'
+				});
+			}
+		});
+
+		it('clears a leftover one when a record the calendar ignores becomes a holiday', () => {
+			const orphan = record({ name: 'Old Thing', display_name: 'Leftover' });
+			const builtIn = { kind: 'builtin' as const, holiday: 'Thanksgiving Day' };
+			// left as the form shows it: it stays
+			expect(changes(orphan, () => builtIn)).toEqual({ name: 'Thanksgiving Day' });
+			// emptied: the holiday shows under its own name, as the hint says
+			expect(changes(orphan, () => ({ ...builtIn, displayName: '' }))).toEqual({
+				name: 'Thanksgiving Day',
+				display_name: ''
+			});
+			// a leftover that is that holiday's own name needs no change
+			const same = record({ name: 'Old Thing', display_name: 'Thanksgiving Day' });
+			expect(changes(same, () => builtIn)).toEqual({ name: 'Thanksgiving Day' });
+		});
+
+		it("leaves your own day's display_name alone (the calendar doesn't use it)", () => {
+			const own = record({ name: 'Fair', dates: ['11-19'], display_name: 'Odd' });
+			expect(changes(own, () => ({}))).toEqual({});
+			expect(changes(own, () => ({ name: 'Fall Fair' }))).toEqual({ name: 'Fall Fair' });
+			// a record the calendar ignores, given days of its own
+			const orphan = record({ name: 'Old Thing', display_name: 'Leftover' });
+			expect(changes(orphan, () => ({ entries: [{ kind: 'once', day: '2026-12-01' }] }))).toEqual({
+				dates: ['2026-12-01']
+			});
+		});
 	});
 
 	it("puts PocketBase's display_name error on the field", () => {

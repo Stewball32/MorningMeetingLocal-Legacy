@@ -29,6 +29,7 @@
 	import EditorDialog from '#lib/editor/EditorDialog.svelte';
 	import { isPbError } from '#lib/editor/errors.ts';
 	import { plural } from '#lib/editor/list.ts';
+	import { otherHolidayName } from '#lib/pb/calendar.ts';
 	import { deleteObservance } from '#lib/pb/observances.ts';
 	import ObservancePicture from './ObservancePicture.svelte';
 	import { OBSERVANCE_ERRORS, SCHOOL_LABEL } from './observances.ts';
@@ -126,10 +127,12 @@
 					</p>
 					<p>This can't be undone.</p>
 				{:else if target.kind === 'reset'}
-					{@const otherName = target.records.find((r) => r.display_name?.trim())?.display_name}
+					{@const otherName = target.records
+						.map((r) => otherHolidayName(r.display_name || '', target.holiday.name))
+						.find(Boolean)}
 					<p>
 						The calendar shows {target.holiday.name} as it comes again: {otherName
-							? `under its own name (not “${otherName.trim()}”), `
+							? `under its own name (not “${otherName}”), `
 							: ''}the default picture and its own school day ({SCHOOL_LABEL[
 							target.holiday.school
 						]}){target.records.some((r) => r.hidden) ? ', and it is no longer hidden' : ''}. Your

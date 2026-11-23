@@ -66,6 +66,16 @@ export const normalizeHolidayName = (name: string) => name.replace(/[‘’ʼ]/g
 export const isSameHolidayName = (a: string, b: string) =>
 	normalizeHolidayName(a) === normalizeHolidayName(b);
 
+/**
+ * A built-in holiday's other name (a settings record's `display_name`), trimmed: '' when it is
+ * empty or just the holiday's own name ("Valentine’s Day" for Valentine's Day, typed in the
+ * dashboard), so it never shows as a second name.
+ */
+export function otherHolidayName(displayName: string, holiday: string): string {
+	const name = displayName.trim();
+	return isSameHolidayName(name, holiday) ? '' : name;
+}
+
 /** A date-holidays date ('YYYY-MM-DD…') as local midnight of that day. */
 export function localDay(date: string): Date {
 	const [year, month, day] = date.slice(0, 10).split('-').map(Number);
@@ -231,7 +241,11 @@ export function holidaySettings(
 		// "Use these changes" off: the name, picture, school day and notes don't count, but Hide does
 		const used = !!record.is_active;
 		settings.set(key, {
-			displayName: (used && record.display_name?.trim()) || before?.displayName || '',
+			// || not ??: PocketBase gives '' when it was never set.
+			displayName:
+				(used && otherHolidayName(record.display_name || '', record.name || '')) ||
+				before?.displayName ||
+				'',
 			description: (used && record.description) || before?.description || '',
 			school: (used && record.school) || before?.school || '',
 			image: (used && observancePicture(record, iconOf(record))) || before?.image || '',
