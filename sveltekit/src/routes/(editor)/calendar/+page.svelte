@@ -453,8 +453,8 @@
 			description="Days you added, one-time or every year, soonest first."
 			count={own.upcoming.length}
 			empty={own.past.length > 0
-				? 'None coming up. Add a day for a Minimum Day, a field trip or a class birthday.'
-				: 'No days of your own yet. Add one for a Minimum Day, a field trip or a class birthday.'}
+				? 'None coming up. Add a day for a Minimum Day, a field trip or a class party. Birthdays come from the People page.'
+				: 'No days of your own yet. Add one for a Minimum Day, a field trip or a class party. Birthdays come from the People page.'}
 			addLabel="Add a day"
 			onAdd={() => openAdd()}
 		>

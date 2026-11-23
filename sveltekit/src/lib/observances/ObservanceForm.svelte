@@ -41,6 +41,7 @@
 		formFieldOf,
 		formFromRecord,
 		imageChange,
+		isBirthdayName,
 		leavesAsItComes,
 		sameForm,
 		savedFields,
@@ -387,7 +388,7 @@
 		{
 			value: 'custom',
 			label: 'Add your own day(s)',
-			help: 'A Minimum Day, a field trip, Picture Day, a class birthday…'
+			help: 'A Minimum Day, a field trip, Picture Day, a class party… Birthdays come from the People page.'
 		},
 		{
 			value: 'builtin',
@@ -570,6 +571,9 @@
 					{#if findBuiltIn(holidays, values.name)}
 						{findBuiltIn(holidays, values.name)?.name} is a built-in holiday: this adds a second entry
 						on your days. To change the holiday itself, choose “Change a built-in holiday”.
+					{:else if isBirthdayName(values.name)}
+						Birthdays come from the People page: give the person a birthday there and the calendar
+						shows it every year. Added here too, it would show twice that day.
 					{:else}
 						Shown on the calendar under the picture (up to 3 lines).
 					{/if}

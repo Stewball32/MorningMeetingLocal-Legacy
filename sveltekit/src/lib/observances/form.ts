@@ -203,6 +203,12 @@ export function leavesAsItComes(
 }
 
 /**
+ * Whether the name of your own day sounds like a birthday. Those come from the People page (each
+ * person's birthday, every year), so one added here as well shows twice that day.
+ */
+export const isBirthdayName = (name: string): boolean => /birthday/i.test(name);
+
+/**
  * The record as it is saved, in the fields the form writes: to compare with
  * fieldsFromForm(values), so only what changed is sent (changedFields). These are the fields of
  * the form's starting values, except the name on the calendar: that is the one the record really

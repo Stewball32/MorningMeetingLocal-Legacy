@@ -9,6 +9,7 @@ import {
 	formFieldOf,
 	formFromRecord,
 	imageChange,
+	isBirthdayName,
 	leavesAsItComes,
 	MAX_DISPLAY_NAME,
 	sameForm,
@@ -236,6 +237,20 @@ describe('leavesAsItComes: new changes to a holiday that change nothing are not 
 		own.entries = [{ kind: 'once', day: '2026-11-25' }];
 		expect(leavesAsItComes(own, holidays)).toBe(false);
 		expect(leavesAsItComes(emptyForm({}, holidays), holidays)).toBe(false);
+	});
+});
+
+describe('isBirthdayName: birthdays come from the People page', () => {
+	it('spots a day named like a birthday, in any case', () => {
+		for (const name of [
+			"Bluey's Birthday",
+			'Class birthdays',
+			'BIRTHDAY PARTY',
+			'Mr. Smith’s Birthday'
+		])
+			expect(isBirthdayName(name), name).toBe(true);
+		for (const name of ['Minimum Day', 'Fun Run', 'Birth of a Nation Day', ''])
+			expect(isBirthdayName(name), name).toBe(false);
 	});
 });
 
