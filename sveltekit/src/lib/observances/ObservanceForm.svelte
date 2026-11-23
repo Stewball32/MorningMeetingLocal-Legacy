@@ -234,6 +234,8 @@
 		[
 			'entries',
 			() => [
+				// The Add button of what is waiting, else the kind of day that has it.
+				'[data-days] button[data-pending]',
 				'[data-days] [data-pending]',
 				'[data-days] input[type="date"]',
 				'[data-days] [data-days-first]'
@@ -258,6 +260,8 @@
 	const hasUpload = () => picture instanceof File || (!!original?.image && picture === undefined);
 
 	let daysEditor: ReturnType<typeof DaysEditor> | undefined = $state();
+	/** The name the last quick pick filled in ('' when none did). */
+	let pickedName = '';
 	/** A day picked in the days list but not added yet ('' when none; see DaysEditor). */
 	const pendingDays = () => (values.kind === 'custom' ? (daysEditor?.pendingPick() ?? '') : '');
 
@@ -522,9 +526,12 @@
 						clearError('entries');
 					}}
 					onPickName={(name) => {
-						// A quick pick names the day, unless it has a name already.
-						if (values.name.trim()) return;
+						// A quick pick names the day, unless it has a name already (one an earlier
+						// quick pick gave it is replaced: the teacher changed their mind).
+						const current = values.name.trim();
+						if (current && current !== pickedName) return;
 						values.name = name;
+						pickedName = name;
 						clearError('name');
 					}}
 					{today}

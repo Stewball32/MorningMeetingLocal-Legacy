@@ -207,6 +207,16 @@ export function entryNext(entry: DayEntry, today: Date): Date | null {
 	return next ? dayDate(next) : null;
 }
 
+/**
+ * Whether a rule the calendar can't read as it was saved can be read with single spaces
+ * ('easter  -2', typed in the dashboard): Edit, then Save change, saves it that way.
+ */
+export function spacesFix(entry: DayEntry, today: Date): boolean {
+	const rule = entryRule(entry);
+	if (rule === null || tidyRule(rule) === rule || checkRule(rule, today).readable) return false;
+	return checkRule(tidyRule(rule), today).readable;
+}
+
 /** Whether an entry already covers `entry` (the same day, or every year on that month and day). */
 export function covers(existing: DayEntry, entry: DayEntry): boolean {
 	if (keyOf(existing) === keyOf(entry)) return true;

@@ -24,6 +24,7 @@ import {
 	savedValue,
 	setYearly,
 	sortEntries,
+	spacesFix,
 	yearlyEntry,
 	type DayEntry
 } from './dates';
@@ -243,6 +244,17 @@ describe('saved entries', () => {
 		// Rules the editor doesn't build are compared as written.
 		expect(keyOf(rule('easter -2'))).not.toBe(keyOf(rule('easter  -2')));
 		expect(keyOf(rule('3rd monday in january'))).not.toBe(keyOf(rule('3rd Monday in January')));
+	});
+
+	it('knows a rule the calendar can only read with single spaces (Edit, then Save change, fixes it)', () => {
+		expect(spacesFix(other('easter  -2'), TODAY)).toBe(true);
+		expect(spacesFix(other('3rd Monday  in January'), TODAY)).toBe(true);
+		expect(entryCheck(other('easter  -2'), TODAY)?.readable).toBe(false);
+		// Readable as it is, unreadable either way, or not text: nothing to fix.
+		expect(spacesFix(other('easter -2'), TODAY)).toBe(false);
+		expect(spacesFix(other('non  sense'), TODAY)).toBe(false);
+		expect(spacesFix({ kind: 'other', text: '42', value: 42 }, TODAY)).toBe(false);
+		expect(spacesFix(once('2026-11-25'), TODAY)).toBe(false);
 	});
 
 	it('next yearly day rolls over at the end of the year', () => {

@@ -3,12 +3,15 @@
 	The days of the class's own observance, in the Add / Edit form: the list, and adding a day by
 	its kind: on a date (the date picker: one day, every year (moved off a weekend if asked), or
 	several days in a row, weekends skipped if asked), a weekday of a month, counted from Easter, a
-	date in another calendar, or an Advanced date-holidays rule. A quick pick fills one in. Rules
-	(also ones written in the PocketBase dashboard) can be changed with Edit; one that isn't changed
-	is saved back exactly as it was. Duplicates are never added. See dates.ts and rules.ts.
+	date in another calendar, or an Advanced date-holidays rule. A quick pick fills one in (with its
+	Fill in button: a select's `change` comes with every arrow key). Rules (also ones written in the
+	PocketBase dashboard) can be changed with Edit; one that isn't changed is saved back exactly as
+	it was. Duplicates are never added. See dates.ts and rules.ts.
 
-	A day picked or set up but not added yet is not in `entries`: the form asks `pendingPick()`
-	(through bind:this) before saving or closing, so it isn't silently left out.
+	Each kind keeps what was set up in it while another is shown. A day picked or set up but not
+	added yet (in any kind) is not in `entries`: the form asks `pendingPick()` (through bind:this)
+	before saving or closing, so it isn't silently left out; Clear leaves it out on purpose. Edit
+	waits until nothing is waiting, and an Edit starts and ends with an empty builder.
 -->
 <script lang="ts">
 	import CalendarPlus from '@lucide/svelte/icons/calendar-plus';
@@ -18,6 +21,7 @@
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import X from '@lucide/svelte/icons/x';
 	import { tick } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { plural } from '#lib/editor/list.ts';
 	import {
 		addEntries,
@@ -26,6 +30,7 @@
 		dayProblem,
 		describeEntry,
 		entryCheck,
+		entryNext,
 		expandRange,
 		formatDay,
 		isDayString,
@@ -37,6 +42,7 @@
 		savedValue,
 		setYearly,
 		sortEntries,
+		spacesFix,
 		startOfDay,
 		yearlyEntry,
 		type DayEntry
@@ -53,7 +59,6 @@
 		nthText,
 		parseRule,
 		QUICK_PICKS,
-		RULE_YEARS,
 		ruleText,
 		SPEC_URL,
 		tidyRule,
@@ -123,6 +128,22 @@
 		persian: 'Nowruz (the Persian New Year) is 1 Farvardin.'
 	};
 
+	const KIND_IDS = KINDS.map((item) => item.value);
+	/** The kinds that build a rule (not "On a date"). */
+	const RULE_KINDS: Kind[] = ['weekday', 'easter', 'calendar', 'advanced'];
+	const kindLabel = (value: Kind) => KINDS.find((item) => item.value === value)?.label ?? value;
+
+	/** What each kind's choices start with (and go back to with Clear, or when an Edit ends). */
+	const START = {
+		nth: 1 as Nth,
+		weekday: 1,
+		month: 1,
+		thenWeekday: 5,
+		easter: 'easter' as EasterKind,
+		easterDays: 2,
+		calendar: 'hebrew' as CalendarId
+	};
+
 	let kind: Kind = $state('date');
 
 	// On a date
@@ -134,31 +155,42 @@
 	let skipWeekends = $state(true);
 	let rangeYearly = $state(false);
 	// A weekday of a month
-	let nth: Nth = $state(1);
-	let weekday = $state(1);
-	let month = $state(1);
+	let nth: Nth = $state(START.nth);
+	let weekday = $state(START.weekday);
+	let month = $state(START.month);
 	let thenDirection: '' | 'before' | 'after' = $state('');
-	let thenWeekday = $state(5);
+	let thenWeekday = $state(START.thenWeekday);
 	// Counted from Easter
-	let easter: EasterKind = $state('easter');
+	let easter: EasterKind = $state(START.easter);
 	let easterWhen: 'on' | 'before' | 'after' = $state('on');
-	let easterDays = $state(2);
+	let easterDays = $state(START.easterDays);
 	// Another calendar
-	let calendar: CalendarId = $state('hebrew');
-	let calendarMonth = $state(CALENDARS.hebrew.months[0].rule);
+	let calendar: CalendarId = $state(START.calendar);
+	let calendarMonth = $state(CALENDARS[START.calendar].months[0].rule);
 	let calendarDay = $state(1);
 	// Advanced
 	let advanced = $state('');
+	// Quick pick: chosen in the list, filled in with its button.
+	let quickChoice = $state('');
 
-	/** The day being built (not "On a date") was set up here, or filled by a quick pick. */
-	let touched = $state(false);
-	/** The entry being changed with Edit: its key (to find it again), its saved text and words. */
-	let editing: { key: string; text: string; words: string } | null = $state(null);
+	/**
+	 * The kinds (not "On a date" or Advanced: their own fields say it) whose choices were set up
+	 * here, or filled by a quick pick. Only those count as a day waiting to be added: just looking
+	 * at a kind doesn't.
+	 */
+	const touched = new SvelteSet<Kind>();
+	/**
+	 * The entry being changed with Edit: its key (to find it again), its saved text and words, and
+	 * whether the calendar can read it as it was saved.
+	 */
+	let editing: { key: string; text: string; words: string; readable: boolean } | null =
+		$state(null);
 
 	/** What the last action did (read out to screen readers). */
 	let message = $state('');
 	/** Why the last "Add" didn't work. */
 	let problem = $state('');
+	let root: HTMLFieldSetElement | undefined = $state();
 	let dayInput: HTMLInputElement | undefined = $state();
 	let fromInput: HTMLInputElement | undefined = $state();
 	let list: HTMLUListElement | undefined = $state();
@@ -212,9 +244,8 @@
 			return;
 		}
 		const entry = picked(day, dayYearly, weekend);
-		if (editing) {
-			if (applyEdit(entry)) resetDay();
-		} else if (add([entry], describeEntry(entry))) resetDay();
+		if (editing) applyEdit(entry);
+		else if (add([entry], describeEntry(entry))) resetDay();
 		dayInput?.focus();
 	}
 
@@ -256,9 +287,11 @@
 
 	// --- The other kinds: a rule built from the choices (or typed) ------------------------------
 
-	/** The rule the choices make; null when they don't make one. */
-	const builtSpec = $derived.by((): RuleSpec | null => {
-		if (kind === 'weekday')
+	type Built = { entry: DayEntry } | { error: string } | null;
+
+	/** The rule a kind's choices make; null when they don't make one (or it is typed). */
+	function specFor(value: Kind): RuleSpec | null {
+		if (value === 'weekday')
 			return {
 				kind: 'weekday',
 				nth,
@@ -268,23 +301,26 @@
 					? { then: { direction: thenDirection, weekday: thenWeekday } }
 					: {})
 			};
-		if (kind === 'easter') {
+		if (value === 'easter') {
 			if (easterWhen === 'on') return { kind: 'easter', easter, offset: 0 };
 			if (!Number.isInteger(easterDays) || easterDays < 1 || easterDays > MAX_EASTER_DAYS)
 				return null;
 			return { kind: 'easter', easter, offset: easterWhen === 'before' ? -easterDays : easterDays };
 		}
-		if (kind === 'calendar')
+		if (value === 'calendar')
 			return { kind: 'calendar', calendar, month: calendarMonth, day: calendarDay };
 		return null;
-	});
-	/** The entry the choices (or the typed rule) make, or why there is none. */
-	const built = $derived.by((): { entry: DayEntry } | { error: string } | null => {
-		if (kind === 'date') return null;
-		if (kind === 'advanced') return ruleEntry(advanced, today);
-		if (!builtSpec) return { error: `Please choose from 1 to ${MAX_EASTER_DAYS} days.` };
-		return ruleEntry(ruleText(builtSpec), today);
-	});
+	}
+	/** The entry a kind's choices (or the typed rule) make, or why there is none. */
+	function buildFor(value: Kind): Built {
+		if (value === 'date') return null;
+		if (value === 'advanced') return ruleEntry(advanced, today);
+		const spec = specFor(value);
+		if (!spec) return { error: `Please choose from 1 to ${MAX_EASTER_DAYS} days.` };
+		return ruleEntry(ruleText(spec), today);
+	}
+	/** What the kind shown builds. */
+	const built = $derived(buildFor(kind));
 	const builtEntry = $derived(built && 'entry' in built ? built.entry : null);
 	/** The next days of what is built: up to 3. */
 	const builtNext = $derived.by((): string[] => {
@@ -296,7 +332,13 @@
 	function addRule() {
 		if (disabled) return;
 		// Unchanged (also an entry that isn't text, which date-holidays can't read): kept as it is.
-		if (editing && kind === 'advanced' && sameText(advanced, editing.text)) {
+		// Not one the calendar can't read only because of its spaces: Save change fixes that.
+		if (
+			editing &&
+			kind === 'advanced' &&
+			keepsEdited(advanced) &&
+			(editing.readable || tidyRule(advanced) === advanced)
+		) {
 			doneBuilding('No change.');
 			return;
 		}
@@ -311,21 +353,58 @@
 		else if (add([entry], describeEntry(entry))) doneBuilding(message);
 	}
 
-	/**
-	 * The day built is in the list (or an Edit is over): what the choices show isn't waiting to be
-	 * added any more. The rule box is emptied, and so is the date an Edit filled in.
-	 */
-	function clearBuilder() {
-		if (editing && kind === 'date') resetDay();
-		editing = null;
-		touched = false;
-		if (kind === 'advanced') advanced = '';
+	/** A kind's choices as they start, not set up. */
+	function resetKind(value: Kind) {
+		if (value === 'date') {
+			resetDay();
+			from = '';
+			to = '';
+			rangeYearly = false;
+		} else if (value === 'weekday') {
+			nth = START.nth;
+			weekday = START.weekday;
+			month = START.month;
+			thenDirection = '';
+			thenWeekday = START.thenWeekday;
+		} else if (value === 'easter') {
+			easter = START.easter;
+			easterWhen = 'on';
+			easterDays = START.easterDays;
+		} else if (value === 'calendar') {
+			calendar = START.calendar;
+			calendarMonth = CALENDARS[START.calendar].months[0].rule;
+			calendarDay = 1;
+		} else advanced = '';
+		touched.delete(value);
 	}
 
+	/** Ends an Edit: every kind as it starts (nothing was waiting when it began: see edit). */
+	function endEdit() {
+		editing = null;
+		for (const value of KIND_IDS) resetKind(value);
+	}
+
+	/**
+	 * The day built is in the list (or an Edit is over): what the choices show isn't waiting to be
+	 * added any more. The rule box is emptied; an Edit's choices all go back to how they start.
+	 */
 	function doneBuilding(words: string) {
-		clearBuilder();
+		if (editing) endEdit();
+		else {
+			touched.delete(kind);
+			if (kind === 'advanced') advanced = '';
+		}
 		problem = '';
 		message = words;
+	}
+
+	/** Clear: what is set up in the kind shown is left out (it goes back to how it starts). */
+	function clearKind() {
+		if (disabled) return;
+		resetKind(kind);
+		problem = '';
+		message = `Cleared ${kindLabel(kind)}: nothing set up there.`;
+		focusBuilder();
 	}
 
 	/** Two rules that are written the same (spaces, or a weekday's first letter, aside). */
@@ -333,6 +412,16 @@
 		if (tidyRule(a) === tidyRule(b)) return true;
 		const [specA, specB] = [parseRule(tidyRule(a)), parseRule(tidyRule(b))];
 		return !!specA && !!specB && ruleText(specA) === ruleText(specB);
+	}
+
+	/**
+	 * Whether saving `text` keeps the entry being changed as it was saved: the same text, or
+	 * written a little differently (spaces, a weekday's first letter) when the calendar can read
+	 * the saved one. One it can't read as saved ('easter  -2') is fixed by its tidied text.
+	 */
+	function keepsEdited(text: string): boolean {
+		if (!editing) return false;
+		return text === editing.text || (editing.readable && sameText(text, editing.text));
 	}
 
 	/** Fills the choices with a rule the editor builds. */
@@ -365,15 +454,25 @@
 		}
 	}
 
-	function quickPick(rule: string) {
-		const pick = QUICK_PICKS.find((p) => p.rule === rule);
+	/** Fill in: the quick pick chosen goes into its kind's choices (and names the day). */
+	function fillQuickPick() {
+		const pick = QUICK_PICKS.find((p) => p.rule === quickChoice);
 		const spec = pick && parseRule(pick.rule);
-		if (!pick || !spec) return;
+		if (disabled || !pick || !spec) return;
+		const target: Kind = spec.kind;
+		// A day set up there and not added is replaced: say which.
+		const before = !editing && rulesWaiting.includes(target) ? buildFor(target) : null;
 		fill(spec);
-		touched = true;
+		touched.add(target);
+		quickChoice = '';
 		problem = '';
 		onPickName?.(pick.name);
-		message = `Filled in ${pick.label}: ${describeRule(spec)}. Check it, then press ${editing ? 'Save change' : 'Add day'}.`;
+		const replaced =
+			before && 'entry' in before && keyOf(before.entry) !== `rule:${pick.rule}`
+				? ` (instead of “${describeEntry(before.entry)}”, which wasn't added)`
+				: '';
+		message = `Filled in ${pick.label}: ${describeRule(spec)}${replaced}. Check it, then press ${editing ? 'Save change' : 'Add day'}.`;
+		focusBuilder();
 	}
 
 	// --- Edit -------------------------------------------------------------------------------
@@ -383,10 +482,26 @@
 		builder?.querySelector<HTMLElement>('[data-days-first]')?.focus();
 	}
 
+	/** The keyboard to what is waiting: its Add button, else the kind that has it. */
+	async function focusPending() {
+		await tick();
+		(
+			root?.querySelector<HTMLElement>('button[data-pending]') ??
+			root?.querySelector<HTMLElement>('[data-pending]')
+		)?.focus();
+	}
+
 	/** Puts a rule (or an entry written in the dashboard) into the choices, to change it. */
 	function edit(entry: DayEntry) {
-		// Another day's change that wasn't saved is dropped (that day stays as it was).
-		clearBuilder();
+		// What is waiting to be added (or another change not saved) would be lost: it comes first.
+		const waiting = pendingPick();
+		if (waiting) {
+			problem = `${waiting} Then press Edit again.`;
+			message = '';
+			focusPending();
+			return;
+		}
+		endEdit();
 		const text = entry.kind === 'rule' ? entry.rule : entry.kind === 'other' ? entry.text : '';
 		const spec = entry.kind === 'rule' ? parseRule(entry.rule) : null;
 		if (spec) fill(spec);
@@ -394,8 +509,12 @@
 			kind = 'advanced';
 			advanced = text;
 		}
-		touched = false;
-		editing = { key: keyOf(entry), text, words: describeEntry(entry) };
+		editing = {
+			key: keyOf(entry),
+			text,
+			words: describeEntry(entry),
+			readable: entryCheck(entry, today)?.readable !== false
+		};
 		problem = '';
 		message = `Changing ${editing.words}: make your changes, then press Save change.`;
 		builder?.scrollIntoView({ block: 'nearest' });
@@ -413,13 +532,12 @@
 		const index = entries.findIndex((existing) => keyOf(existing) === key);
 		if (index === -1) {
 			// Removed meanwhile: it is a new day.
-			editing = null;
 			if (!add([entry], describeEntry(entry))) return false;
 			doneBuilding(message);
 			return true;
 		}
 		const old = entries[index];
-		if (keyOf(old) === keyOf(entry) || sameText(savedValue(entry), editing.text)) {
+		if (keyOf(old) === keyOf(entry) || keepsEdited(savedValue(entry))) {
 			doneBuilding('No change.');
 			return true;
 		}
@@ -446,57 +564,85 @@
 	/** Whether the list already has all of these days. */
 	const listed = (adding: DayEntry[]) =>
 		adding.every((entry) => entries.some((existing) => covers(existing, entry)));
-	/** A day is picked in "Add a day" that isn't in the list. */
-	const dayPending = $derived(
-		kind === 'date' &&
+	/** Whether something is set up in a kind that builds a rule. */
+	const setUp = (value: Kind) => (value === 'advanced' ? !!advanced.trim() : touched.has(value));
+
+	// Not while an Edit is on: then only the change counts (editChanged).
+	/** A day is picked in "On a date" that isn't in the list (whichever kind is shown). */
+	const dayWaiting = $derived(
+		!editing &&
 			!!day &&
 			(!!dayProblem(day, dayYearly) || !listed([picked(day, dayYearly, weekend)]))
 	);
 	/** Days in a row are (partly) picked that aren't all in the list. */
-	const rangePending = $derived(
-		kind === 'date' &&
-			!editing &&
+	const rangeWaiting = $derived(
+		!editing &&
 			!!(from || to) &&
 			!(range && 'days' in range && listed(range.days.map((d) => picked(d, rangeYearly))))
 	);
-	/** A day built with the other kinds that isn't in the list (or a change not saved). */
-	const rulePending = $derived.by(() => {
-		if (kind === 'date') return false;
-		if (editing) {
-			const text = kind === 'advanced' ? advanced : builtEntry ? savedValue(builtEntry) : '';
-			return !sameText(text, editing.text);
-		}
-		if (kind === 'advanced' ? !advanced.trim() : !touched) return false;
-		return !builtEntry || !listed([builtEntry]);
+	/** The kinds that build a rule with a day set up that isn't in the list. */
+	const rulesWaiting = $derived(
+		editing
+			? []
+			: RULE_KINDS.filter((value) => {
+					if (!setUp(value)) return false;
+					const result = buildFor(value);
+					return !result || 'error' in result || !listed([result.entry]);
+				})
+	);
+	/** Every kind with something waiting to be added. */
+	const waitingKinds = $derived(
+		new Set<Kind>([...(dayWaiting || rangeWaiting ? (['date'] as const) : []), ...rulesWaiting])
+	);
+	/** The entry being changed would be saved differently from what the kind shown has now. */
+	const editChanged = $derived.by(() => {
+		if (!editing) return false;
+		if (kind === 'date')
+			return (
+				!!day &&
+				(!!dayProblem(day, dayYearly) || !keepsEdited(savedValue(picked(day, dayYearly, weekend))))
+			);
+		const text = kind === 'advanced' ? advanced : builtEntry ? savedValue(builtEntry) : '';
+		return !keepsEdited(text);
 	});
 	const rangeLabel = $derived(
 		range && 'days' in range ? `Add ${plural(range.days.length, 'day')}` : 'Add days'
 	);
 	const dayWords = (text: string) => (isDayString(text) ? formatDay(dayDate(text)) : text);
 
+	/** How to get to what is waiting in a kind: nothing to say when it is shown. */
+	const goTo = (value: Kind) => (value === kind ? '' : `choose “${kindLabel(value)}”, then `);
+
+	/** What is waiting in a kind that builds a rule, in words. */
+	function ruleWaitingText(value: Kind): string {
+		const result = buildFor(value);
+		const how = `${goTo(value)}press Add day, or Clear to leave it out.`;
+		if (result && 'entry' in result)
+			return `You set up “${describeEntry(result.entry)}” but didn't add it: ${how}`;
+		return value === 'advanced'
+			? `You typed a rule but didn't add it: ${how}`
+			: `You set up a day but didn't add it: ${how}`;
+	}
+
 	/**
 	 * What was picked but not added yet, in words for the form ('' when nothing): saving now would
-	 * leave it out, and closing would throw it away.
+	 * leave it out, and closing would throw it away. Every kind counts, not only the one shown.
 	 */
 	export function pendingPick(): string {
-		if (editing && (dayPending || rulePending))
-			return `You changed ${editing.words} but didn't save the change: press Save change, or Cancel.`;
+		if (editing)
+			return editChanged
+				? `You changed ${editing.words} but didn't save the change: press Save change, or Cancel.`
+				: '';
 		const parts: string[] = [];
-		if (dayPending) parts.push(`You picked ${dayWords(day)} but didn't add it: press Add day.`);
-		if (rangePending)
+		if (dayWaiting)
+			parts.push(`You picked ${dayWords(day)} but didn't add it: ${goTo('date')}press Add day.`);
+		if (rangeWaiting)
 			parts.push(
 				from && to
-					? `You picked the days from ${dayWords(from)} to ${dayWords(to)} but didn't add them: press ${rangeLabel}.`
-					: `You picked ${from ? `a first day (${dayWords(from)})` : `a last day (${dayWords(to)})`} for several days in a row but didn't add them: pick both days and press Add days, or clear it.`
+					? `You picked the days from ${dayWords(from)} to ${dayWords(to)} but didn't add them: ${goTo('date')}press ${rangeLabel}.`
+					: `You picked ${from ? `a first day (${dayWords(from)})` : `a last day (${dayWords(to)})`} for several days in a row but didn't add them: ${goTo('date')}pick both days and press Add days, or clear it.`
 			);
-		if (rulePending)
-			parts.push(
-				builtEntry
-					? `You set up “${describeEntry(builtEntry)}” but didn't add it: press Add day.`
-					: kind === 'advanced'
-						? `You typed a rule but didn't add it: press Add day, or clear the box.`
-						: `You set up a day but didn't add it: press Add day.`
-			);
+		for (const value of rulesWaiting) parts.push(ruleWaitingText(value));
 		return parts.join(' ');
 	}
 
@@ -523,7 +669,7 @@
 	async function removeAt(index: number) {
 		const entry = entries[index];
 		// Removing the day being changed ends the change.
-		if (editing && editing.key === keyOf(entry)) clearBuilder();
+		if (editing && editing.key === keyOf(entry)) endEdit();
 		onChange(entries.filter((_, at) => at !== index));
 		problem = '';
 		message = `Removed ${describeEntry(entry)}.`;
@@ -556,7 +702,7 @@
 		calendar = value;
 		calendarMonth = CALENDARS[value].months[0].rule;
 		calendarDay = Math.min(calendarDay, CALENDARS[value].months[0].days);
-		touched = true;
+		touched.add('calendar');
 	}
 
 	const calendarMonths = $derived(CALENDARS[calendar].months);
@@ -592,6 +738,11 @@
 					.map((d) => formatDay(dayDate(d)))
 					.join(' · ')}
 			</p>
+			{#if editing && !editing.readable && kind === 'advanced' && tidyRule(advanced) !== advanced}
+				<p class="opacity-80" data-rule-tidy>
+					Save change saves it with single spaces, so the calendar can read it.
+				</p>
+			{/if}
 		{/if}
 	</div>
 {/snippet}
@@ -604,7 +755,7 @@
 			{disabled}
 			onclick={addRule}
 			data-add-rule
-			data-pending={rulePending ? '' : undefined}
+			data-pending={(editing ? editChanged : rulesWaiting.includes(kind)) ? '' : undefined}
 		>
 			{#if editing}
 				<Check class="size-5" aria-hidden="true" />
@@ -618,11 +769,22 @@
 			<button type="button" class="btn preset-tonal px-3 py-2" {disabled} onclick={cancelEdit}>
 				Cancel
 			</button>
+		{:else if setUp(kind)}
+			<button
+				type="button"
+				class="btn preset-tonal px-3 py-2"
+				{disabled}
+				onclick={clearKind}
+				data-clear-rule
+			>
+				Clear<span class="sr-only">{` ${kindLabel(kind)}`}</span>
+			</button>
 		{/if}
 	</div>
 {/snippet}
 
 <fieldset
+	bind:this={root}
 	class="border-surface-200-800 rounded-container space-y-3 border px-4 pt-2 pb-3"
 	aria-describedby={error ? id('error') : undefined}
 	data-days
@@ -643,9 +805,10 @@
 					data-editing={editing?.key === keyOf(entry) ? '' : undefined}
 				>
 					<span class="min-w-40 flex-1">
+						<!-- A rule as written keeps its spaces in sight: a double one is why it can't be read. -->
 						<span
 							class="font-semibold {isPast(entry) ? 'opacity-60' : ''} {written(entry)
-								? 'font-mono text-sm break-all'
+								? 'font-mono text-sm break-all whitespace-pre-wrap'
 								: ''}"
 						>
 							{text}
@@ -654,17 +817,20 @@
 							<span class="text-sm opacity-70">(passed)</span>
 						{:else if entry.kind === 'yearly'}
 							<span class="text-sm opacity-70">(next: {formatDay(dayDate(entry.day))})</span>
-						{:else if check?.days.length}
-							<span class="text-sm opacity-70" data-day-next>
-								(next: {formatDay(dayDate(check.days[0]))})
-							</span>
 						{:else if check?.readable}
-							<span class="text-sm opacity-70">(not in the next {RULE_YEARS} years)</span>
+							<!-- One written in the dashboard may start years from now ('since 2040'). -->
+							{@const next = entryNext(entry, today)}
+							<span class="text-sm opacity-70" data-day-next>
+								{next ? `(next: ${formatDay(next)})` : "(doesn't come again)"}
+							</span>
 						{/if}
 						<!-- An Advanced rule saved here is read back like one written in the dashboard. -->
 						{#if written(entry)}
 							<span class="block text-sm opacity-80" data-day-note>
-								{#if !check?.readable}
+								{#if !check?.readable && spacesFix(entry, today)}
+									The calendar can't read this as it is written: it has extra spaces, so the
+									calendar doesn't show it. To fix it, press Edit, then Save change.
+								{:else if !check?.readable}
 									The calendar can't read this (it was saved outside this editor), so it doesn't
 									show it. Kept as it is: change it with Edit, or remove it.
 								{:else if check.long}
@@ -720,17 +886,14 @@
 	<div class="space-y-3" bind:this={builder} data-day-builder>
 		<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
 			<label class="text-sm font-semibold" for={id('quick')}>Quick pick</label>
+			<!-- Only Fill in uses the choice: a closed select changes with every arrow key. -->
 			<select
 				id={id('quick')}
 				class="{selectClass} w-64 max-w-full"
-				value=""
+				bind:value={quickChoice}
 				{disabled}
 				aria-describedby={id('quick-hint')}
 				data-quick-pick
-				onchange={(event) => {
-					quickPick(event.currentTarget.value);
-					event.currentTarget.value = '';
-				}}
 			>
 				<option value="">Choose a common day…</option>
 				{#each quickGroups as [group, picks] (group)}
@@ -741,8 +904,18 @@
 					</optgroup>
 				{/each}
 			</select>
+			<button
+				type="button"
+				class="btn preset-tonal px-3 py-2"
+				disabled={disabled || !quickChoice}
+				aria-describedby={id('quick-hint')}
+				onclick={fillQuickPick}
+				data-quick-fill
+			>
+				Fill in
+			</button>
 			<span id={id('quick-hint')} class="text-sm opacity-80">
-				Fills in the day below, and the name if it's empty.
+				Choose one, then press Fill in: it fills in the day below, and the name if it's empty.
 			</span>
 		</div>
 		<div class="space-y-1">
@@ -757,6 +930,8 @@
 				data-day-kinds
 			>
 				{#each KINDS as item (item.value)}
+					<!-- Another kind with a day set up and not added says so (and the form's check goes there). -->
+					{@const waiting = item.value !== kind && waitingKinds.has(item.value)}
 					<label
 						class="rounded-base border-surface-300-700 has-checked:border-primary-500 has-checked:preset-tonal-primary has-focus-visible:ring-primary-500 flex cursor-pointer items-center gap-2 border px-3 py-1.5 text-sm has-focus-visible:ring-2"
 					>
@@ -767,9 +942,15 @@
 							value={item.value}
 							checked={kind === item.value}
 							{disabled}
+							data-pending={waiting ? '' : undefined}
 							onchange={() => chooseKind(item.value)}
 						/>
 						{item.label}
+						{#if waiting}
+							<span class="text-warning-700-300 text-xs font-semibold" data-kind-waiting>
+								· not added
+							</span>
+						{/if}
 					</label>
 				{/each}
 			</div>
@@ -825,7 +1006,7 @@
 							{disabled}
 							onclick={addDay}
 							data-add-day
-							data-pending={dayPending ? '' : undefined}
+							data-pending={(editing ? editChanged : dayWaiting) ? '' : undefined}
 						>
 							{#if editing}
 								<Check class="size-5" aria-hidden="true" />
@@ -899,7 +1080,7 @@
 								{disabled}
 								onclick={addRange}
 								data-add-range
-								data-pending={rangePending ? '' : undefined}
+								data-pending={rangeWaiting ? '' : undefined}
 							>
 								<CalendarRange class="size-5" aria-hidden="true" />
 								{rangeLabel}
@@ -925,7 +1106,7 @@
 								bind:value={nth}
 								{disabled}
 								data-days-first
-								onchange={() => (touched = true)}
+								onchange={() => touched.add('weekday')}
 							>
 								{#each NTHS as choice (choice)}
 									<option value={choice}>{nthText(choice)}</option>
@@ -941,7 +1122,7 @@
 								onchange={(event) => {
 									weekday = Number(event.currentTarget.value);
 									if (thenWeekday === weekday) thenWeekday = (weekday + 1) % 7;
-									touched = true;
+									touched.add('weekday');
 								}}
 							>
 								{#each WEEKDAYS as name, index (name)}
@@ -956,7 +1137,7 @@
 								class={selectClass}
 								bind:value={month}
 								{disabled}
-								onchange={() => (touched = true)}
+								onchange={() => touched.add('weekday')}
 							>
 								{#each MONTHS as name, index (name)}
 									<option value={index + 1}>{name}</option>
@@ -971,7 +1152,7 @@
 								class={selectClass}
 								bind:value={thenDirection}
 								{disabled}
-								onchange={() => (touched = true)}
+								onchange={() => touched.add('weekday')}
 							>
 								<option value="">No: that day itself</option>
 								<option value="before">A weekday before it</option>
@@ -985,7 +1166,7 @@
 									class={selectClass}
 									bind:value={thenWeekday}
 									{disabled}
-									onchange={() => (touched = true)}
+									onchange={() => touched.add('weekday')}
 								>
 									{#each thenWeekdays as choice (choice.index)}
 										<option value={choice.index}>The {choice.name} {thenDirection} it</option>
@@ -1007,7 +1188,7 @@
 								bind:value={easterWhen}
 								{disabled}
 								data-days-first
-								onchange={() => (touched = true)}
+								onchange={() => touched.add('easter')}
 							>
 								<option value="on">On the day itself</option>
 								<option value="before">Days before</option>
@@ -1028,7 +1209,7 @@
 									onkeydown={onEnter(addRule)}
 									oninput={(event) => {
 										easterDays = event.currentTarget.valueAsNumber;
-										touched = true;
+										touched.add('easter');
 										problem = '';
 									}}
 								/>
@@ -1040,7 +1221,7 @@
 								class={selectClass}
 								bind:value={easter}
 								{disabled}
-								onchange={() => (touched = true)}
+								onchange={() => touched.add('easter')}
 							>
 								{#each Object.entries(EASTER_NAME) as [value, name] (value)}
 									<option {value}>{name}</option>
@@ -1074,7 +1255,7 @@
 								class={selectClass}
 								bind:value={calendarDay}
 								{disabled}
-								onchange={() => (touched = true)}
+								onchange={() => touched.add('calendar')}
 							>
 								{#each Array.from({ length: monthDays }, (_, i) => i + 1) as value (value)}
 									<option {value}>{value}</option>
@@ -1091,7 +1272,7 @@
 									calendarMonth = event.currentTarget.value;
 									const days = calendarMonths.find((m) => m.rule === calendarMonth)?.days ?? 30;
 									calendarDay = Math.min(calendarDay, days);
-									touched = true;
+									touched.add('calendar');
 								}}
 							>
 								{#each calendarMonths as choice (choice.rule)}
