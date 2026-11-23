@@ -2,6 +2,7 @@
 // records the same way the calendar slide does (#lib/pb/calendar.ts).
 import type { DescribeOptions } from '#lib/editor/errors.ts';
 import { compareByName, plural } from '#lib/editor/list.ts';
+import { dayLabel } from '#lib/home/summary.ts';
 import {
 	builtInDays,
 	findBuiltIn,
@@ -19,6 +20,7 @@ import type { CalendarObservance, IconRecord } from '#lib/pb/types.ts';
 import {
 	addDays,
 	dayDate,
+	daysBetween,
 	describeEntry,
 	entryCheck,
 	entryFromSaved,
@@ -199,8 +201,8 @@ export interface OwnRow {
 	record: CalendarObservance;
 	entries: DayEntry[];
 	/**
-	 * Its next day from today (a yearly day's or a rule's next one); null when all its days have
-	 * passed (or its rules don't come again in the next RULE_YEARS years).
+	 * Its next day from today (a yearly day's or a rule's next one, even one years away); null
+	 * when all its days have passed.
 	 */
 	next: Date | null;
 	/** Its last one-time day (for sorting past ones). */
@@ -229,6 +231,15 @@ export interface OwnGroups {
 /** The entries of a record, as the form shows them. */
 export const entriesOf = (record: CalendarObservance, today: Date) =>
 	sortEntries(rawDates(record).map((value) => entryFromSaved(value, today)));
+
+/**
+ * An observance's next day in its row: "Tomorrow", "Thu, Nov 26", and with the year when it is a
+ * year or more away (a rule like '03-02 in even years', or one from the dashboard that starts in
+ * 2040), so it isn't read as this year's.
+ */
+export function nextDayLabel(date: Date, today: Date): string {
+	return daysBetween(today, date) >= 365 ? formatDay(date) : dayLabel(date, today);
+}
 
 /** Its next day from today (rules worked out as the slide does), or null. */
 export function nextDay(entries: readonly DayEntry[], today: Date): Date | null {

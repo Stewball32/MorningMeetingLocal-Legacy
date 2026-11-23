@@ -196,6 +196,9 @@ describe('saved entries', () => {
 		expect(entryNext(other('03-02 in even years'), TODAY)).toEqual(new Date(2028, 2, 2));
 		expect(entryNext(other('nonsense'), TODAY)).toBeNull();
 		expect(entryNext({ kind: 'other', text: '42', value: 42 }, TODAY)).toBeNull();
+		// Written in the dashboard: it starts years from now, or has passed.
+		expect(entryNext(other('11-20 since 2040'), TODAY)).toEqual(new Date(2040, 10, 20));
+		expect(entryNext(other('11-20 prior to 2020'), TODAY)).toBeNull();
 		expect(entryCheck(once('2026-11-25'), TODAY)).toBeNull();
 		expect(entryCheck({ kind: 'other', text: '42', value: 42 }, TODAY)).toEqual({
 			readable: false,

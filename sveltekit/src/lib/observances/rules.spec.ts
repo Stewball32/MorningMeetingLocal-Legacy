@@ -9,6 +9,7 @@ import {
 	dayThirtyNote,
 	describeRule,
 	FEB_29_YEARLY,
+	laterDay,
 	MONTHS,
 	NTHS,
 	ordinal,
@@ -544,6 +545,20 @@ describe('checkRule', () => {
 		// a day with a daylight saving change is still one day
 		expect(checkRule('03-08', TODAY).long).toBe(false);
 		expect(checkRule('11-01', TODAY).long).toBe(false);
+	});
+
+	it('finds the first day of a rule that starts after those 10 years (laterDay)', () => {
+		expect(checkRule('11-20 since 2040', TODAY).days).toEqual([]);
+		expect(laterDay('11-20 since 2040', TODAY)).toBe('2040-11-20');
+		// From where checkRule stops: Nov 22, 2036 is not in its 10 years.
+		expect(checkRule('11-22 since 2036', TODAY).days).toEqual([]);
+		expect(laterDay('11-22 since 2036', TODAY)).toBe('2036-11-22');
+		expect(laterDay('2040-03-05', TODAY)).toBe('2040-03-05');
+		// Passed, never, unreadable, or already in the 10 years: none.
+		expect(laterDay('2015-05-04 if Saturday then next Monday', TODAY)).toBeNull();
+		expect(laterDay('11-20 prior to 2020', TODAY)).toBeNull();
+		expect(laterDay('nonsense', TODAY)).toBeNull();
+		expect(laterDay('3rd Monday in January', TODAY)).toBeNull();
 	});
 
 	it('remembers what it worked out', () => {

@@ -563,6 +563,45 @@ function workOut(rule: string, today: Date, from: string): RuleCheck {
 	return { readable: true, days: [...found].sort(), long };
 }
 
+/** The last year the editor looks at (dates.ts MAX_YEAR, the date picker's). */
+const LAST_YEAR = 2099;
+const laters = new Map<string, string | null>();
+
+/**
+ * The first day ('YYYY-MM-DD', local) of a readable rule that has none in the RULE_YEARS years
+ * checkRule looks at, up to LAST_YEAR; null when it has none (or has days in those years). Only
+ * a rule written in the dashboard can be like that ('11-20 since 2040': the editor refuses one):
+ * it hasn't passed, so the page mustn't offer it for cleanup with the past ones. Remembered.
+ */
+export function laterDay(rule: string, today: Date): string | null {
+	const check = checkRule(rule, today);
+	if (!check.readable || check.days.length > 0) return null;
+	const from = dayKey(today);
+	const key = `${from} ${rule}`;
+	const known = laters.get(key);
+	if (known !== undefined) return known;
+	const days = new Holidays();
+	setRule(days, rule, { name: rule, type: 'school' }, true);
+	const year = today.getFullYear() + RULE_YEARS;
+	// Where checkRule stops (not included there).
+	const until = `${pad(year, 4)}${from.slice(4)}`;
+	let found: string | null = null;
+	for (let y = year; y <= LAST_YEAR && !found; y++) {
+		try {
+			found =
+				shown(days, y)
+					.map((holiday) => holiday.date.slice(0, 10))
+					.filter((day) => day >= until)
+					.sort()[0] ?? null;
+		} catch {
+			break;
+		}
+	}
+	if (laters.size >= MAX_CHECKS) laters.clear();
+	laters.set(key, found);
+	return found;
+}
+
 // --- Checking a rule before it is added ---------------------------------------------------------
 
 /** The same words as the date picker's (dates.ts dayProblem). */

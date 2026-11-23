@@ -6,6 +6,7 @@ import {
 	builtInRows,
 	comingUp,
 	iconLookup,
+	nextDayLabel,
 	ownGroups,
 	scheduleText,
 	schoolOf,
@@ -176,6 +177,25 @@ describe('ownGroups', () => {
 		expect(scheduleText(groups.upcoming[0].entries)).toBe(
 			'Tue, Dec 1, 2026 · Every year on the Wednesday before the 4th Thursday in November'
 		);
+	});
+
+	it('gives a next day a year or more away its year', () => {
+		expect(nextDayLabel(new Date(2026, 10, 23), TODAY)).toBe('Tomorrow');
+		expect(nextDayLabel(new Date(2027, 10, 21), TODAY)).toBe('Sun, Nov 21');
+		expect(nextDayLabel(new Date(2027, 10, 22), TODAY)).toBe('Mon, Nov 22, 2027');
+		expect(nextDayLabel(new Date(2040, 10, 20), TODAY)).toBe('Tue, Nov 20, 2040');
+	});
+
+	it("doesn't call a dashboard rule that starts after the next 10 years past", () => {
+		const later = record({ name: 'Later', dates: ['11-20 since 2040'] });
+		const old = record({ name: 'Old rule', dates: ['2015-05-04 if Saturday then next Monday'] });
+		const groups = ownGroups([later, old], holidays, TODAY);
+		expect(groups.upcoming.map((r) => `${r.record.name} ${r.next && dayString(r.next)}`)).toEqual([
+			'Later 2040-11-20'
+		]);
+		expect(groups.upcoming[0].unreadable).toBe(0);
+		// So "Delete all past observances" leaves it.
+		expect(groups.past.map((r) => r.record.name)).toEqual(['Old rule']);
 	});
 
 	it('keeps a day earlier this month with the days to come: the month page still shows it', () => {

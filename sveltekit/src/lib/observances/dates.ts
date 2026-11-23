@@ -13,6 +13,7 @@ import {
 	checkRule,
 	describeRule,
 	FEB_29_YEARLY,
+	laterDay,
 	parseRule,
 	ruleProblem,
 	ruleText,
@@ -190,7 +191,10 @@ export function entryCheck(entry: DayEntry, today: Date): RuleCheck | null {
 	return rule === null ? { readable: false, days: [], long: false } : checkRule(rule, today);
 }
 
-/** An entry's next day from `today` (included), or null (passed, or never again). */
+/**
+ * An entry's next day from `today` (included), or null (passed, or never again). A rule's is
+ * usually in the next RULE_YEARS years; one written in the dashboard may start later (laterDay).
+ */
 export function entryNext(entry: DayEntry, today: Date): Date | null {
 	if (entry.kind === 'once') {
 		const date = dayDate(entry.day);
@@ -198,7 +202,8 @@ export function entryNext(entry: DayEntry, today: Date): Date | null {
 	}
 	// A yearly entry shows its next date (yearlyEntry and entryFromSaved make it so).
 	if (entry.kind === 'yearly') return dayDate(entry.day);
-	const next = entryCheck(entry, today)?.days[0];
+	const rule = entryRule(entry);
+	const next = entryCheck(entry, today)?.days[0] ?? (rule === null ? null : laterDay(rule, today));
 	return next ? dayDate(next) : null;
 }
 

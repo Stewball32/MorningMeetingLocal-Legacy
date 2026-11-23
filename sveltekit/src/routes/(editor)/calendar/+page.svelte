@@ -29,6 +29,7 @@
 		comingUp,
 		COMING_UP_DAYS,
 		iconLookup,
+		nextDayLabel,
 		OBSERVANCE_ERRORS,
 		ownGroups,
 		schoolOf,
@@ -334,7 +335,7 @@
 	/** "next: Tomorrow" / "next: Thu, Nov 26" when its days don't already say so (one day only). */
 	const nextText = (row: OwnRow) =>
 		row.next && (row.entries.length > 1 || row.entries[0]?.kind !== 'once')
-			? `next: ${dayLabel(row.next, today)}`
+			? `next: ${nextDayLabel(row.next, today)}`
 			: '';
 	const unreadableText = (row: OwnRow) =>
 		row.unreadable > 0
