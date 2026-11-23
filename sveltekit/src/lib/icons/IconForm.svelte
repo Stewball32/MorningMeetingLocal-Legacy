@@ -242,9 +242,14 @@
 							value={values.name}
 							oninput={(event) => setText('name', event.currentTarget.value)}
 							aria-invalid={!!errors.name}
-							aria-describedby={errors.name ? id('name-error') : undefined}
+							aria-describedby="{id('name-hint')}{errors.name ? ` ${id('name-error')}` : ''}"
 						/>
 					</label>
+					<!-- The name is only a label: a guest or a day keeps its own name. -->
+					<p id={id('name-hint')} class="text-sm opacity-80">
+						A label for finding this icon: the guest check-in list and the Calendar's icon picker
+						show it. It isn't used as a guest's or a day's name.
+					</p>
 					{@render fieldError('name')}
 				</div>
 
