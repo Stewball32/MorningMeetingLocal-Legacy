@@ -152,7 +152,7 @@
 				.filter(Boolean)
 		)
 	);
-	/** The other name a holiday already shows under (from changes other than this record). */
+	/** What the changes other than this record do: the other name a holiday shows under, hiding it. */
 	const otherSettings = $derived(
 		holidaySettings(records.filter((other) => other.id !== original?.id))
 	);
@@ -447,15 +447,16 @@
 								: ''}"
 						>
 							<option value="" disabled>Choose a holiday…</option>
-							<!-- The holiday's own name first: it is what is chosen here, and typing it finds it. -->
+							<!-- As everywhere in the editor, the name the calendar shows first ("Turkey Day ·
+							     Thanksgiving Day"), so typing it finds the holiday. A hidden holiday isn't shown
+							     under any name: just its own. -->
 							{#each holidayChoices as choice (choice.holiday.name)}
-								{@const shownAs = otherSettings.get(choice.holiday.name)?.displayName}
+								{@const settings = otherSettings.get(choice.holiday.name)}
+								{@const shownAs = settings && !settings.hidden ? settings.displayName : ''}
 								<option value={choice.holiday.name}>
-									{choice.holiday.name}{choice.next
+									{shownAs ? `${shownAs} · ` : ''}{choice.holiday.name}{choice.next
 										? ` (${formatDay(choice.next)})`
-										: ''}{changed.has(choice.holiday.name) ? ', already changed' : ''}{shownAs
-										? `: shown as “${shownAs}”`
-										: ''}
+										: ''}{changed.has(choice.holiday.name) ? ', already changed' : ''}
 								</option>
 							{/each}
 						</select>
