@@ -22,10 +22,13 @@
 		/** The Add button's text, e.g. "Add teacher"; no button without it. */
 		addLabel?: string;
 		onAdd?: () => void;
+		/** Something else for the header's corner, e.g. a link to the page where these are set. */
+		action?: Snippet;
 		children: Snippet;
 	}
 
-	let { key, title, description, count, empty, addLabel, onAdd, children }: Props = $props();
+	let { key, title, description, count, empty, addLabel, onAdd, action, children }: Props =
+		$props();
 </script>
 
 <section
@@ -49,6 +52,7 @@
 				{addLabel}
 			</button>
 		{/if}
+		{@render action?.()}
 	</header>
 	{#if count > 0}
 		<ul class="divide-surface-200-800 divide-y">

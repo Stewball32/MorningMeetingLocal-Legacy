@@ -1,6 +1,7 @@
 // What the calendar slide's month page shows on each day: the built-in US holidays
-// (date-holidays) and the class's own observances (`calendar_observances`). The pure part,
-// observancesForMonth(), is shared with the Calendar Observances editor and the Home page.
+// (date-holidays), the class's own observances (`calendar_observances`) and the birthdays of
+// active people (#lib/birthdays.ts). The pure part, observancesForMonth(), is shared with the
+// Calendar Observances editor and the Home page.
 //
 // Two kinds of observance record (see CalendarObservance):
 // - no dates: settings for the built-in holiday of the same name (the name the calendar shows,
@@ -13,6 +14,7 @@
 //
 // Dates: date-holidays' `date` strings ('YYYY-MM-DD hh:mm:ss') are read as local days. Never use
 // its `start`: US holidays are computed in New York time.
+import { birthdaysForMonth, getBirthdayPeople, type BirthdayPerson } from '#lib/birthdays.ts';
 import { getPbImageUrl, pb } from '#lib/pb/index.ts';
 import { watchCollection, type CollectionWatch } from '#lib/pb/live.ts';
 import type { CalendarObservance, IconRecord } from '#lib/pb/types.ts';
@@ -21,6 +23,8 @@ import type { RecordModel } from 'pocketbase';
 
 export const OBSERVANCES = 'calendar_observances';
 export const ICONS = 'icons';
+/** Followed for the birthdays. */
+export const PEOPLE = 'people';
 
 export interface Holiday extends HolidaysTypes.Holiday {
 	description: string;
@@ -28,7 +32,10 @@ export interface Holiday extends HolidaysTypes.Holiday {
 	dateObj: Date;
 	/** The picture's URL; '' for the default picture. */
 	image: string;
-	/** 'federal' for a built-in holiday, 'local' for the class's own day. */
+	/**
+	 * 'federal' for a built-in holiday, 'local' for the class's own day, 'birthday' for a
+	 * person's birthday.
+	 */
 	local: string;
 	school: CalendarObservance['school'];
 	/**
@@ -40,6 +47,8 @@ export interface Holiday extends HolidaysTypes.Holiday {
 	observed?: boolean;
 	/** The class's own days: the record's id. */
 	recordId?: string;
+	/** Birthdays: the person's id. */
+	personId?: string;
 }
 
 /** The school day an observance marks: 'none' shows "No School!", 'short' "Short Day!". */
@@ -261,14 +270,16 @@ function ownDays(
 
 /**
  * What the month page shows: day of the month -> the observances that day, built-in holidays
- * first (date-holidays' order), then the class's own (oldest record first). `month` is 0-11.
- * Inactive records are ignored, so the editor can pass all of its records.
+ * first (date-holidays' order), then the class's own (oldest record first), then the birthdays of
+ * `people` (none when it is left out). `month` is 0-11. Inactive records and people are ignored,
+ * so the editor can pass all of its records.
  */
 export function observancesForMonth(
 	records: readonly CalendarObservance[],
 	year: number,
 	month: number,
-	iconOf: IconLookup = expandedIcon
+	iconOf: IconLookup = expandedIcon,
+	people: readonly BirthdayPerson[] = []
 ): Map<number, Holiday[]> {
 	const settings = holidaySettings(records, iconOf);
 	const holidays: Holiday[] = [];
@@ -296,6 +307,7 @@ export function observancesForMonth(
 		if (record.is_active && !isSettingsRecord(record))
 			holidays.push(...ownDays(record, year, month, iconOf));
 	}
+	holidays.push(...birthdaysForMonth(people, year, month));
 
 	const map = new Map<number, Holiday[]>();
 	for (const holiday of holidays) {
@@ -320,9 +332,21 @@ export function getActiveObservances(signal?: AbortSignal): Promise<CalendarObse
 	});
 }
 
-/** What the month page shows in a month (0-11): day of the month -> observances. */
-export const getHolidayMap = async (year: number, month: number) =>
-	observancesForMonth(await getActiveObservances(), year, month);
+/**
+ * What the month page shows in a month (0-11): day of the month -> observances and birthdays.
+ * Throws when the observances can't be loaded; without the birthdays (say PocketBase doesn't have
+ * the birthday field yet) it still shows the observances.
+ */
+export async function getHolidayMap(year: number, month: number) {
+	const [records, people] = await Promise.all([
+		getActiveObservances(),
+		getBirthdayPeople().catch((error): BirthdayPerson[] => {
+			console.error('Could not load the birthdays', error);
+			return [];
+		})
+	]);
+	return observancesForMonth(records, year, month, undefined, people);
+}
 
 /** How long to wait for more changes before refetching (deleting an icon sends several). */
 export const FOLLOW_DELAY_MS = 300;
@@ -330,9 +354,12 @@ export const FOLLOW_DELAY_MS = 300;
 export const FOLLOW_RETRY_MS = 5000;
 
 /**
- * Calls `onChange` (once for a burst of changes) whenever observances or icons change in
- * PocketBase, or after the live connection came back (changes may have been missed). Returns
- * the function that stops following (call it when the page goes away).
+ * Calls `onChange` (once for a burst of changes) whenever observances, icons or people (their
+ * birthdays) change in PocketBase, or after the live connection came back (changes may have been
+ * missed). Returns the function that stops following (call it when the page goes away).
+ *
+ * Each collection is one more topic on the SDK's single realtime connection (`pb.realtime` keeps
+ * one EventSource for the whole page), so following people opens no extra connection.
  */
 export function followObservances(onChange: () => void): () => void {
 	let stopped = false;
@@ -382,6 +409,7 @@ export function followObservances(onChange: () => void): () => void {
 	};
 	follow(OBSERVANCES, false);
 	follow(ICONS, false);
+	follow(PEOPLE, false);
 
 	return () => {
 		stopped = true;

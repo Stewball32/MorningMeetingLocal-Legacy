@@ -260,6 +260,32 @@ describe('comingUp', () => {
 		const [day] = comingUp([feast], TODAY, iconLookup([turkey]), 3);
 		expect(day.observances[0].image).toContain('/icon00000000001/new.png');
 	});
+
+	it('adds the birthdays of active people, after the other observances of the day', () => {
+		const person = (name: string, birthday: string, active = true) => ({
+			id: `per${name.padEnd(12, '0')}`,
+			collectionId: 'pbc_1795321340',
+			name,
+			title: '',
+			avatar: '',
+			active,
+			birthday
+		});
+		const days = comingUp([], TODAY, noIcons, 6, [
+			person('Bluey', '11-26'),
+			person('Bingo', '11-23'),
+			person('Muffin', '11-24', false)
+		]);
+		expect(
+			days.map(
+				(day) => `${dayString(day.date)} ${day.school} ${day.observances.map((o) => o.name)}`
+			)
+		).toEqual([
+			"2026-11-23 full Bingo's Birthday",
+			"2026-11-26 none Thanksgiving Day,Bluey's Birthday",
+			'2026-11-27 full Day after Thanksgiving Day'
+		]);
+	});
 });
 
 describe('slug', () => {

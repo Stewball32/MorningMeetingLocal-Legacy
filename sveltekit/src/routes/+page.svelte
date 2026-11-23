@@ -8,10 +8,12 @@
 	import WifiOff from '@lucide/svelte/icons/wifi-off';
 	import { onMount } from 'svelte';
 	import { isPbError } from '#lib/editor/errors.ts';
+	import { getBirthdayPeople } from '#lib/birthdays.ts';
 	import {
 		dayLabel,
 		iconsSummary,
 		monthsFrom,
+		nextBirthdaySummary,
 		peopleSummary,
 		schoolBadge,
 		upcomingDays,
@@ -51,21 +53,41 @@
 		return iconsSummary(icons);
 	}
 
-	/** The next 3 days the calendar slide shows something on (built-in holidays included). */
-	async function nextObservances(): Promise<UpcomingDay[]> {
+	interface CalendarSummary {
+		/** The next days with observances (built-in holidays and the class's own). */
+		days: UpcomingDay[];
+		/** "Next birthday: Bluey, Mon, Nov 30"; '' when there is none (or it couldn't be loaded). */
+		birthday: string;
+	}
+
+	/**
+	 * The next 3 days the calendar slide shows something on (built-in holidays included), and the
+	 * next birthday on its own line.
+	 */
+	async function nextObservances(): Promise<CalendarSummary> {
 		// What the slide's getHolidayMap does for each month, from one request.
-		const records = await getActiveObservances(timeout());
+		const [records, birthday] = await Promise.all([
+			getActiveObservances(timeout()),
+			// Only active people count. Without the birthdays the days still show.
+			getBirthdayPeople(timeout()).then(
+				(people) => nextBirthdaySummary(people, today),
+				(error) => {
+					console.error('Could not load the birthdays', error);
+					return '';
+				}
+			)
+		]);
 		const found: ObservedDay[] = [];
 		for (const { year, month } of monthsFrom(today, 3)) {
 			for (const list of observancesForMonth(records, year, month).values()) found.push(...list);
 			if (upcomingDays(found, today).length >= 3) break;
 		}
-		return upcomingDays(found, today);
+		return { days: upcomingDays(found, today), birthday };
 	}
 
 	let people = $state<Summary<string>>({ state: 'loading' });
 	let icons = $state<Summary<string>>({ state: 'loading' });
-	let calendar = $state<Summary<UpcomingDay[]>>({ state: 'loading' });
+	let calendar = $state<Summary<CalendarSummary>>({ state: 'loading' });
 	const offline = $derived(
 		[people, icons, calendar].some((summary) => summary.state === 'failed' && summary.offline)
 	);
@@ -123,7 +145,7 @@
 		key: 'people' | 'icons' | 'calendar';
 		title: string;
 		icon: typeof Users;
-		summary: Summary<string> | Summary<UpcomingDay[]>;
+		summary: Summary<string> | Summary<CalendarSummary>;
 	}
 	const tiles: Tile[] = $derived([
 		{ key: 'people', title: 'People', icon: Users, summary: people },
@@ -205,28 +227,37 @@
 								<span class="text-sm opacity-80">Couldn't load the summary.</span>
 							{:else if typeof tile.summary.value === 'string'}
 								<span class="text-sm">{tile.summary.value}</span>
-							{:else if tile.summary.value.length === 0}
-								<span class="text-sm">Nothing in the next few months.</span>
 							{:else}
-								<span class="sr-only">Coming up:</span>
-								<ul class="space-y-1 text-sm">
-									{#each tile.summary.value as day (day.date.getTime())}
-										{@const badge = schoolBadge(day.school)}
-										<li>
-											<span class="font-semibold">{dayLabel(day.date, today)}:</span>
-											{day.names.join(', ')}
-											{#if badge}
-												<span
-													class="{BADGE_CLASS[
-														day.school
-													]} ml-1 rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap"
-												>
-													{badge}
-												</span>
-											{/if}
-										</li>
-									{/each}
-								</ul>
+								{@const { days, birthday } = tile.summary.value}
+								{#if days.length === 0}
+									<span class="text-sm">Nothing in the next few months.</span>
+								{:else}
+									<span class="sr-only">Coming up:</span>
+									<ul class="space-y-1 text-sm">
+										{#each days as day (day.date.getTime())}
+											{@const badge = schoolBadge(day.school)}
+											<li>
+												<span class="font-semibold">{dayLabel(day.date, today)}:</span>
+												{day.names.join(', ')}
+												{#if badge}
+													<span
+														class="{BADGE_CLASS[
+															day.school
+														]} ml-1 rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap"
+													>
+														{badge}
+													</span>
+												{/if}
+											</li>
+										{/each}
+									</ul>
+								{/if}
+								{#if birthday}
+									<span class="text-sm" data-next-birthday>
+										<span aria-hidden="true">🎂</span>
+										{birthday}
+									</span>
+								{/if}
 							{/if}
 						</a>
 					</li>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { BIRTHDAY_PICTURE } from '#lib/birthdays.ts';
 	import type { Holiday } from '#lib/pb/calendar.ts';
 	import type { AstronomyData } from './_types';
 	import { MoonPhase } from 'astronomy-engine';
@@ -91,8 +92,11 @@
 		void holidays;
 		return new SvelteSet<string>();
 	});
+	// Its picture, else (a birthday whose person's picture fails) the cake, else the default.
 	let holidayPicture = $derived(
-		holiday?.image && !failedPictures.has(holiday.image) ? holiday.image : DEFAULT_PICTURE
+		[holiday?.image, holiday?.local === 'birthday' ? BIRTHDAY_PICTURE : ''].find(
+			(picture) => picture && !failedPictures.has(picture)
+		) || DEFAULT_PICTURE
 	);
 </script>
 

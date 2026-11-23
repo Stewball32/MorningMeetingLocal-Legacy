@@ -4,6 +4,7 @@ import {
 	dayLabel,
 	iconsSummary,
 	monthsFrom,
+	nextBirthdaySummary,
 	peopleSummary,
 	schoolBadge,
 	upcomingDays,
@@ -132,6 +133,52 @@ describe('upcomingDays', () => {
 			['Veterans Day'],
 			['Vets Day (observed) (Veterans Day)']
 		]);
+	});
+});
+
+describe('nextBirthdaySummary', () => {
+	const today = new Date(2026, 10, 22, 9, 30);
+	const person = (name: string, birthday: string, fields = {}) => ({
+		id: `per${name.padEnd(12, '0')}`,
+		collectionId: 'pbc_1795321340',
+		name,
+		title: '',
+		avatar: '',
+		active: true,
+		birthday,
+		...fields
+	});
+
+	it('names the next birthday and its day', () => {
+		expect(nextBirthdaySummary([person('Bingo', '12-03'), person('Bluey', '11-30')], today)).toBe(
+			'Next birthday: Bluey, Mon, Nov 30'
+		);
+		expect(nextBirthdaySummary([person('Bluey', '11-22')], today)).toBe(
+			'Next birthday: Bluey, today'
+		);
+		expect(nextBirthdaySummary([person('Smith', '11-23', { title: 'Mr.' })], today)).toBe(
+			'Next birthday: Mr. Smith, tomorrow'
+		);
+		// it has passed this year: next year's
+		expect(nextBirthdaySummary([person('Bluey', '11-21')], today)).toBe(
+			'Next birthday: Bluey, Sun, Nov 21'
+		);
+	});
+
+	it('lists everyone who shares it, and counts only active people', () => {
+		expect(
+			nextBirthdaySummary(
+				[
+					person('Muffin', '11-24', { active: false }),
+					person('Bluey', '11-30'),
+					person('Bingo', '11-30'),
+					person('Chilli', '11-30')
+				],
+				today
+			)
+		).toBe('Next birthdays: Bingo, Bluey and Chilli, Mon, Nov 30');
+		expect(nextBirthdaySummary([person('Muffin', '11-24', { active: false })], today)).toBe('');
+		expect(nextBirthdaySummary([], today)).toBe('');
 	});
 });
 

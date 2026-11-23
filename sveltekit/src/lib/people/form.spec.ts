@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { changedFields } from '#lib/editor/form.ts';
 import type { Person } from '#lib/pb/types.ts';
-import { emptyForm, fieldsFromForm, formFromPerson, sameForm, validateForm } from './form.ts';
+import {
+	birthdayDayChoices,
+	emptyForm,
+	FORM_FIELD_OF,
+	fieldsFromForm,
+	formFromPerson,
+	sameForm,
+	unreadableBirthday,
+	validateForm,
+	withBirthdayMonth
+} from './form.ts';
 
 const record = (fields: Partial<Person>): Person => ({
 	id: 'abcdefghijklmno',
@@ -37,7 +47,7 @@ describe('emptyForm', () => {
 
 describe('formFromPerson', () => {
 	it('fills every field from the record', () => {
-		expect(formFromPerson(record({ role: 'teacher', title: 'Ms.' }))).toEqual({
+		expect(formFromPerson(record({ role: 'teacher', title: 'Ms.', birthday: '11-05' }))).toEqual({
 			name: 'Dora',
 			role: 'teacher',
 			title: 'Ms.',
@@ -45,6 +55,8 @@ describe('formFromPerson', () => {
 			video: 'zenQCKkKEwc',
 			start: '14',
 			end: '30',
+			birthdayMonth: '11',
+			birthdayDay: '5',
 			is_guest: false,
 			active: true
 		});
@@ -138,6 +150,8 @@ describe('fieldsFromForm', () => {
 			video: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m30s',
 			start: '1:30',
 			end: '100',
+			birthdayMonth: '2',
+			birthdayDay: '29',
 			is_guest: false,
 			active: true
 		});
@@ -149,6 +163,7 @@ describe('fieldsFromForm', () => {
 			video_id: 'dQw4w9WgXcQ',
 			video_start: 90,
 			video_end: 100,
+			birthday: '02-29',
 			is_guest: false,
 			active: true
 		});
@@ -186,7 +201,13 @@ describe('fieldsFromForm', () => {
 	});
 
 	it('round-trips a record', () => {
-		const person = record({ role: 'teacher', title: 'Ms.', is_guest: true, active: false });
+		const person = record({
+			role: 'teacher',
+			title: 'Ms.',
+			is_guest: true,
+			active: false,
+			birthday: '12-31'
+		});
 		const fields = fieldsFromForm(formFromPerson(person));
 		expect(fields).toEqual({
 			name: person.name,
@@ -196,9 +217,104 @@ describe('fieldsFromForm', () => {
 			video_id: person.video_id,
 			video_start: person.video_start,
 			video_end: person.video_end,
+			birthday: person.birthday,
 			is_guest: person.is_guest,
 			active: person.active
 		});
+	});
+});
+
+describe('the Birthday field', () => {
+	const valid = () => emptyForm({ name: 'Finn' });
+
+	it("starts with none, and reads 'MM-DD' (|| not ??: never set is '')", () => {
+		expect(emptyForm()).toMatchObject({ birthdayMonth: '', birthdayDay: '' });
+		expect(formFromPerson(record({ birthday: '02-29' }))).toMatchObject({
+			birthdayMonth: '2',
+			birthdayDay: '29'
+		});
+		expect(formFromPerson(record({ birthday: '' }))).toMatchObject({ birthdayMonth: '' });
+		expect(formFromPerson(record({}))).toMatchObject({ birthdayMonth: '', birthdayDay: '' });
+	});
+
+	it("saves 'MM-DD', or '' when the month is “—”", () => {
+		expect(fieldsFromForm({ ...valid(), birthdayMonth: '11', birthdayDay: '30' }).birthday).toBe(
+			'11-30'
+		);
+		expect(fieldsFromForm({ ...valid(), birthdayMonth: '1', birthdayDay: '5' }).birthday).toBe(
+			'01-05'
+		);
+		expect(fieldsFromForm(valid()).birthday).toBe('');
+	});
+
+	it('wants both or neither', () => {
+		expect(validateForm({ ...valid(), birthdayMonth: '11', birthdayDay: '30' })).toEqual({});
+		expect(validateForm({ ...valid(), birthdayMonth: '2', birthdayDay: '29' })).toEqual({});
+		expect(validateForm({ ...valid(), birthdayMonth: '11' }).birthday).toBe(
+			'Please choose the day too, or “—” as the month for no birthday.'
+		);
+		expect(validateForm({ ...valid(), birthdayDay: '3' }).birthday).toBe(
+			'Please choose the month too.'
+		);
+		expect(validateForm({ ...valid(), birthdayMonth: '4', birthdayDay: '31' }).birthday).toBe(
+			'April has only 30 days. Please choose another day.'
+		);
+		expect(validateForm({ ...valid(), birthdayMonth: '13', birthdayDay: '1' }).birthday).toBe(
+			'Please choose the month from the list.'
+		);
+	});
+
+	it('offers the days of the chosen month (February: up to 29), none without a month', () => {
+		expect(birthdayDayChoices('')).toEqual([]);
+		expect(birthdayDayChoices('2')).toHaveLength(29);
+		expect(birthdayDayChoices('4').at(-1)).toBe(30);
+		expect(birthdayDayChoices('12').at(-1)).toBe(31);
+	});
+
+	it('clears the day a new month has not got, and both with “—”', () => {
+		const jan31 = { ...valid(), birthdayMonth: '1', birthdayDay: '31' };
+		expect(withBirthdayMonth(jan31, '3')).toMatchObject({ birthdayMonth: '3', birthdayDay: '31' });
+		expect(withBirthdayMonth(jan31, '4')).toMatchObject({ birthdayMonth: '4', birthdayDay: '' });
+		expect(withBirthdayMonth({ ...jan31, birthdayDay: '29' }, '2')).toMatchObject({
+			birthdayDay: '29'
+		});
+		expect(withBirthdayMonth(jan31, '')).toMatchObject({ birthdayMonth: '', birthdayDay: '' });
+	});
+
+	it('is sent only when changed, and counts for "Discard your changes?"', () => {
+		const person = record({ birthday: '11-30' });
+		const before = fieldsFromForm(formFromPerson(person));
+		const form = formFromPerson(person);
+		expect(changedFields(before, fieldsFromForm(form))).toEqual({});
+		expect(
+			changedFields(before, fieldsFromForm({ ...form, birthdayMonth: '12', birthdayDay: '1' }))
+		).toEqual({ birthday: '12-01' });
+		expect(changedFields(before, fieldsFromForm(withBirthdayMonth(form, '')))).toEqual({
+			birthday: ''
+		});
+		expect(sameForm(form, { ...form, birthdayDay: '29' })).toBe(false);
+		expect(sameForm(form, formFromPerson(person))).toBe(true);
+	});
+
+	it('keeps a saved birthday that is not a real day unless one is chosen', () => {
+		const person = record({ birthday: '04-31' });
+		expect(unreadableBirthday(person)).toBe('04-31');
+		expect(unreadableBirthday(record({ birthday: '04-30' }))).toBe('');
+		expect(unreadableBirthday(record({}))).toBe('');
+		expect(unreadableBirthday(null)).toBe('');
+		const form = formFromPerson(person);
+		expect(form).toMatchObject({ birthdayMonth: '', birthdayDay: '' });
+		const before = fieldsFromForm(form);
+		expect(changedFields(before, fieldsFromForm({ ...form, name: 'Dora M' }))).toEqual({
+			name: 'Dora M'
+		});
+		expect(
+			changedFields(before, fieldsFromForm({ ...form, birthdayMonth: '4', birthdayDay: '30' }))
+		).toEqual({ birthday: '04-30' });
+	});
+
+	it("puts PocketBase's birthday error on the field", () => {
+		expect(FORM_FIELD_OF.birthday).toBe('birthday');
 	});
 });
 

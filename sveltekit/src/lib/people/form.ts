@@ -1,5 +1,6 @@
 // The Add / Edit person form: its values, validation and the record fields it saves (the shared
 // form helpers are in #lib/editor/form.ts).
+import { birthdayValue, daysInBirthdayMonth, MONTH_NAMES, parseBirthday } from '#lib/birthdays.ts';
 import { sameValues, type FieldErrors } from '#lib/editor/form.ts';
 import type { Person } from '#lib/pb/types.ts';
 import { MAX_SECONDS, formatTime, parseTime, parseYouTube } from './youtube.ts';
@@ -15,11 +16,16 @@ export interface PersonFormValues {
 	/** seconds, or m:ss */
 	start: string;
 	end: string;
+	/** The birthday's month, '1'-'12' as the select gives it; '' for no birthday. */
+	birthdayMonth: string;
+	/** The birthday's day, '1'-'31'; '' until one is chosen. */
+	birthdayDay: string;
 	is_guest: boolean;
 	active: boolean;
 }
 
-export type FormField = keyof PersonFormValues | 'avatar';
+/** The Birthday's two selects share one message, 'birthday'. */
+export type FormField = keyof PersonFormValues | 'avatar' | 'birthday';
 export type FormErrors = FieldErrors<FormField>;
 
 /** The record fields the form writes (the picture is handled separately). */
@@ -34,7 +40,7 @@ export type PersonFields = Pick<
 	| 'video_end'
 	| 'is_guest'
 	| 'active'
->;
+> & { birthday: string };
 
 /** A new person: Active is on, so they show up on the slides straight away. */
 export function emptyForm(preset: Partial<PersonFormValues> = {}): PersonFormValues {
@@ -46,6 +52,8 @@ export function emptyForm(preset: Partial<PersonFormValues> = {}): PersonFormVal
 		video: '',
 		start: '',
 		end: '',
+		birthdayMonth: '',
+		birthdayDay: '',
 		is_guest: false,
 		active: true,
 		...preset
@@ -56,6 +64,9 @@ export function emptyForm(preset: Partial<PersonFormValues> = {}): PersonFormVal
 const secondsText = (value: number | undefined) => (value ? String(value) : '');
 
 export function formFromPerson(person: Person): PersonFormValues {
+	// A birthday that isn't a real day (typed in the dashboard) shows as none, and is kept as it is
+	// unless one is chosen (fieldsFromForm then gives '' before and after: nothing is sent).
+	const birthday = parseBirthday(person.birthday);
 	return {
 		name: person.name ?? '',
 		role: person.role === 'teacher' ? 'teacher' : 'student',
@@ -64,9 +75,31 @@ export function formFromPerson(person: Person): PersonFormValues {
 		video: person.video_id ?? '',
 		start: secondsText(person.video_start),
 		end: secondsText(person.video_end),
+		birthdayMonth: birthday ? String(birthday.month) : '',
+		birthdayDay: birthday ? String(birthday.day) : '',
 		is_guest: !!person.is_guest,
 		active: !!person.active
 	};
+}
+
+/** A saved birthday the form can't show: not a real day, e.g. '04-31' ('' when there is none). */
+export function unreadableBirthday(person: Pick<Person, 'birthday'> | null | undefined): string {
+	const saved = person?.birthday?.trim() ?? '';
+	return saved && !parseBirthday(saved) ? saved : '';
+}
+
+/** The days the Day select offers for a month ('1'-'12'): 1-31 (February: up to 29); none without. */
+export function birthdayDayChoices(month: string): number[] {
+	const number = Number(month);
+	if (!month || !(number >= 1 && number <= 12)) return [];
+	return Array.from({ length: daysInBirthdayMonth(number) }, (_, index) => index + 1);
+}
+
+/** Choosing another month: '—' clears the birthday; a day the month hasn't got is cleared. */
+export function withBirthdayMonth(values: PersonFormValues, month: string): PersonFormValues {
+	const days = birthdayDayChoices(month);
+	const keepDay = days.includes(Number(values.birthdayDay));
+	return { ...values, birthdayMonth: month, birthdayDay: keepDay ? values.birthdayDay : '' };
 }
 
 const TIME_HELP = 'Use seconds (like 90) or minutes:seconds (like 1:30).';
@@ -92,6 +125,17 @@ export function validateForm(values: PersonFormValues, start?: PersonFormValues)
 
 	if (edited(values, start, 'video') && parseYouTube(values.video).kind === 'invalid')
 		errors.video = "That doesn't look like a YouTube link or video ID.";
+
+	// Both or neither: "—" as the month means no birthday.
+	const month = Number(values.birthdayMonth);
+	if (values.birthdayMonth && !values.birthdayDay)
+		errors.birthday = 'Please choose the day too, or “—” as the month for no birthday.';
+	else if (!values.birthdayMonth && values.birthdayDay)
+		errors.birthday = 'Please choose the month too.';
+	else if (values.birthdayMonth && !birthdayValue(month, Number(values.birthdayDay)))
+		errors.birthday = MONTH_NAMES[month - 1]
+			? `${MONTH_NAMES[month - 1]} has only ${daysInBirthdayMonth(month)} days. Please choose another day.`
+			: 'Please choose the month from the list.';
 
 	if (!edited(values, start, 'start') && !edited(values, start, 'end')) return errors;
 	const from = parseTime(values.start);
@@ -120,6 +164,11 @@ export function fieldsFromForm(values: PersonFormValues): PersonFields {
 		video_id: video.kind === 'video' ? video.id : values.video.trim(),
 		video_start: (timed && parseTime(values.start)) || 0,
 		video_end: (timed && parseTime(values.end)) || 0,
+		// 'MM-DD', or '' for none
+		birthday:
+			values.birthdayMonth && values.birthdayDay
+				? birthdayValue(Number(values.birthdayMonth), Number(values.birthdayDay))
+				: '',
 		is_guest: values.is_guest,
 		active: values.active
 	};
@@ -140,6 +189,7 @@ export const FORM_FIELD_OF: Record<string, FormField> = {
 	video_id: 'video',
 	video_start: 'start',
 	video_end: 'end',
+	birthday: 'birthday',
 	is_guest: 'is_guest',
 	active: 'active'
 };

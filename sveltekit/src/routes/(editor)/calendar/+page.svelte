@@ -1,8 +1,18 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import CalendarPlus from '@lucide/svelte/icons/calendar-plus';
 	import Trash from '@lucide/svelte/icons/trash-2';
+	import Users from '@lucide/svelte/icons/users';
 	import { onDestroy, onMount } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
+	import {
+		BIRTHDAY_PICTURE,
+		birthdayPicture,
+		daysUntilText,
+		getBirthdayPeople,
+		showsBirthday,
+		upcomingBirthdays
+	} from '#lib/birthdays.ts';
 	import EditorHeader from '#lib/editor/EditorHeader.svelte';
 	import { describeError } from '#lib/editor/errors.ts';
 	import { FocusReturn } from '#lib/editor/focus.ts';
@@ -42,7 +52,13 @@
 	} from '#lib/observances/observances.ts';
 	import OwnObservanceRow from '#lib/observances/OwnObservanceRow.svelte';
 	import SchoolBadge from '#lib/observances/SchoolBadge.svelte';
-	import { builtInHolidays, observancePicture, type BuiltInHoliday } from '#lib/pb/calendar.ts';
+	import Picture from '#lib/editor/Picture.svelte';
+	import {
+		builtInHolidays,
+		observancePicture,
+		PEOPLE,
+		type BuiltInHoliday
+	} from '#lib/pb/calendar.ts';
 	import {
 		createObservance,
 		ICONS,
@@ -52,7 +68,8 @@
 		OBSERVANCES,
 		updateObservance
 	} from '#lib/pb/observances.ts';
-	import type { CalendarObservance, IconRecord } from '#lib/pb/types.ts';
+	import type { CalendarObservance, IconRecord, Person } from '#lib/pb/types.ts';
+	import { displayName } from '#lib/people/people.ts';
 
 	// --- Loading and live updates ------------------------------------------------------------
 
@@ -68,6 +85,14 @@
 		load: listIcons,
 		doing: 'load the icons'
 	});
+	// The birthdays the slide shows (set on the People page): someone switched off, or whose
+	// birthday is cleared, leaves the list.
+	const birthdayPeople = new LiveList<Person>({
+		collection: PEOPLE,
+		load: () => getBirthdayPeople(),
+		doing: 'load the birthdays',
+		keep: showsBirthday
+	});
 	const notices = new Notices();
 
 	/** Today, kept up to date if the page stays open overnight. */
@@ -77,6 +102,7 @@
 	onMount(() => {
 		observances.start();
 		icons.start();
+		birthdayPeople.start();
 		dayTimer = setInterval(() => {
 			const now = new Date();
 			if (now.toDateString() !== today.toDateString()) today = now;
@@ -85,6 +111,7 @@
 	onDestroy(() => {
 		observances.stop();
 		icons.stop();
+		birthdayPeople.stop();
 		notices.destroy();
 		clearInterval(dayTimer);
 	});
@@ -92,6 +119,8 @@
 	const live = $derived.by(() => {
 		if (observances.status !== 'ready') return null;
 		const states = [observances.live, icons.live];
+		// The birthdays count once loaded: their own card says when they can't be.
+		if (birthdayPeople.status === 'ready') states.push(birthdayPeople.live);
 		if (states.includes('offline')) return 'offline';
 		return states.includes('connecting') ? 'connecting' : 'live';
 	});
@@ -100,7 +129,10 @@
 	const holidays = $derived(builtInHolidays(today.getFullYear() - 1, 10));
 	const iconOf = $derived(iconLookup(icons.items));
 	const pictureOf = (record: CalendarObservance) => observancePicture(record, iconOf(record));
-	const coming = $derived(comingUp(observances.items, today, iconOf));
+	const coming = $derived(
+		comingUp(observances.items, today, iconOf, COMING_UP_DAYS, birthdayPeople.items)
+	);
+	const birthdays = $derived(upcomingBirthdays(birthdayPeople.items, today));
 	const own = $derived(ownGroups(observances.items, holidays, today));
 	const builtIns = $derived(builtInRows(holidays, observances.items, today, iconOf));
 	const year = $derived(schoolYear(today));
@@ -394,7 +426,11 @@
 						{#each day.observances as observance, index (index)}
 							{@const builtInName = builtInNameOf(observance)}
 							<span class="flex items-center gap-2">
-								<ObservancePicture src={observance.image} class="size-10" />
+								<ObservancePicture
+									src={observance.image}
+									fallback={observance.local === 'birthday' ? BIRTHDAY_PICTURE : undefined}
+									class="size-10"
+								/>
 								<span>
 									{observance.name}
 									{#if builtInName}
@@ -504,6 +540,56 @@
 						onDelete={() =>
 							openDelete({ kind: 'record', record: row.record, picture: pictureOf(row.record) })}
 					/>
+				{/each}
+			</GroupSection>
+		{/if}
+
+		{#if birthdayPeople.status === 'loading'}
+			<LoadingCard text="Loading the birthdays…" rows={2} />
+		{:else if birthdayPeople.status === 'error'}
+			<LoadErrorCard
+				title="Can't load the birthdays"
+				message={birthdayPeople.loadError}
+				retrying={birthdayPeople.retrying}
+				onRetry={birthdayPeople.load}
+			/>
+		{:else}
+			<GroupSection
+				key="birthdays"
+				title="Birthdays"
+				description="The birthdays of active people, soonest first. The calendar shows each one every year as “Name's Birthday”, with their picture."
+				count={birthdays.length}
+				empty="No birthdays yet. Give a student, teacher or guest a birthday on the People page."
+			>
+				{#snippet action()}
+					<a href={resolve('/(editor)/people')} class="btn preset-tonal px-4 py-2" data-people-link>
+						<Users class="size-5" aria-hidden="true" />
+						Birthdays are set on the People page
+					</a>
+				{/snippet}
+				{#each birthdays as birthday (birthday.person.id)}
+					<li
+						class="flex flex-wrap items-center gap-x-4 gap-y-2 py-2"
+						data-birthday={birthday.person.id}
+					>
+						<Picture
+							src={birthdayPicture(birthday.person)}
+							fallback={BIRTHDAY_PICTURE}
+							class="size-12"
+						/>
+						<span class="min-w-40 flex-1 text-lg font-semibold">
+							{displayName(birthday.person)}
+						</span>
+						<span class="w-28 shrink-0">{formatDay(birthday.date, false)}</span>
+						<span
+							class="w-24 shrink-0 rounded-full px-2.5 py-0.5 text-center text-sm {birthday.days ===
+							0
+								? 'preset-filled-primary-500'
+								: 'preset-tonal'}"
+						>
+							{daysUntilText(birthday.days)}
+						</span>
+					</li>
 				{/each}
 			</GroupSection>
 		{/if}

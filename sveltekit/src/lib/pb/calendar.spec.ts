@@ -15,6 +15,7 @@ import {
 	rawDates,
 	type Holiday
 } from './calendar';
+import type { BirthdayPerson } from '#lib/birthdays.ts';
 import type { CalendarObservance, IconRecord } from './types';
 
 // the same PocketBase address the code builds picture URLs with (vite.config.ts gives the tests a
@@ -410,5 +411,48 @@ describe('another name for a built-in holiday (display_name)', () => {
 		expect(day(observancesForMonth([hidden], 2026, 10), 26)).toEqual([]);
 		const own = record({ name: 'Fair', dates: ['2026-11-19'], display_name: 'Other' });
 		expect(day(observancesForMonth([own], 2026, 10), 19)[0].name).toBe('Fair');
+	});
+});
+
+describe('birthdays on the month page', () => {
+	const person = (fields: Partial<BirthdayPerson>): BirthdayPerson => ({
+		id: 'per000000000001',
+		collectionId: 'pbc_1795321340',
+		name: 'Bluey',
+		title: '',
+		avatar: '',
+		active: true,
+		birthday: '11-26',
+		...fields
+	});
+
+	it('come after the built-in holidays and your own days of the same day', () => {
+		const feast = record({ name: 'Class Feast', dates: ['2026-11-26'] });
+		const map = observancesForMonth([feast], 2026, 10, undefined, [person({})]);
+		expect(day(map, 26).map((h) => [h.name, h.local])).toEqual([
+			['Thanksgiving Day', 'federal'],
+			['Class Feast', 'local'],
+			["Bluey's Birthday", 'birthday']
+		]);
+		// a birthday alone on its day, and none for people switched off
+		const map2 = observancesForMonth([], 2026, 10, undefined, [
+			person({ id: 'per000000000002', name: 'Bingo', birthday: '11-03' }),
+			person({ id: 'per000000000003', name: 'Muffin', birthday: '11-04', active: false })
+		]);
+		expect(day(map2, 3).map((h) => h.name)).toEqual(["Bingo's Birthday"]);
+		expect(day(map2, 4)).toEqual([]);
+	});
+
+	it('are left out when no people are passed (the editor and Home use it so)', () => {
+		expect(lines(observancesForMonth([], 2026, 10))).toEqual([
+			'11: Veterans Day [none]',
+			'26: Thanksgiving Day [none]',
+			'27: Day after Thanksgiving Day [full]'
+		]);
+	});
+
+	it("don't change the day's school badge", () => {
+		const map = observancesForMonth([], 2026, 10, undefined, [person({ birthday: '11-27' })]);
+		expect(day(map, 27).map((h) => h.school)).toEqual(['full', 'full']);
 	});
 });

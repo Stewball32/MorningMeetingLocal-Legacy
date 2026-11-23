@@ -9,13 +9,17 @@
 	import type { Person } from '#lib/pb/types.ts';
 	import { createPerson, personAvatarUrl, updatePerson } from '#lib/pb/people.ts';
 	import type { FileChange } from '#lib/pb/requests.ts';
+	import { MONTH_NAMES } from '#lib/birthdays.ts';
 	import {
+		birthdayDayChoices,
 		emptyForm,
 		FORM_FIELD_OF,
 		fieldsFromForm,
 		formFromPerson,
 		sameForm,
+		unreadableBirthday,
 		validateForm,
+		withBirthdayMonth,
 		type FormErrors,
 		type FormField,
 		type PersonFormValues
@@ -176,6 +180,21 @@
 			inactive: ''
 		}[groupOf(values)]
 	);
+
+	// --- Birthday ----------------------------------------------------------------------------
+
+	/** The Day select's choices: up to 29 in February, none until a month is chosen. */
+	const birthdayDays = $derived(birthdayDayChoices(values.birthdayMonth));
+	/** A saved birthday that isn't a real day (from the dashboard): kept unless one is chosen. */
+	const oddSavedBirthday = unreadableBirthday(original);
+	const birthdayWho = $derived(values.name.trim() ? shownAs : 'this person');
+
+	function setBirthdayMonth(month: string) {
+		const next = withBirthdayMonth(values, month);
+		values.birthdayMonth = next.birthdayMonth;
+		values.birthdayDay = next.birthdayDay;
+		clearError('birthday');
+	}
 
 	// --- Save --------------------------------------------------------------------------------
 
@@ -368,6 +387,64 @@
 				</div>
 				{@render fieldError('role')}
 				{@render fieldError('pronoun')}
+
+				<fieldset class="space-y-1" data-birthday>
+					<legend class="label-text">Birthday</legend>
+					<div class="flex flex-wrap items-end gap-3">
+						<label class="label w-44" for={id('birthday-month')}>
+							<span class="text-sm opacity-80">Month</span>
+							<select
+								id={id('birthday-month')}
+								class="select px-3 py-2 text-base"
+								value={values.birthdayMonth}
+								onchange={(event) => setBirthdayMonth(event.currentTarget.value)}
+								aria-invalid={!!errors.birthday && !values.birthdayMonth}
+								aria-describedby="{id('birthday-hint')}{errors.birthday
+									? ` ${id('birthday-error')}`
+									: ''}"
+							>
+								<option value="">—</option>
+								{#each MONTH_NAMES as month, index (month)}
+									<option value={String(index + 1)}>{month}</option>
+								{/each}
+							</select>
+						</label>
+						<label class="label w-24" for={id('birthday-day')}>
+							<span class="text-sm opacity-80">Day</span>
+							<select
+								id={id('birthday-day')}
+								class="select px-3 py-2 text-base"
+								value={values.birthdayDay}
+								disabled={!values.birthdayMonth}
+								onchange={(event) => {
+									values.birthdayDay = event.currentTarget.value;
+									clearError('birthday');
+								}}
+								aria-invalid={!!errors.birthday && !!values.birthdayMonth}
+								aria-describedby="{id('birthday-hint')}{errors.birthday
+									? ` ${id('birthday-error')}`
+									: ''}"
+							>
+								<option value="">—</option>
+								{#each birthdayDays as day (day)}
+									<option value={String(day)}>{day}</option>
+								{/each}
+							</select>
+						</label>
+					</div>
+					<p id={id('birthday-hint')} class="text-sm opacity-80">
+						{#if oddSavedBirthday && !values.birthdayMonth}
+							The saved birthday <code class="font-mono">{oddSavedBirthday}</code> isn't a real day, so
+							the calendar doesn't show it. It is kept as it is unless you choose a month and day.
+						{:else}
+							Shown on the calendar every year while {birthdayWho} is active. No year needed.{values.birthdayMonth ===
+								'2' && values.birthdayDay === '29'
+								? ' In years without Feb 29, it is on Feb 28.'
+								: ''}
+						{/if}
+					</p>
+					{@render fieldError('birthday')}
+				</fieldset>
 
 				<div class="grid gap-x-4 gap-y-2 sm:grid-cols-2">
 					<div>
