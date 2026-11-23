@@ -47,7 +47,6 @@
 		validateForm,
 		type FormErrors,
 		type FormField,
-		MAX_DISPLAY_NAME,
 		type FormPreset,
 		type Kind,
 		type ObservanceFormValues,
@@ -518,11 +517,12 @@
 			<div class="space-y-1">
 				<label class="label" for={id('display-name')}>
 					<span class="label-text">Name on the calendar</span>
+					<!-- No maxlength: it counts an emoji as two characters, PocketBase as one. Saving
+					     says when it is too long (validateForm counts the way PocketBase does). -->
 					<input
 						id={id('display-name')}
 						class={inputClass}
 						autocomplete="off"
-						maxlength={MAX_DISPLAY_NAME}
 						placeholder={builtIn?.name ?? ''}
 						value={values.displayName}
 						disabled={saving}
