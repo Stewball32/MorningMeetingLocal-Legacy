@@ -217,6 +217,31 @@ describe('saved entries', () => {
 		expect(savedDates(result.entries)).toEqual(['easter -3', 'easter -2']);
 	});
 
+	it("counts a rule the editor builds as the same day however its weekdays' first letter is written", () => {
+		// date-holidays reads both; its own data writes 'monday'.
+		const lower = entryFromSaved(
+			'07-04 if saturday then previous friday if sunday then next monday',
+			TODAY
+		);
+		expect(lower.kind).toBe('rule');
+		expect(keyOf(lower)).toBe(
+			keyOf(rule('07-04 if Saturday then previous Friday if Sunday then next Monday'))
+		);
+		expect(keyOf(rule('3rd monday in January'))).toBe(keyOf(rule('3rd Monday in January')));
+		const result = addEntries([rule('3rd Monday in January')], [rule('3rd monday in January')]);
+		expect(result.added).toBe(0);
+		expect(
+			covers(lower, rule('07-04 if Saturday then previous Friday if Sunday then next Monday'))
+		).toBe(true);
+		// Saved back as it was written.
+		expect(savedDates([lower])).toEqual([
+			'07-04 if saturday then previous friday if sunday then next monday'
+		]);
+		// Rules the editor doesn't build are compared as written.
+		expect(keyOf(rule('easter -2'))).not.toBe(keyOf(rule('easter  -2')));
+		expect(keyOf(rule('3rd monday in january'))).not.toBe(keyOf(rule('3rd Monday in January')));
+	});
+
 	it('next yearly day rolls over at the end of the year', () => {
 		expect(nextYearly('01-01', new Date(2026, 11, 31))).toBe('2027-01-01');
 		expect(nextYearly('12-31', new Date(2026, 11, 31, 23, 59))).toBe('2026-12-31');

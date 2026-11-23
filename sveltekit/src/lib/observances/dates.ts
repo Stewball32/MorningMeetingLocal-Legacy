@@ -15,6 +15,7 @@ import {
 	FEB_29_YEARLY,
 	parseRule,
 	ruleProblem,
+	ruleText,
 	tidyRule,
 	type RuleCheck
 } from './rules.ts';
@@ -161,11 +162,15 @@ export function savedValue(entry: DayEntry): string {
 
 /**
  * The value a duplicate check compares: one-time and yearly days on the same date are not the
- * same; a rule is the same as the same text saved in the dashboard.
+ * same; a rule is the same as the same text saved in the dashboard. A rule the editor builds is
+ * compared as the editor writes it: date-holidays reads 'monday' as 'Monday' (parseRule), so
+ * '3rd monday in January' is the 3rd Monday in January already in the list.
  */
 export function keyOf(entry: DayEntry): string {
 	const rule = entryRule(entry);
-	return rule === null ? `${entry.kind}:${savedValue(entry)}` : `rule:${rule}`;
+	if (rule === null) return `${entry.kind}:${savedValue(entry)}`;
+	const spec = parseRule(rule);
+	return `rule:${spec ? ruleText(spec) : rule}`;
 }
 
 /** The date-holidays rule of a rule entry, or of an 'other' one saved as text; else null. */
