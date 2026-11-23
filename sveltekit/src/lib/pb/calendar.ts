@@ -6,8 +6,10 @@
 // Two kinds of observance record (see CalendarObservance):
 // - no dates: settings for the built-in holiday of the same name (the name the calendar shows,
 //   picture, school day, notes, or hiding it);
-// - with dates: the class's own day(s), 'YYYY-MM-DD' (that year only) or 'MM-DD' (every year).
-//   Any other date-holidays rule written in the PocketBase dashboard still works as before.
+// - with dates: the class's own day(s), each a date-holidays rule: 'YYYY-MM-DD' (that year
+//   only), 'MM-DD' (every year), or a movable day the Days editor builds ("4th Thursday in
+//   November", "easter -2", "15 Nisan": #lib/observances/rules.ts) or that was written in the
+//   PocketBase dashboard.
 // Records with is_active = false are ignored, except that a built-in holiday's settings record
 // still hides the holiday while `hidden` is on (its name, picture, school day and notes are then
 // unused).
@@ -75,6 +77,17 @@ export const isSameHolidayName = (a: string, b: string) =>
 export function otherHolidayName(displayName: string, holiday: string): string {
 	const name = displayName.trim();
 	return isSameHolidayName(name, holiday) ? '' : name;
+}
+
+/**
+ * For a built-in holiday the slide shows under another name ("Turkey Day"): its own name, shown
+ * next to it ("Turkey Day · Thanksgiving Day"). '' when it shows under its own name, and for
+ * anything that isn't a built-in holiday.
+ */
+export function builtInNameOf(observance: Pick<Holiday, 'name' | 'holiday' | 'observed'>): string {
+	if (!observance.holiday) return '';
+	const own = observance.holiday + (observance.observed ? OBSERVED_SUFFIX : '');
+	return observance.name === own ? '' : observance.holiday;
 }
 
 /** A date-holidays date ('YYYY-MM-DD…') as local midnight of that day. */

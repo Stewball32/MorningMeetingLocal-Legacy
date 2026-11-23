@@ -1,8 +1,7 @@
 // The one-line summaries on the Home page's tiles (pure, so they can be tested).
 import { daysUntilText, upcomingBirthdays, type BirthdayPerson } from '#lib/birthdays.ts';
 import { plural } from '#lib/editor/list.ts';
-import { builtInNameOf } from '#lib/observances/observances.ts';
-import { OBSERVED_SUFFIX } from '#lib/pb/calendar.ts';
+import { builtInNameOf, OBSERVED_SUFFIX } from '#lib/pb/calendar.ts';
 import type { IconRecord, Person } from '#lib/pb/types.ts';
 import { displayName, groupOf } from '#lib/people/people.ts';
 

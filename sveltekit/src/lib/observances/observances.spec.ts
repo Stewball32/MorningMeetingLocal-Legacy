@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { builtInHolidays } from '#lib/pb/calendar.ts';
+import { builtInHolidays, builtInNameOf } from '#lib/pb/calendar.ts';
 import type { CalendarObservance, IconRecord } from '#lib/pb/types.ts';
 import { dayString } from './dates';
 import {
-	builtInNameOf,
 	builtInRows,
 	comingUp,
 	iconLookup,

@@ -35,7 +35,6 @@
 	import ObservanceFormDialog from '#lib/observances/ObservanceFormDialog.svelte';
 	import ObservancePicture from '#lib/observances/ObservancePicture.svelte';
 	import {
-		builtInNameOf,
 		builtInRows,
 		comingUp,
 		COMING_UP_DAYS,
@@ -56,6 +55,7 @@
 	import Picture from '#lib/editor/Picture.svelte';
 	import {
 		builtInHolidays,
+		builtInNameOf,
 		observancePicture,
 		PEOPLE,
 		type BuiltInHoliday
