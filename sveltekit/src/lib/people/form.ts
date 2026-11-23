@@ -102,6 +102,29 @@ export function withBirthdayMonth(values: PersonFormValues, month: string): Pers
 	return { ...values, birthdayMonth: month, birthdayDay: keepDay ? values.birthdayDay : '' };
 }
 
+/** How long the Day select waits for the next digit of a day (as long as a select's own search). */
+export const DAY_TYPING_MS = 1000;
+
+/**
+ * Typing a day into the Day select, one digit at a time. A select's own search cycles through
+ * the days that start with a digit typed twice, so "22" would give 20; here the digits typed in a
+ * row make the day: "2", "2" gives 22, "3", "0" gives 30. A digit that would make a day the month
+ * hasn't got starts a new one ("3", "1" in November: 1); a "0" first waits for the next digit
+ * ("0", "5": 5). `typed` is the digits so far ('' after a pause); `day` is undefined when none is
+ * chosen yet.
+ */
+export function typedDay(
+	typed: string,
+	digit: string,
+	days: readonly number[]
+): { typed: string; day?: number } {
+	for (const digits of [typed + digit, digit]) {
+		const day = Number(digits);
+		if (days.includes(day)) return { typed: digits, day };
+	}
+	return { typed: digit === '0' && days.length > 0 ? '0' : '' };
+}
+
 const TIME_HELP = 'Use seconds (like 90) or minutes:seconds (like 1:30).';
 const TOO_LONG = `Times can be up to 24 hours (${formatTime(MAX_SECONDS)}).`;
 

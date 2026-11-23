@@ -3,11 +3,13 @@ import { changedFields } from '#lib/editor/form.ts';
 import type { Person } from '#lib/pb/types.ts';
 import {
 	birthdayDayChoices,
+	DAY_TYPING_MS,
 	emptyForm,
 	FORM_FIELD_OF,
 	fieldsFromForm,
 	formFromPerson,
 	sameForm,
+	typedDay,
 	unreadableBirthday,
 	validateForm,
 	withBirthdayMonth
@@ -279,6 +281,39 @@ describe('the Birthday field', () => {
 			birthdayDay: '29'
 		});
 		expect(withBirthdayMonth(jan31, '')).toMatchObject({ birthdayMonth: '', birthdayDay: '' });
+	});
+
+	it('takes a day typed as digits: "22" is the 22nd, not the 20th', () => {
+		const november = birthdayDayChoices('11');
+		const type = (digits: string, days: readonly number[] = november) => {
+			let typed = '';
+			let day: number | undefined;
+			for (const digit of digits) {
+				const next = typedDay(typed, digit, days);
+				typed = next.typed;
+				if (next.day !== undefined) day = next.day;
+			}
+			return day;
+		};
+		expect(type('22')).toBe(22);
+		expect(type('11')).toBe(11);
+		expect(type('3')).toBe(3);
+		expect(type('30')).toBe(30);
+		expect(type('9')).toBe(9);
+		// a leading zero waits for the next digit
+		expect(type('05')).toBe(5);
+		expect(type('0')).toBeUndefined();
+		expect(typedDay('', '0', november)).toEqual({ typed: '0' });
+		// a day the month hasn't got starts again with the last digit
+		expect(type('31')).toBe(1);
+		expect(type('301')).toBe(1);
+		expect(type('45')).toBe(5);
+		expect(type('31', birthdayDayChoices('12'))).toBe(31);
+		expect(type('30', birthdayDayChoices('2'))).toBe(3);
+		expect(type('29', birthdayDayChoices('2'))).toBe(29);
+		// nothing to choose without a month
+		expect(typedDay('', '2', [])).toEqual({ typed: '' });
+		expect(DAY_TYPING_MS).toBe(1000);
 	});
 
 	it('is sent only when changed, and counts for "Discard your changes?"', () => {

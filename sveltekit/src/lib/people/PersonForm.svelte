@@ -12,11 +12,13 @@
 	import { MONTH_NAMES } from '#lib/birthdays.ts';
 	import {
 		birthdayDayChoices,
+		DAY_TYPING_MS,
 		emptyForm,
 		FORM_FIELD_OF,
 		fieldsFromForm,
 		formFromPerson,
 		sameForm,
+		typedDay,
 		unreadableBirthday,
 		validateForm,
 		withBirthdayMonth,
@@ -193,6 +195,22 @@
 		const next = withBirthdayMonth(values, month);
 		values.birthdayMonth = next.birthdayMonth;
 		values.birthdayDay = next.birthdayDay;
+		clearError('birthday');
+	}
+
+	/** The digits typed into the Day select so far, and when the last one was (see typedDay). */
+	let dayTyped = '';
+	let dayTypedAt = -Infinity;
+	/** Typing "22" into the Day gives the 22nd (the select's own search would give the 20th). */
+	function typeDay(event: KeyboardEvent) {
+		if (!/^[0-9]$/.test(event.key) || event.ctrlKey || event.metaKey || event.altKey) return;
+		event.preventDefault();
+		const soon = event.timeStamp - dayTypedAt < DAY_TYPING_MS;
+		const next = typedDay(soon ? dayTyped : '', event.key, birthdayDays);
+		dayTyped = next.typed;
+		dayTypedAt = event.timeStamp;
+		if (next.day === undefined) return;
+		values.birthdayDay = String(next.day);
 		clearError('birthday');
 	}
 
@@ -416,6 +434,7 @@
 								class="select px-3 py-2 text-base"
 								value={values.birthdayDay}
 								disabled={!values.birthdayMonth}
+								onkeydown={typeDay}
 								onchange={(event) => {
 									values.birthdayDay = event.currentTarget.value;
 									clearError('birthday');
