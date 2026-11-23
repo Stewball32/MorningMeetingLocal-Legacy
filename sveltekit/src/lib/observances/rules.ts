@@ -414,6 +414,12 @@ export function dayThirtyNote(calendar: CalendarId, monthRule: string, day: numb
 // --- Working out the days ---------------------------------------------------------------------
 
 /**
+ * Rules already reported in the console as unreadable: the calendar works its days out again on
+ * every change (and the editor's lists on every letter typed), so each is reported once.
+ */
+const reported = new Set<string>();
+
+/**
  * Sets a rule. date-holidays logs each rule it can't read ("could not parse rule"); `quiet`
  * keeps the editor's live check, which tries every letter typed, out of the console.
  */
@@ -423,7 +429,11 @@ function setRule(
 	options: HolidaysTypes.HolidayOptions,
 	quiet: boolean
 ): boolean {
-	if (!quiet) return days.setHoliday(rule, options);
+	if (!quiet && !reported.has(rule)) {
+		const set = days.setHoliday(rule, options);
+		if (!set) reported.add(rule);
+		return set;
+	}
 	const log = console.error;
 	console.error = () => {};
 	try {
@@ -468,14 +478,13 @@ export function ruleHolidays(
 	for (const rule of rules) setRule(days, rule, { ...options }, quiet);
 	try {
 		return shown(days, year);
-	} catch (error) {
+	} catch {
 		const usable = rules.filter((rule) => worksAlone(rule, year));
-		if (!quiet)
-			console.error(
-				'Could not work out',
-				rules.filter((rule) => !usable.includes(rule)),
-				error
-			);
+		for (const rule of rules.filter((rule) => !usable.includes(rule))) {
+			if (quiet || reported.has(rule)) continue;
+			reported.add(rule);
+			console.error(`could not work out rule: ${rule}`);
+		}
 		const again = new Holidays();
 		for (const rule of usable) setRule(again, rule, { ...options }, true);
 		return shown(again, year);

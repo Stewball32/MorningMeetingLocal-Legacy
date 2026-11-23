@@ -568,10 +568,25 @@ describe('ruleHolidays (what the slide shows for its own days)', () => {
 		const log = vi.spyOn(console, 'error').mockImplementation(() => {});
 		const days = ruleHolidays(['since 2027', '11-19', 'nonsense', 'in even years'], 2026, options);
 		expect(days.map((d) => d.date.slice(0, 10))).toEqual(['2026-11-19']);
-		expect(log).toHaveBeenCalled();
+		expect(log.mock.calls.map(([text]) => text)).toEqual([
+			'could not parse rule: nonsense',
+			'could not work out rule: since 2027',
+			'could not work out rule: in even years'
+		]);
 		log.mockClear();
 		expect(ruleHolidays(['since 2027', '11-19'], 2026, options, { quiet: true })).toHaveLength(1);
+		expect(ruleHolidays(['P2D', 'nonsense 2'], 2026, options, { quiet: true })).toEqual([]);
 		expect(log).not.toHaveBeenCalled();
+	});
+
+	it('reports each rule it cannot use once (the calendar works its days out on every change)', () => {
+		const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+		for (const year of [2026, 2026, 2027])
+			ruleHolidays(['nonsense 3', 'since 2030', '11-19'], year, options);
+		expect(log.mock.calls.map(([text]) => text)).toEqual([
+			'could not parse rule: nonsense 3',
+			'could not work out rule: since 2030'
+		]);
 	});
 
 	it('keeps the slide working when a record has such a rule', () => {
