@@ -562,8 +562,13 @@
 				empty="No birthdays yet. Give a student, teacher or guest a birthday on the People page."
 			>
 				{#snippet action()}
-					<a href={resolve('/(editor)/people')} class="btn preset-tonal px-4 py-2" data-people-link>
-						<Users class="size-5" aria-hidden="true" />
+					<!-- It wraps on a narrow screen instead of sticking out. -->
+					<a
+						href={resolve('/(editor)/people')}
+						class="btn preset-tonal h-auto max-w-full px-4 py-2 whitespace-normal"
+						data-people-link
+					>
+						<Users class="size-5 shrink-0" aria-hidden="true" />
 						Birthdays are set on the People page
 					</a>
 				{/snippet}
