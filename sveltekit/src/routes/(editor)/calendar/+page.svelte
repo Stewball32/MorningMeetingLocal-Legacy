@@ -25,6 +25,7 @@
 	import ObservanceFormDialog from '#lib/observances/ObservanceFormDialog.svelte';
 	import ObservancePicture from '#lib/observances/ObservancePicture.svelte';
 	import {
+		builtInNameOf,
 		builtInRows,
 		comingUp,
 		COMING_UP_DAYS,
@@ -163,6 +164,7 @@
 				? await updateObservance(record.id, { hidden })
 				: await createObservance({
 						name: holiday.name,
+						display_name: '',
 						dates: [],
 						school: holiday.school,
 						description: '',
@@ -390,9 +392,15 @@
 					</span>
 					<span class="flex min-w-40 flex-1 flex-wrap items-center gap-x-4 gap-y-1">
 						{#each day.observances as observance, index (index)}
+							{@const builtInName = builtInNameOf(observance)}
 							<span class="flex items-center gap-2">
 								<ObservancePicture src={observance.image} class="size-10" />
-								<span>{observance.name}</span>
+								<span>
+									{observance.name}
+									{#if builtInName}
+										<span class="text-sm opacity-70">· {builtInName}</span>
+									{/if}
+								</span>
 							</span>
 						{/each}
 					</span>
@@ -503,7 +511,7 @@
 		<GroupSection
 			key="builtin"
 			title="Built-in holidays"
-			description="US holidays the calendar shows by itself, with their dates in the {year.label} school year (August to July). Customize one to give it a picture or change its school day, or hide it."
+			description="US holidays the calendar shows by itself, with their dates in the {year.label} school year (August to July). Customize one to give it another name or a picture, or to change its school day, or hide it."
 			count={builtIns.length}
 			empty=""
 		>

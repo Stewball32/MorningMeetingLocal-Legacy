@@ -26,10 +26,13 @@
 	let { row, today, busy = false, onCustomize, onHide, onReset }: Props = $props();
 
 	const name = $derived(row.holiday.name);
+	/** As the calendar shows it: another name first, with the holiday's own after it. */
+	const title = $derived(row.displayName ? `${row.displayName} · ${name}` : name);
 	const passed = $derived(!!row.date && row.date < startOfDay(today));
 	/** What the class changed, in words. */
 	const changes = $derived(
 		[
+			row.displayName && 'name',
 			row.picture && 'picture',
 			row.school !== row.holiday.school && 'school day',
 			row.description && 'notes'
@@ -47,7 +50,14 @@
 		class="size-16 {row.hidden ? 'opacity-40 grayscale' : passed ? 'opacity-70' : ''}"
 	/>
 	<div class="min-w-40 flex-1">
-		<p class="truncate text-xl font-semibold" title={name}>{name}</p>
+		<p class="truncate text-xl" {title} data-name>
+			{#if row.displayName}
+				<span class="font-semibold">{row.displayName}</span>
+				<span class="text-base opacity-70">· {name}</span>
+			{:else}
+				<span class="font-semibold">{name}</span>
+			{/if}
+		</p>
 		<p class="text-sm">
 			{#if row.date}
 				<span class={passed ? 'opacity-70' : ''}>{formatDay(row.date)}</span>

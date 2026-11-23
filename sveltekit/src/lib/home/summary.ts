@@ -1,5 +1,6 @@
 // The one-line summaries on the Home page's tiles (pure, so they can be tested).
 import { plural } from '#lib/editor/list.ts';
+import { builtInNameOf } from '#lib/observances/observances.ts';
 import type { IconRecord, Person } from '#lib/pb/types.ts';
 import { groupOf } from '#lib/people/people.ts';
 
@@ -28,11 +29,18 @@ export interface ObservedDay {
 	/** Local midnight of its day (date-holidays' date string read as local time). */
 	dateObj: Date;
 	school: string;
+	/** A built-in holiday's own name, also when it is shown under another one. */
+	holiday?: string;
+	/** A built-in holiday's weekday off. */
+	observed?: boolean;
 }
 
 export interface UpcomingDay {
 	date: Date;
-	/** Every observance that day, in the slide's order. */
+	/**
+	 * Every observance that day, in the slide's order; a built-in holiday shown under another
+	 * name with its own name after it: "Turkey Day (Thanksgiving Day)".
+	 */
 	names: string[];
 	/** The slide's badge: 'none' (No School!) wins over 'short' (Short Day!); else 'full'. */
 	school: 'none' | 'short' | 'full';
@@ -64,7 +72,9 @@ export function upcomingDays(
 			};
 			days.set(key, day);
 		}
-		if (!day.names.includes(observance.name)) day.names.push(observance.name);
+		const builtInName = builtInNameOf(observance);
+		const name = builtInName ? `${observance.name} (${builtInName})` : observance.name;
+		if (!day.names.includes(name)) day.names.push(name);
 		if (observance.school === 'none') day.school = 'none';
 		else if (observance.school === 'short' && day.school !== 'none') day.school = 'short';
 	}

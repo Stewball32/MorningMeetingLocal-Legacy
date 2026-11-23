@@ -3,6 +3,7 @@ import { builtInHolidays } from '#lib/pb/calendar.ts';
 import type { CalendarObservance, IconRecord } from '#lib/pb/types.ts';
 import { dayString } from './dates';
 import {
+	builtInNameOf,
 	builtInRows,
 	comingUp,
 	iconLookup,
@@ -102,6 +103,42 @@ describe('builtInRows', () => {
 		// an inactive record is the one to change, but it changes nothing
 		expect(veterans.record?.id).toBe(off.id);
 		expect(veterans.school).toBe('none');
+	});
+
+	it('gives the name the calendar shows instead, only while the changes are used', () => {
+		const turkey = record({ name: 'Thanksgiving Day', display_name: 'Turkey Day' });
+		const off = record({ name: 'Halloween', display_name: 'Costume Day', is_active: false });
+		const result = builtInRows(holidays, [turkey, off], TODAY, noIcons);
+		const find = (name: string) => result.find((r) => r.holiday.name === name)!;
+		expect(find('Thanksgiving Day')).toMatchObject({
+			displayName: 'Turkey Day',
+			key: 'thanksgiving-day'
+		});
+		expect(find('Halloween').displayName).toBe('');
+		expect(find('Veterans Day').displayName).toBe('');
+	});
+});
+
+describe('builtInNameOf', () => {
+	it("gives a renamed built-in holiday's own name, else ''", () => {
+		const turkey = record({ name: 'Thanksgiving Day', display_name: 'Turkey Day' });
+		const vets = record({ name: 'Veterans Day', display_name: 'Thank a Veteran Day' });
+		const nov = comingUp([turkey], TODAY, noIcons, 10).flatMap((day) => day.observances);
+		expect(nov.map((o) => [o.name, builtInNameOf(o)])).toEqual([
+			['Turkey Day', 'Thanksgiving Day'],
+			['Day after Thanksgiving Day', '']
+		]);
+		const observed = comingUp([vets], new Date(2028, 10, 9), noIcons, 3).flatMap(
+			(day) => day.observances
+		);
+		expect(observed.map((o) => [o.name, builtInNameOf(o)])).toEqual([
+			['Thank a Veteran Day (observed)', 'Veterans Day'],
+			['Thank a Veteran Day', 'Veterans Day']
+		]);
+		expect(
+			builtInNameOf({ name: 'Veterans Day (observed)', holiday: 'Veterans Day', observed: true })
+		).toBe('');
+		expect(builtInNameOf({ name: 'Fair' })).toBe('');
 	});
 });
 

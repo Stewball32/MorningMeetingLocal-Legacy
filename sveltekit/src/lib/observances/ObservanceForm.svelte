@@ -17,6 +17,7 @@
 	import {
 		builtInDays,
 		findBuiltIn,
+		holidaySettings,
 		isSettingsRecord,
 		type BuiltInHoliday,
 		type School
@@ -44,6 +45,7 @@
 		validateForm,
 		type FormErrors,
 		type FormField,
+		MAX_DISPLAY_NAME,
 		type FormPreset,
 		type Kind,
 		type ObservanceFormValues,
@@ -149,6 +151,10 @@
 				.filter(Boolean)
 		)
 	);
+	/** The other name a holiday already shows under (from changes other than this record). */
+	const otherSettings = $derived(
+		holidaySettings(records.filter((other) => other.id !== original?.id))
+	);
 	const observedDay = $derived.by(() => {
 		if (!builtIn) return null;
 		const start = startOfDay(today);
@@ -194,7 +200,9 @@
 	// --- Preview -------------------------------------------------------------------------------
 
 	const shownName = $derived(
-		values.kind === 'builtin' ? builtIn?.name || '(holiday)' : values.name.trim() || '(name)'
+		values.kind === 'builtin'
+			? values.displayName.trim() || builtIn?.name || '(holiday)'
+			: values.name.trim() || '(name)'
 	);
 	const previewDay = $derived.by(() => {
 		if (values.kind === 'builtin') return (builtIn && nextDayOf(builtIn.name)) || today;
@@ -232,6 +240,7 @@
 	/** Where each message's field takes the keyboard (in the form's order). */
 	const errorFocus: [FormField, () => string[]][] = [
 		['holiday', () => [`[id="${id('holiday')}"]`]],
+		['displayName', () => [`[id="${id('display-name')}"]`]],
 		['name', () => [`[id="${id('name')}"]`]],
 		['entries', () => ['[data-days] [data-pending]', '[data-days] input[type="date"]']],
 		['school', () => ['[data-school] [data-state="checked"] input', '[data-school] input']],
@@ -360,7 +369,7 @@
 		{
 			value: 'builtin',
 			label: 'Change a built-in holiday',
-			help: 'Its picture or school day, or hide it (e.g. Tax Day).'
+			help: 'Its name, picture or school day, or hide it (e.g. Tax Day).'
 		}
 	];
 	const pictureItems = $derived<{ value: PictureChoice; label: string }[]>([
@@ -436,11 +445,15 @@
 								: ''}"
 						>
 							<option value="" disabled>Choose a holiday…</option>
+							<!-- The holiday's own name first: it is what is chosen here, and typing it finds it. -->
 							{#each holidayChoices as choice (choice.holiday.name)}
+								{@const shownAs = otherSettings.get(choice.holiday.name)?.displayName}
 								<option value={choice.holiday.name}>
 									{choice.holiday.name}{choice.next
 										? ` (${formatDay(choice.next)})`
-										: ''}{changed.has(choice.holiday.name) ? ', already changed' : ''}
+										: ''}{changed.has(choice.holiday.name) ? ', already changed' : ''}{shownAs
+										? `: shown as “${shownAs}”`
+										: ''}
 								</option>
 							{/each}
 						</select>
@@ -475,6 +488,37 @@
 						Edit the changes to {builtIn?.name}
 					</button>
 				{/if}
+			</div>
+
+			<div class="space-y-1">
+				<label class="label" for={id('display-name')}>
+					<span class="label-text">Name on the calendar</span>
+					<input
+						id={id('display-name')}
+						class={inputClass}
+						autocomplete="off"
+						maxlength={MAX_DISPLAY_NAME}
+						placeholder={builtIn?.name ?? ''}
+						value={values.displayName}
+						disabled={saving}
+						oninput={(event) => {
+							values.displayName = event.currentTarget.value;
+							clearError('displayName');
+						}}
+						aria-invalid={!!errors.displayName}
+						aria-describedby="{id('display-name-hint')}{errors.displayName
+							? ` ${id('displayName-error')}`
+							: ''}"
+					/>
+				</label>
+				<p id={id('display-name-hint')} class="text-sm opacity-80">
+					{#if builtIn}
+						Leave empty to show “{builtIn.name}”.
+					{:else}
+						Leave empty to show the holiday's own name.
+					{/if}
+				</p>
+				{@render fieldError('displayName')}
 			</div>
 		{:else}
 			<div class="space-y-1">
@@ -687,7 +731,7 @@
 						class="-ml-2"
 					/>
 					<p id={id('active-help')} class="text-sm opacity-80">
-						Off: the picture, school day and notes above aren't used; {builtIn?.name ??
+						Off: the name, picture, school day and notes above aren't used; {builtIn?.name ??
 							'the holiday'} shows as it comes (unless it is hidden).
 					</p>
 				</div>

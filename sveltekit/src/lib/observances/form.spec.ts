@@ -3,11 +3,13 @@ import { changedFields } from '#lib/editor/form.ts';
 import { builtInHolidays } from '#lib/pb/calendar.ts';
 import type { CalendarObservance } from '#lib/pb/types.ts';
 import {
+	displayNameField,
 	emptyForm,
 	fieldsFromForm,
 	formFieldOf,
 	formFromRecord,
 	imageChange,
+	MAX_DISPLAY_NAME,
 	sameForm,
 	validateForm,
 	type ObservanceFormValues
@@ -150,6 +152,7 @@ describe('fieldsFromForm', () => {
 		];
 		expect(fieldsFromForm(values, holidays)).toEqual({
 			name: 'Fair',
+			display_name: '',
 			dates: ['2026-11-25', '11-19'],
 			school: 'full',
 			description: 'Gym',
@@ -213,5 +216,84 @@ describe('formFieldOf', () => {
 		expect(formFieldOf('builtin').name).toBe('holiday');
 		expect(formFieldOf('custom').name).toBe('name');
 		expect(formFieldOf('custom').dates).toBe('entries');
+	});
+});
+
+describe("a built-in holiday's name on the calendar (display_name)", () => {
+	const turkey = () => ({ ...emptyForm({ holiday: 'Thanksgiving Day' }, holidays) });
+
+	it('starts empty, and reads the saved one (|| not ??: never set is "")', () => {
+		expect(turkey().displayName).toBe('');
+		const saved = record({ name: 'Thanksgiving Day', display_name: 'Turkey Day' });
+		expect(formFromRecord(saved, holidays, TODAY).displayName).toBe('Turkey Day');
+		const never = record({ name: 'Thanksgiving Day' });
+		delete never.display_name;
+		expect(formFromRecord(never, holidays, TODAY).displayName).toBe('');
+		// your own day has no other name
+		const own = record({ name: 'Fair', dates: ['11-19'], display_name: 'Odd' });
+		expect(formFromRecord(own, holidays, TODAY).displayName).toBe('');
+	});
+
+	it("saves it trimmed, and '' when it is empty or the holiday's own name", () => {
+		const values = turkey();
+		expect(fieldsFromForm({ ...values, displayName: '  Turkey Day ' }, holidays).display_name).toBe(
+			'Turkey Day'
+		);
+		expect(fieldsFromForm({ ...values, displayName: '   ' }, holidays).display_name).toBe('');
+		expect(
+			fieldsFromForm({ ...values, displayName: ' Thanksgiving Day ' }, holidays).display_name
+		).toBe('');
+		const valentine = emptyForm({ holiday: "Valentine's Day" }, holidays);
+		expect(
+			fieldsFromForm({ ...valentine, displayName: 'Valentine’s Day' }, holidays).display_name
+		).toBe('');
+		expect(displayNameField('Valentine’s Party', "Valentine's Day")).toBe('Valentine’s Party');
+		// only built-in holidays have one
+		const own = { ...emptyForm({}, holidays), name: 'Fair', displayName: 'Left over' };
+		expect(fieldsFromForm(own, holidays).display_name).toBe('');
+	});
+
+	it('takes up to 100 characters (as PocketBase counts them)', () => {
+		const values = turkey();
+		expect(valid({ ...values, displayName: 'x'.repeat(100) })).toEqual({});
+		expect(valid({ ...values, displayName: ` ${'x'.repeat(100)} ` })).toEqual({});
+		expect(valid({ ...values, displayName: 'x'.repeat(101) }).displayName).toBe(
+			'Please keep the name to 100 characters or fewer.'
+		);
+		// an emoji is one character to PocketBase, though two to JavaScript
+		expect(valid({ ...values, displayName: '🦃'.repeat(100) })).toEqual({});
+		expect(MAX_DISPLAY_NAME).toBe(100);
+		// your own day's name has no such check here
+		const own = { ...emptyForm({}, holidays), name: 'Fair', displayName: 'x'.repeat(101) };
+		own.entries = [{ kind: 'once', day: '2026-11-25' }];
+		expect(valid(own)).toEqual({});
+	});
+
+	it('is sent only when it changed, and counts as a change for "Discard your changes?"', () => {
+		const saved = record({ name: 'Thanksgiving Day', display_name: 'Turkey Day', school: 'short' });
+		const values = formFromRecord(saved, holidays, TODAY);
+		const before = fieldsFromForm(values, holidays);
+		expect(changedFields(before, fieldsFromForm({ ...values }, holidays))).toEqual({});
+		expect(
+			changedFields(before, fieldsFromForm({ ...values, displayName: 'Feast Day' }, holidays))
+		).toEqual({ display_name: 'Feast Day' });
+		expect(changedFields(before, fieldsFromForm({ ...values, displayName: '' }, holidays))).toEqual(
+			{ display_name: '' }
+		);
+		expect(sameForm(values, { ...values, displayName: 'Turkey Day ' })).toBe(true);
+		expect(sameForm(values, { ...values, displayName: 'Feast Day' })).toBe(false);
+		// a name saved in the dashboard that is the holiday's own is left alone
+		const same = formFromRecord(
+			record({ name: 'Thanksgiving Day', display_name: 'Thanksgiving Day' }),
+			holidays,
+			TODAY
+		);
+		expect(changedFields(fieldsFromForm(same, holidays), fieldsFromForm(same, holidays))).toEqual(
+			{}
+		);
+	});
+
+	it("puts PocketBase's display_name error on the field", () => {
+		expect(formFieldOf('builtin').display_name).toBe('displayName');
 	});
 });

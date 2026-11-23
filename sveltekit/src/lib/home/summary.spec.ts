@@ -112,6 +112,27 @@ describe('upcomingDays', () => {
 		expect(first.names).toEqual(['Thanksgiving Day']);
 		expect([first.date.getMonth(), first.date.getDate(), first.date.getDay()]).toEqual([10, 26, 4]);
 	});
+
+	it("shows a built-in holiday's other name first, with its own name after it", () => {
+		const days = upcomingDays(
+			[
+				{ ...observed('Turkey Day', day(2026, 11, 26), 'none'), holiday: 'Thanksgiving Day' },
+				{ ...observed('Class Feast', day(2026, 11, 26)) },
+				{ ...observed('Veterans Day', day(2026, 11, 27)), holiday: 'Veterans Day' },
+				{
+					...observed('Vets Day (observed)', day(2026, 11, 30), 'none'),
+					holiday: 'Veterans Day',
+					observed: true
+				}
+			],
+			today
+		);
+		expect(days.map((d) => d.names)).toEqual([
+			['Turkey Day (Thanksgiving Day)', 'Class Feast'],
+			['Veterans Day'],
+			['Vets Day (observed) (Veterans Day)']
+		]);
+	});
 });
 
 describe('dayLabel', () => {

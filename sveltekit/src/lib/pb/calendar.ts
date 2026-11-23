@@ -3,12 +3,13 @@
 // observancesForMonth(), is shared with the Calendar Observances editor and the Home page.
 //
 // Two kinds of observance record (see CalendarObservance):
-// - no dates: settings for the built-in holiday of the same name (picture, school day, notes, or
-//   hiding it);
+// - no dates: settings for the built-in holiday of the same name (the name the calendar shows,
+//   picture, school day, notes, or hiding it);
 // - with dates: the class's own day(s), 'YYYY-MM-DD' (that year only) or 'MM-DD' (every year).
 //   Any other date-holidays rule written in the PocketBase dashboard still works as before.
 // Records with is_active = false are ignored, except that a built-in holiday's settings record
-// still hides the holiday while `hidden` is on (its picture, school day and notes are then unused).
+// still hides the holiday while `hidden` is on (its name, picture, school day and notes are then
+// unused).
 //
 // Dates: date-holidays' `date` strings ('YYYY-MM-DD hh:mm:ss') are read as local days. Never use
 // its `start`: US holidays are computed in New York time.
@@ -30,7 +31,10 @@ export interface Holiday extends HolidaysTypes.Holiday {
 	/** 'federal' for a built-in holiday, 'local' for the class's own day. */
 	local: string;
 	school: CalendarObservance['school'];
-	/** Built-in holidays: the holiday's name (without " (observed)"). */
+	/**
+	 * Built-in holidays: the holiday's own name (without " (observed)"), also when the calendar
+	 * shows it under another name (`display_name`). Settings records are matched by it.
+	 */
 	holiday?: string;
 	/** A built-in public holiday's weekday off when it falls on a weekend. */
 	observed?: boolean;
@@ -193,6 +197,8 @@ const byCreated = (a: CalendarObservance, b: CalendarObservance) =>
 
 /** What the settings records for one built-in holiday change. */
 export interface HolidaySettings {
+	/** The name the calendar shows instead of the built-in one; '' for its own. */
+	displayName: string;
 	description: string;
 	school: CalendarObservance['school'];
 	image: string;
@@ -213,9 +219,10 @@ export function holidaySettings(
 		if (!isSettingsRecord(record)) continue;
 		const key = normalizeHolidayName(record.name ?? '');
 		const before = settings.get(key);
-		// "Use these changes" off: the picture, school day and notes don't count, but Hide does
+		// "Use these changes" off: the name, picture, school day and notes don't count, but Hide does
 		const used = !!record.is_active;
 		settings.set(key, {
+			displayName: (used && record.display_name?.trim()) || before?.displayName || '',
 			description: (used && record.description) || before?.description || '',
 			school: (used && record.school) || before?.school || '',
 			image: (used && observancePicture(record, iconOf(record))) || before?.image || '',
@@ -271,7 +278,10 @@ export function observancesForMonth(
 		if (changes?.hidden) continue;
 		holidays.push({
 			...day.source,
-			name: day.name,
+			// Another name from its settings ("Turkey Day"), with " (observed)" on its weekday off.
+			name: changes?.displayName
+				? changes.displayName + (day.observed ? OBSERVED_SUFFIX : '')
+				: day.name,
 			description: changes?.description || '',
 			dateObj: new Date(day.dateObj),
 			image: changes?.image || '',

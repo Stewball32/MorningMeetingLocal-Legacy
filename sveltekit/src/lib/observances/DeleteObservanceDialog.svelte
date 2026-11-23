@@ -126,11 +126,14 @@
 					</p>
 					<p>This can't be undone.</p>
 				{:else if target.kind === 'reset'}
+					{@const otherName = target.records.find((r) => r.display_name?.trim())?.display_name}
 					<p>
-						The calendar shows {target.holiday.name} as it comes again: the default picture and its own
-						school day ({SCHOOL_LABEL[target.holiday.school]}){target.records.some((r) => r.hidden)
-							? ', and it is no longer hidden'
-							: ''}. Your notes for it are deleted too.
+						The calendar shows {target.holiday.name} as it comes again: {otherName
+							? `under its own name (not “${otherName.trim()}”), `
+							: ''}the default picture and its own school day ({SCHOOL_LABEL[
+							target.holiday.school
+						]}){target.records.some((r) => r.hidden) ? ', and it is no longer hidden' : ''}. Your
+						notes for it are deleted too.
 					</p>
 				{:else}
 					<p>All their days have passed, so the calendar no longer shows them:</p>

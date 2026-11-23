@@ -338,3 +338,77 @@ describe('observancesForMonth', () => {
 		expect(day(observancesForMonth([hideOld, showNew], 2027, 3), 15)).toHaveLength(1);
 	});
 });
+
+describe('another name for a built-in holiday (display_name)', () => {
+	it('shows it instead of the built-in name; `holiday` stays the built-in one', () => {
+		const turkey = record({ name: 'Thanksgiving Day', display_name: ' Turkey Day ' });
+		const map = observancesForMonth([turkey], 2026, 10);
+		expect(day(map, 26)[0]).toMatchObject({
+			name: 'Turkey Day',
+			holiday: 'Thanksgiving Day',
+			local: 'federal',
+			school: 'none'
+		});
+		// the other holidays keep their names
+		expect(day(map, 27)[0].name).toBe('Day after Thanksgiving Day');
+		expect(holidaySettings([turkey]).get('Thanksgiving Day')?.displayName).toBe('Turkey Day');
+	});
+
+	it('adds " (observed)" on the weekday off (Veterans Day 2028 is on a Saturday)', () => {
+		const vets = record({ name: 'Veterans Day', display_name: 'Thank a Veteran Day' });
+		const map = observancesForMonth([vets], 2028, 10);
+		expect(day(map, 10)[0]).toMatchObject({
+			name: 'Thank a Veteran Day (observed)',
+			holiday: 'Veterans Day',
+			observed: true
+		});
+		expect(day(map, 11)[0].name).toBe('Thank a Veteran Day');
+	});
+
+	it('is only used while "Use these changes" is on; the empty name leaves the built-in one', () => {
+		const off = record({ name: 'Thanksgiving Day', display_name: 'Turkey Day', is_active: false });
+		expect(day(observancesForMonth([off], 2026, 10), 26)[0].name).toBe('Thanksgiving Day');
+		expect(holidaySettings([off]).get('Thanksgiving Day')?.displayName).toBe('');
+		const blank = record({ name: 'Thanksgiving Day', display_name: '   ' });
+		expect(day(observancesForMonth([blank], 2026, 10), 26)[0].name).toBe('Thanksgiving Day');
+		// a record that never had the field (PocketBase before the migration)
+		const old = record({ name: 'Thanksgiving Day', school: 'short' });
+		delete old.display_name;
+		expect(day(observancesForMonth([old], 2026, 10), 26)[0]).toMatchObject({
+			name: 'Thanksgiving Day',
+			school: 'short'
+		});
+	});
+
+	it('adds up several records oldest first: an empty name leaves the older one alone', () => {
+		const older = record({
+			name: 'Thanksgiving Day',
+			display_name: 'Turkey Day',
+			created: '2026-01-01 00:00:00.000Z'
+		});
+		const newer = record({
+			name: 'Thanksgiving Day',
+			school: 'short',
+			created: '2026-02-01 00:00:00.000Z'
+		});
+		expect(day(observancesForMonth([newer, older], 2026, 10), 26)[0]).toMatchObject({
+			name: 'Turkey Day',
+			school: 'short'
+		});
+		const newest = record({
+			name: 'Thanksgiving Day',
+			display_name: 'Feast Day',
+			created: '2026-03-01 00:00:00.000Z'
+		});
+		expect(day(observancesForMonth([newest, newer, older], 2026, 10), 26)[0].name).toBe(
+			'Feast Day'
+		);
+	});
+
+	it('is not used by a hidden holiday, nor by your own days', () => {
+		const hidden = record({ name: 'Thanksgiving Day', display_name: 'Turkey Day', hidden: true });
+		expect(day(observancesForMonth([hidden], 2026, 10), 26)).toEqual([]);
+		const own = record({ name: 'Fair', dates: ['2026-11-19'], display_name: 'Other' });
+		expect(day(observancesForMonth([own], 2026, 10), 19)[0].name).toBe('Fair');
+	});
+});
