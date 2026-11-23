@@ -313,12 +313,17 @@
 
 	/**
 	 * The day built is in the list (or an Edit is over): what the choices show isn't waiting to be
-	 * added any more, and the rule box is emptied.
+	 * added any more. The rule box is emptied, and so is the date an Edit filled in.
 	 */
-	function doneBuilding(words: string) {
+	function clearBuilder() {
+		if (editing && kind === 'date') resetDay();
 		editing = null;
 		touched = false;
 		if (kind === 'advanced') advanced = '';
+	}
+
+	function doneBuilding(words: string) {
+		clearBuilder();
 		problem = '';
 		message = words;
 	}
@@ -380,6 +385,8 @@
 
 	/** Puts a rule (or an entry written in the dashboard) into the choices, to change it. */
 	function edit(entry: DayEntry) {
+		// Another day's change that wasn't saved is dropped (that day stays as it was).
+		clearBuilder();
 		const text = entry.kind === 'rule' ? entry.rule : entry.kind === 'other' ? entry.text : '';
 		const spec = entry.kind === 'rule' ? parseRule(entry.rule) : null;
 		if (spec) fill(spec);
@@ -515,7 +522,8 @@
 
 	async function removeAt(index: number) {
 		const entry = entries[index];
-		if (editing && editing.key === keyOf(entry)) editing = null;
+		// Removing the day being changed ends the change.
+		if (editing && editing.key === keyOf(entry)) clearBuilder();
 		onChange(entries.filter((_, at) => at !== index));
 		problem = '';
 		message = `Removed ${describeEntry(entry)}.`;
