@@ -98,6 +98,8 @@ export interface CalendarMonth {
 	label: string;
 	/** The most days it has. */
 	days: number;
+	/** Some years it has a day less (then its last day rolls over: see dayThirtyNote). */
+	varies: boolean;
 }
 
 export interface OtherCalendar {
@@ -108,39 +110,46 @@ export interface OtherCalendar {
 	months: readonly CalendarMonth[];
 }
 
-const calendarMonth = (rule: string, days = 30, name = rule, label = name): CalendarMonth => ({
-	rule,
-	name,
-	label,
-	days
-});
+/** A month of 30 days, or 29 in some years, called by its rule's name, unless told otherwise. */
+const calendarMonth = (
+	rule: string,
+	{ days = 30, varies = true, name = rule, label = name }: Partial<Omit<CalendarMonth, 'rule'>> = {}
+): CalendarMonth => ({ rule, name, label, days, varies });
 
 /**
  * The calendars date-holidays can work out, with their month names as its parser writes them.
  * Hebrew months are listed from Tishrei (Rosh Hashanah), as Jewish calendars usually are.
- * Hebrew, Islamic and Chinese months have 29 or 30 days: a 30th that a month doesn't have that
- * year rolls over to the 1st of the next month (see dayThirtyNote).
+ * Islamic and Chinese months have 29 or 30 days, depending on the year: a 30th that a month
+ * doesn't have that year rolls over to the 1st of the next month (see dayThirtyNote). Hebrew
+ * months have a set length, except Cheshvan, Kislev and Adar (Adar I has 30 days in a leap year,
+ * Adar 29 in the others); date-holidays rolls a 30th of a 29-day month over every year, so
+ * "30 Elul" would just be 1 Tishrei: those months only offer 29 days (rules.spec.ts checks it).
  */
 export const CALENDARS: Record<CalendarId, OtherCalendar> = {
 	hebrew: {
 		label: 'Hebrew (Jewish)',
 		name: 'Hebrew calendar',
 		months: [
-			calendarMonth('Tishrei'),
+			calendarMonth('Tishrei', { varies: false }),
 			calendarMonth('Cheshvan'),
 			calendarMonth('Kislev'),
-			calendarMonth('Tevet'),
-			calendarMonth('Shvat'),
+			calendarMonth('Tevet', { days: 29, varies: false }),
+			calendarMonth('Shvat', { varies: false }),
 			// A leap year has two months of Adar. date-holidays' "Adar" is then Adar I, and its
 			// "AdarII" the second (Purim's); in other years both are the one Adar.
-			calendarMonth('Adar', 30, 'Adar', 'Adar (Adar I in a leap year)'),
-			calendarMonth('AdarII', 30, 'Adar II', 'Adar II (in other years: Adar)'),
-			calendarMonth('Nisan'),
-			calendarMonth('Iyyar', 30, 'Iyar'),
-			calendarMonth('Sivan'),
-			calendarMonth('Tamuz'),
-			calendarMonth('Av'),
-			calendarMonth('Elul')
+			calendarMonth('Adar', { label: 'Adar (Adar I in a leap year)' }),
+			calendarMonth('AdarII', {
+				days: 29,
+				varies: false,
+				name: 'Adar II',
+				label: 'Adar II (in other years: Adar)'
+			}),
+			calendarMonth('Nisan', { varies: false }),
+			calendarMonth('Iyyar', { days: 29, varies: false, name: 'Iyar' }),
+			calendarMonth('Sivan', { varies: false }),
+			calendarMonth('Tamuz', { days: 29, varies: false }),
+			calendarMonth('Av', { varies: false }),
+			calendarMonth('Elul', { days: 29, varies: false })
 		]
 	},
 	islamic: {
@@ -166,7 +175,7 @@ export const CALENDARS: Record<CalendarId, OtherCalendar> = {
 		name: 'Chinese lunar calendar',
 		// Leap months are left out: the days people keep are in the ordinary ones.
 		months: Array.from({ length: 12 }, (_, index) =>
-			calendarMonth(String(index + 1).padStart(2, '0'), 30, `${ordinal(index + 1)} month`)
+			calendarMonth(String(index + 1).padStart(2, '0'), { name: `${ordinal(index + 1)} month` })
 		)
 	},
 	persian: {
@@ -185,7 +194,10 @@ export const CALENDARS: Record<CalendarId, OtherCalendar> = {
 			'Dey',
 			'Bahman',
 			'Esfand'
-		].map((name, index) => calendarMonth(name, index < 6 ? 31 : 30))
+		].map((name, index) =>
+			// Esfand has a 30th only in a leap year.
+			calendarMonth(name, { days: index < 6 ? 31 : 30, varies: name === 'Esfand' })
+		)
 	}
 };
 export const CALENDAR_IDS = Object.keys(CALENDARS) as CalendarId[];
@@ -399,14 +411,13 @@ export function describeRule(spec: RuleSpec): string {
 }
 
 /**
- * Why a day 30 may not come every year ('' when it does): Hebrew, Islamic and Chinese months
- * have 29 days in some years, and Esfand has 30 only in a leap year.
+ * Why a day 30 may not come every year ('' when it does): Islamic and Chinese months, and the
+ * Hebrew Cheshvan, Kislev and Adar, have 29 days in some years, and Esfand has 30 only in a leap
+ * year. (A month that always has 29 days doesn't offer a 30th.)
  */
 export function dayThirtyNote(calendar: CalendarId, monthRule: string, day: number): string {
-	const rolls =
-		(day === 30 && calendar !== 'persian') ||
-		(calendar === 'persian' && monthRule === 'Esfand' && day === 30);
-	return rolls
+	const month = CALENDARS[calendar].months.find((m) => m.rule === monthRule);
+	return month?.varies && day === month.days
 		? 'Some years this month has no day 30: then the calendar shows the day after (the 1st of the next month).'
 		: '';
 }

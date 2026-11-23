@@ -375,12 +375,71 @@ describe('a date in another calendar', () => {
 
 	it('warns about a day 30 that some years do not have', () => {
 		expect(dayThirtyNote('hebrew', 'Cheshvan', 30)).toMatch(/no day 30/);
+		expect(dayThirtyNote('hebrew', 'Kislev', 30)).toMatch(/no day 30/);
+		expect(dayThirtyNote('hebrew', 'Adar', 30)).toMatch(/no day 30/);
 		expect(dayThirtyNote('chinese', '12', 30)).toMatch(/no day 30/);
+		expect(dayThirtyNote('islamic', 'Muharram', 30)).toMatch(/no day 30/);
 		expect(dayThirtyNote('islamic', 'Ramadan', 29)).toBe('');
 		expect(dayThirtyNote('persian', 'Mehr', 30)).toBe('');
 		expect(dayThirtyNote('persian', 'Esfand', 30)).toMatch(/no day 30/);
 		expect(CALENDARS.persian.months[0].days).toBe(31);
 		expect(CALENDARS.persian.months[11].days).toBe(30);
+		// Hebrew months that always have a 30th: no warning.
+		for (const month of ['Tishrei', 'Shvat', 'Nisan', 'Sivan', 'Av'])
+			expect(dayThirtyNote('hebrew', month, 30), month).toBe('');
+	});
+
+	it("doesn't offer a Hebrew 30th that never comes: Tevet, Adar II, Iyar, Tamuz and Elul have 29 days", () => {
+		const hebrew = Object.fromEntries(CALENDARS.hebrew.months.map((m) => [m.rule, m.days]));
+		expect(hebrew).toEqual({
+			Tishrei: 30,
+			Cheshvan: 30,
+			Kislev: 30,
+			Tevet: 29,
+			Shvat: 30,
+			Adar: 30,
+			AdarII: 29,
+			Nisan: 30,
+			Iyyar: 29,
+			Sivan: 30,
+			Tamuz: 29,
+			Av: 30,
+			Elul: 29
+		});
+		// date-holidays rolls such a 30th over every year: "30 Elul" is just Rosh Hashanah.
+		expect(checkRule('30 Elul', TODAY).days).toEqual(checkRule('1 Tishrei', TODAY).days);
+		expect(dayThirtyNote('hebrew', 'Elul', 29)).toBe('');
+	});
+
+	it('says which months vary as date-holidays works them out', () => {
+		// Each month's last day offered, over the next 10 years: does it ever (or always) roll
+		// over to the 1st of a month?
+		for (const calendar of CALENDAR_IDS) {
+			const months = CALENDARS[calendar].months;
+			const firsts = new Set(
+				months.flatMap(
+					(m) =>
+						checkRule(ruleText({ kind: 'calendar', calendar, month: m.rule, day: 1 }), TODAY).days
+				)
+			);
+			for (const month of months) {
+				const last = ruleText({ kind: 'calendar', calendar, month: month.rule, day: month.days });
+				const days = checkRule(last, TODAY).days;
+				const rolled = days.filter((d) => firsts.has(d)).length;
+				if (month.varies) {
+					expect(rolled, `${last} rolls over some years`).toBeGreaterThan(0);
+					expect(rolled, `${last} is a day of its month some years`).toBeLessThan(days.length);
+				} else expect(rolled, `${last} never rolls over`).toBe(0);
+				// A 29-day month's 30th would always roll over.
+				if (month.days === 29) {
+					const thirty = checkRule(`30 ${month.rule}`, TODAY).days;
+					expect(
+						thirty.every((d) => firsts.has(d)),
+						`30 ${month.rule}`
+					).toBe(true);
+				}
+			}
+		}
 	});
 });
 
@@ -424,6 +483,9 @@ describe('parseRule', () => {
 			'chinese 01-1-01',
 			'chinese 1-0-1',
 			'31 Tishrei',
+			'30 Elul',
+			'30 AdarII',
+			'30 Tevet',
 			'0 Nisan',
 			'05 Nisan',
 			'32 Farvardin',
