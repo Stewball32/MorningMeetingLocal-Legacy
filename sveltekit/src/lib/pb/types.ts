@@ -25,6 +25,8 @@ export interface Person extends RecordModel {
 	avatar?: string; // file name in this record's storage
 	is_guest: boolean; // only offered in the guest list, never on the student/teacher pages
 	active: boolean; // false hides the person everywhere on the slides
+	/** 'MM-DD' (no year), shown on the calendar every year while active; '' for none. */
+	birthday?: string;
 }
 
 export interface DailyRecord extends RecordModel {
@@ -79,6 +81,8 @@ export interface CalendarObservance extends RecordModel {
 	image: string; // file name of its own picture in this record's storage; '' for none
 	icon?: string; // IconRecord.id, the picture to show when it has none of its own; '' for none
 	hidden?: boolean; // on a built-in holiday's settings: hide that holiday from the calendar
+	/** On a built-in holiday's settings: the name the calendar shows instead; '' for its own. */
+	display_name?: string;
 	exceptions?: unknown; // an unused JSON field (null)
 	/** The school day: 'none' (No School!), 'short' (Short Day!), 'full'; '' when never set. */
 	school: 'full' | 'short' | 'none' | '';
