@@ -169,6 +169,56 @@ describe('upcomingDays', () => {
 	});
 });
 
+describe('the Calendar Observances tile, with movable days, another name and birthdays', () => {
+	const record = (id: number, fields: Partial<CalendarObservance>) =>
+		({
+			id: `rec${String(id).padStart(12, '0')}`,
+			collectionId: 'pbc_326962381',
+			collectionName: 'calendar_observances',
+			created: `2026-01-01 00:00:0${id}.000Z`,
+			updated: '',
+			name: '',
+			display_name: '',
+			description: '',
+			is_active: true,
+			dates: [],
+			image: '',
+			icon: '',
+			hidden: false,
+			school: '',
+			...fields
+		}) as CalendarObservance;
+	const records = [
+		record(1, { name: 'Thanksgiving Day', display_name: 'Turkey Day' }),
+		record(2, { name: 'Family Feast', dates: ['4th Thursday in November'] }),
+		record(3, { name: 'Leftovers Day', dates: ['Friday after 4th Thursday in November'] })
+	];
+	const today = new Date(2026, 10, 22, 9, 30); // Sun Nov 22, 2026
+
+	it('lists the days as the slide shows them, and the next birthday on its own line', () => {
+		// What Home does: the observances without people, then the birthdays apart.
+		const november = [...observancesForMonth(records, 2026, 10).values()].flat();
+		expect(upcomingDays(november, today).map((d) => [d.date.getDate(), d.names, d.school])).toEqual(
+			[
+				[26, ['Turkey Day (Thanksgiving Day)', 'Family Feast'], 'none'],
+				[27, ['Day after Thanksgiving Day', 'Leftovers Day'], 'full']
+			]
+		);
+		const people = [
+			{
+				id: 'per000000000001',
+				collectionId: 'pbc_1795321340',
+				name: 'Bluey',
+				title: '',
+				avatar: '',
+				active: true,
+				birthday: '11-26'
+			}
+		];
+		expect(nextBirthdaySummary(people, today)).toBe('Next birthday: Bluey, Thu, Nov 26');
+	});
+});
+
 describe('nextBirthdaySummary', () => {
 	const today = new Date(2026, 10, 22, 9, 30);
 	const person = (name: string, birthday: string, fields = {}) => ({

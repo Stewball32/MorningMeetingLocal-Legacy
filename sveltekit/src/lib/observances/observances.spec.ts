@@ -347,6 +347,67 @@ describe('comingUp', () => {
 	});
 });
 
+describe('movable days, other names and birthdays together', () => {
+	const turkey = record({ name: 'Thanksgiving Day', display_name: 'Turkey Day' });
+	const feast = record({ name: 'Family Feast', dates: ['4th Thursday in November'] });
+	const leftovers = record({
+		name: 'Leftovers Day',
+		dates: ['Friday after 4th Thursday in November'],
+		school: 'none'
+	});
+	const people = [
+		{
+			id: 'per000000000001',
+			collectionId: 'pbc_1795321340',
+			name: 'Bluey',
+			title: '',
+			avatar: '',
+			active: true,
+			birthday: '11-26'
+		},
+		{
+			id: 'per000000000002',
+			collectionId: 'pbc_1795321340',
+			name: 'Smith',
+			title: 'Mr.',
+			avatar: '',
+			active: true,
+			birthday: '11-25'
+		}
+	];
+
+	it('come up on their real days, in the order the slide shows them', () => {
+		const days = comingUp([turkey, feast, leftovers], TODAY, noIcons, 6, people);
+		expect(
+			days.map(
+				(day) =>
+					`${dayString(day.date)} ${day.school} ${day.observances.map((o) => [o.name, builtInNameOf(o)].filter(Boolean).join(' · ')).join(', ')}`
+			)
+		).toEqual([
+			"2026-11-25 full Mr. Smith's Birthday",
+			"2026-11-26 none Turkey Day · Thanksgiving Day, Family Feast, Bluey's Birthday",
+			'2026-11-27 none Day after Thanksgiving Day, Leftovers Day'
+		]);
+	});
+
+	it('put the movable days with the days to come, at their next day, none of them unreadable', () => {
+		const groups = ownGroups([turkey, leftovers, feast], holidays, TODAY);
+		expect(
+			groups.upcoming.map((row) => [row.record.name, dayString(row.next!), row.unreadable])
+		).toEqual([
+			['Family Feast', '2026-11-26', 0],
+			['Leftovers Day', '2026-11-27', 0]
+		]);
+		// the settings record is the built-in holiday's, not one of your own days
+		expect(groups.past).toEqual([]);
+		expect(groups.attention).toEqual([]);
+		const row = builtInRows(holidays, [turkey], TODAY, noIcons).find(
+			(r) => r.holiday.name === 'Thanksgiving Day'
+		)!;
+		expect([row.displayName, row.record?.id]).toEqual(['Turkey Day', turkey.id]);
+	});
+});
+
 describe('slug', () => {
 	it('makes a safe key', () => {
 		expect(slug("New Year's Day")).toBe('new-year-s-day');

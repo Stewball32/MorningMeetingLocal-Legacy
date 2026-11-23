@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { PUBLIC_POCKETBASE_URL } from '$app/env/public';
 import Holidays from 'date-holidays';
 import {
@@ -488,5 +488,73 @@ describe('birthdays on the month page', () => {
 	it("don't change the day's school badge", () => {
 		const map = observancesForMonth([], 2026, 10, undefined, [person({ birthday: '11-27' })]);
 		expect(day(map, 27).map((h) => h.school)).toEqual(['full', 'full']);
+	});
+});
+
+describe('movable days, other names and birthdays on one day', () => {
+	// Thanksgiving is Thu Nov 26 in 2026 and Thu Nov 25 in 2027, so the class's movable days and
+	// the birthdays (always Nov 25 and 26) meet the built-in holidays on different days each year.
+	const turkey = record({ name: 'Thanksgiving Day', display_name: 'Turkey Day' });
+	const feast = record({ name: 'Family Feast', dates: ['4th Thursday in November'] });
+	const leftovers = record({
+		name: 'Leftovers Day',
+		dates: ['Friday after 4th Thursday in November'],
+		school: 'none'
+	});
+	const people: BirthdayPerson[] = [
+		{
+			id: 'per000000000001',
+			collectionId: 'pbc_1795321340',
+			name: 'Bluey',
+			title: '',
+			avatar: '',
+			active: true,
+			birthday: '11-26'
+		},
+		{
+			id: 'per000000000002',
+			collectionId: 'pbc_1795321340',
+			name: 'Smith',
+			title: 'Mr.',
+			avatar: '',
+			active: true,
+			birthday: '11-25'
+		}
+	];
+	const shown = (year: number, date: number) =>
+		day(observancesForMonth([turkey, feast, leftovers], year, 10, undefined, people), date).map(
+			(h) => `${h.name} (${h.local}${h.holiday ? `, ${h.holiday}` : ''}) [${h.school}]`
+		);
+
+	it('lists the built-in holiday by its other name, then your own days, then the birthdays', () => {
+		expect(shown(2026, 25)).toEqual(["Mr. Smith's Birthday (birthday) [full]"]);
+		expect(shown(2026, 26)).toEqual([
+			'Turkey Day (federal, Thanksgiving Day) [none]',
+			'Family Feast (local) [full]',
+			"Bluey's Birthday (birthday) [full]"
+		]);
+		expect(shown(2026, 27)).toEqual([
+			'Day after Thanksgiving Day (federal, Day after Thanksgiving Day) [full]',
+			'Leftovers Day (local) [none]'
+		]);
+		expect(shown(2027, 25)).toEqual([
+			'Turkey Day (federal, Thanksgiving Day) [none]',
+			'Family Feast (local) [full]',
+			"Mr. Smith's Birthday (birthday) [full]"
+		]);
+		expect(shown(2027, 26)).toEqual([
+			'Day after Thanksgiving Day (federal, Day after Thanksgiving Day) [full]',
+			'Leftovers Day (local) [none]',
+			"Bluey's Birthday (birthday) [full]"
+		]);
+	});
+
+	it("still shows the birthdays and the holiday's other name next to a rule it can't use", () => {
+		const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const broken = record({ name: 'Broken', dates: ['since 2027', '11-26'] });
+		const map = observancesForMonth([turkey, broken], 2026, 10, undefined, people);
+		expect(day(map, 26).map((h) => h.name)).toEqual(['Turkey Day', 'Broken', "Bluey's Birthday"]);
+		expect(log).toHaveBeenCalledWith('could not work out rule: since 2027');
+		log.mockRestore();
 	});
 });
