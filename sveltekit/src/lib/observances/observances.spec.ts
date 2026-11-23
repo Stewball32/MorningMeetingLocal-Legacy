@@ -7,6 +7,7 @@ import {
 	builtInRows,
 	comingUp,
 	iconLookup,
+	nextDayLabel,
 	ownGroups,
 	scheduleText,
 	schoolOf,
@@ -176,7 +177,7 @@ describe('ownGroups', () => {
 		const today = record({ name: 'Today', dates: ['2026-11-22'] });
 		const past = record({ name: 'Picture Day', dates: ['2026-09-10', '2026-10-01'] });
 		const older = record({ name: 'Old', dates: ['2025-05-01'] });
-		const odd = record({ name: 'Easter week', dates: ['easter -2'] });
+		const odd = record({ name: 'Odd', dates: [42] as unknown as string[] });
 		const orphan = record({ name: 'day after thanksgiving day' });
 		const settings = record({ name: 'Veterans Day', school: 'short' });
 		const duplicate = record({ name: 'Veterans Day', created: '2025-01-01 00:00:00.000Z' });
@@ -190,13 +191,60 @@ describe('ownGroups', () => {
 			'Minimum Day',
 			'Field Trip',
 			'Book Fair',
-			'Easter week'
+			'Odd'
 		]);
+		// The calendar can't read it: it stays with the days to come, to be fixed.
 		expect(groups.upcoming.at(-1)?.unreadable).toBe(1);
 		expect(groups.past.map((r) => r.record.name)).toEqual(['Picture Day', 'Old']);
 		expect(groups.attention.map((r) => r.record.id)).toEqual([duplicate.id, orphan.id]);
 		expect(groups.attention[1].reason).toMatch(/no built-in holiday is called/);
 		expect(groups.attention[0].reason).toMatch(/Another set of changes to Veterans Day/);
+	});
+
+	it('puts rules at their real next day, read or not by the editor, and only unreadable ones apart', () => {
+		const goodFriday = record({ name: 'Good Friday', dates: ['easter -2'] }); // Fri Mar 26, 2027
+		const mlk = record({ name: 'Teacher Day', dates: ['1st Tuesday in May'] }); // Tue May 4, 2027
+		const even = record({ name: 'Even', dates: ['03-02 in even years'] }); // Thu Mar 2, 2028
+		const soon = record({
+			name: 'Soon',
+			dates: ['2026-12-01', 'Wednesday before 4th Thursday in November']
+		});
+		const gone = record({ name: 'Gone', dates: ['11-20 prior to 2020'] });
+		const broken = record({ name: 'Broken', dates: ['nonsense', 'easter -2'] });
+		const groups = ownGroups([goodFriday, mlk, even, soon, gone, broken], holidays, TODAY);
+		expect(
+			groups.upcoming.map((r) => `${r.record.name} ${r.next && dayString(r.next)} ${r.unreadable}`)
+		).toEqual([
+			'Soon 2026-11-25 0',
+			'Broken 2027-03-26 1',
+			'Good Friday 2027-03-26 0',
+			'Teacher Day 2027-05-04 0',
+			'Even 2028-03-02 0'
+		]);
+		expect(groups.past.map((r) => r.record.name)).toEqual(['Gone']);
+		expect(scheduleText(groups.upcoming[2].entries)).toBe('Every year 2 days before Easter Sunday');
+		expect(scheduleText(groups.upcoming[0].entries)).toBe(
+			'Tue, Dec 1, 2026 · Every year on the Wednesday before the 4th Thursday in November'
+		);
+	});
+
+	it('gives a next day a year or more away its year', () => {
+		expect(nextDayLabel(new Date(2026, 10, 23), TODAY)).toBe('Tomorrow');
+		expect(nextDayLabel(new Date(2027, 10, 21), TODAY)).toBe('Sun, Nov 21');
+		expect(nextDayLabel(new Date(2027, 10, 22), TODAY)).toBe('Mon, Nov 22, 2027');
+		expect(nextDayLabel(new Date(2040, 10, 20), TODAY)).toBe('Tue, Nov 20, 2040');
+	});
+
+	it("doesn't call a dashboard rule that starts after the next 10 years past", () => {
+		const later = record({ name: 'Later', dates: ['11-20 since 2040'] });
+		const old = record({ name: 'Old rule', dates: ['2015-05-04 if Saturday then next Monday'] });
+		const groups = ownGroups([later, old], holidays, TODAY);
+		expect(groups.upcoming.map((r) => `${r.record.name} ${r.next && dayString(r.next)}`)).toEqual([
+			'Later 2040-11-20'
+		]);
+		expect(groups.upcoming[0].unreadable).toBe(0);
+		// So "Delete all past observances" leaves it.
+		expect(groups.past.map((r) => r.record.name)).toEqual(['Old rule']);
 	});
 
 	it('keeps a day earlier this month with the days to come: the month page still shows it', () => {

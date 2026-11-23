@@ -53,7 +53,7 @@
 		type PictureChoice
 	} from './form.ts';
 	import IconChoice from './IconChoice.svelte';
-	import { OBSERVANCE_ERRORS, SCHOOL_LABEL, settingsRecordsFor } from './observances.ts';
+	import { nextDay, OBSERVANCE_ERRORS, SCHOOL_LABEL, settingsRecordsFor } from './observances.ts';
 
 	interface Props {
 		/** The record to edit, or null to add one. */
@@ -207,11 +207,9 @@
 	);
 	const previewDay = $derived.by(() => {
 		if (values.kind === 'builtin') return (builtIn && nextDayOf(builtIn.name)) || today;
-		const start = startOfDay(today);
-		const days = values.entries
-			.flatMap((entry) => (entry.kind === 'other' ? [] : [dayDate(entry.day)]))
-			.sort((a, b) => a.getTime() - b.getTime());
-		return days.find((day) => day >= start) ?? days[days.length - 1] ?? today;
+		// Its next day (rules too), else its last one-time day.
+		const once = values.entries.flatMap((entry) => (entry.kind === 'once' ? [entry.day] : []));
+		return nextDay(values.entries, today) ?? (once.length ? dayDate(once.sort().at(-1)!) : today);
 	});
 	const pictureWords = $derived(
 		values.picture === 'upload'
@@ -243,7 +241,16 @@
 		['holiday', () => [`[id="${id('holiday')}"]`]],
 		['displayName', () => [`[id="${id('display-name')}"]`]],
 		['name', () => [`[id="${id('name')}"]`]],
-		['entries', () => ['[data-days] [data-pending]', '[data-days] input[type="date"]']],
+		[
+			'entries',
+			() => [
+				// The Add button of what is waiting, else the kind of day that has it.
+				'[data-days] button[data-pending]',
+				'[data-days] [data-pending]',
+				'[data-days] input[type="date"]',
+				'[data-days] [data-days-first]'
+			]
+		],
 		['school', () => ['[data-school] [data-state="checked"] input', '[data-school] input']],
 		['icon', () => ['[data-icon-choice] input:checked', '[data-icon-choice] input']],
 		['image', () => ['[data-upload] button:not(:disabled)']]
@@ -263,6 +270,8 @@
 	const hasUpload = () => picture instanceof File || (!!original?.image && picture === undefined);
 
 	let daysEditor: ReturnType<typeof DaysEditor> | undefined = $state();
+	/** The name the last quick pick filled in ('' when none did). */
+	let pickedName = '';
 	/** A day picked in the days list but not added yet ('' when none; see DaysEditor). */
 	const pendingDays = () => (values.kind === 'custom' ? (daysEditor?.pendingPick() ?? '') : '');
 
@@ -562,6 +571,15 @@
 					onChange={(entries: DayEntry[]) => {
 						values.entries = entries;
 						clearError('entries');
+					}}
+					onPickName={(name) => {
+						// A quick pick names the day, unless it has a name already (one an earlier
+						// quick pick gave it is replaced: the teacher changed their mind).
+						const current = values.name.trim();
+						if (current && current !== pickedName) return;
+						values.name = name;
+						pickedName = name;
+						clearError('name');
 					}}
 					{today}
 					disabled={saving}

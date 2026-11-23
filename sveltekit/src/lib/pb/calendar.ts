@@ -15,6 +15,7 @@
 // Dates: date-holidays' `date` strings ('YYYY-MM-DD hh:mm:ss') are read as local days. Never use
 // its `start`: US holidays are computed in New York time.
 import { birthdaysForMonth, getBirthdayPeople, type BirthdayPerson } from '#lib/birthdays.ts';
+import { ruleHolidays } from '#lib/observances/rules.ts';
 import { getPbImageUrl, pb } from '#lib/pb/index.ts';
 import { watchCollection, type CollectionWatch } from '#lib/pb/live.ts';
 import type { CalendarObservance, IconRecord } from '#lib/pb/types.ts';
@@ -262,23 +263,19 @@ function ownDays(
 	month: number,
 	iconOf: IconLookup
 ): Holiday[] {
-	const days = new Holidays();
 	const image = observancePicture(record, iconOf(record));
-	for (const rule of rawDates(record)) {
-		if (typeof rule !== 'string') continue;
-		days.setHoliday(rule, {
-			name: record.name,
-			type: 'school',
-			description: record.description || '',
-			image,
-			local: 'local',
-			school: record.school || 'full',
-			recordId: record.id
-		} as HolidaysTypes.HolidayOptions);
-	}
-	return days
-		.getHolidays(year)
-		.filter((h) => !h.substitute && localDay(h.date).getMonth() === month)
+	// Worked out like the Days editor's next dates (ruleHolidays): no substitute days.
+	const rules = rawDates(record).filter((rule): rule is string => typeof rule === 'string');
+	return ruleHolidays(rules, year, {
+		name: record.name,
+		type: 'school',
+		description: record.description || '',
+		image,
+		local: 'local',
+		school: record.school || 'full',
+		recordId: record.id
+	} as HolidaysTypes.HolidayOptions)
+		.filter((h) => localDay(h.date).getMonth() === month)
 		.map((h) => ({ ...h, dateObj: localDay(h.date) }) as Holiday);
 }
 

@@ -40,6 +40,7 @@
 		comingUp,
 		COMING_UP_DAYS,
 		iconLookup,
+		nextDayLabel,
 		OBSERVANCE_ERRORS,
 		ownGroups,
 		schoolOf,
@@ -368,11 +369,11 @@
 	/** "next: Tomorrow" / "next: Thu, Nov 26" when its days don't already say so (one day only). */
 	const nextText = (row: OwnRow) =>
 		row.next && (row.entries.length > 1 || row.entries[0]?.kind !== 'once')
-			? `next: ${dayLabel(row.next, today)}`
+			? `next: ${nextDayLabel(row.next, today)}`
 			: '';
 	const unreadableText = (row: OwnRow) =>
 		row.unreadable > 0
-			? `${plural(row.unreadable, 'day was', 'days were')} saved outside this editor in a form it doesn't read. The calendar may still show ${row.unreadable === 1 ? 'it' : 'them'}; check with Edit.`
+			? `${plural(row.unreadable, 'day was', 'days were')} saved outside this editor in a form the calendar can't read, so it doesn't show ${row.unreadable === 1 ? 'it' : 'them'}. Fix or remove ${row.unreadable === 1 ? 'it' : 'them'} with Edit.`
 			: '';
 </script>
 

@@ -74,8 +74,10 @@ export interface CalendarObservance extends RecordModel {
 	description: string; // notes for the teacher; not shown on the slides
 	is_active: boolean; // false: the record is ignored (PocketBase's default)
 	/**
-	 * 'YYYY-MM-DD' (that year only) or 'MM-DD' (every year). Empty for a built-in holiday's
-	 * settings; PocketBase returns null for a record whose dates were never set.
+	 * date-holidays rules: 'YYYY-MM-DD' (that year only), 'MM-DD' (every year), or another rule
+	 * (e.g. '3rd Monday in January', 'easter -2', '15 Nisan'; see #lib/observances/rules.ts).
+	 * Empty for a built-in holiday's settings; PocketBase returns null for a record whose dates
+	 * were never set.
 	 */
 	dates: string[];
 	image: string; // file name of its own picture in this record's storage; '' for none
