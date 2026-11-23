@@ -1,5 +1,6 @@
 // Pure helpers for the Calendar Observances page: the sections it shows, worked out from the
 // records the same way the calendar slide does (#lib/pb/calendar.ts).
+import type { BirthdayPerson } from '#lib/birthdays.ts';
 import type { DescribeOptions } from '#lib/editor/errors.ts';
 import { compareByName, plural } from '#lib/editor/list.ts';
 import {
@@ -8,6 +9,7 @@ import {
 	holidaySettings,
 	isSameHolidayName,
 	isSettingsRecord,
+	OBSERVED_SUFFIX,
 	observancesForMonth,
 	rawDates,
 	type BuiltInHoliday,
@@ -89,6 +91,17 @@ export function iconLookup(icons: readonly IconRecord[]): IconLookup {
 	};
 }
 
+/**
+ * For a built-in holiday the slide shows under another name ("Turkey Day"): its own name, shown
+ * next to it ("Turkey Day · Thanksgiving Day"). '' when it shows under its own name, and for
+ * anything that isn't a built-in holiday.
+ */
+export function builtInNameOf(observance: Pick<Holiday, 'name' | 'holiday' | 'observed'>): string {
+	if (!observance.holiday) return '';
+	const own = observance.holiday + (observance.observed ? OBSERVED_SUFFIX : '');
+	return observance.name === own ? '' : observance.holiday;
+}
+
 /** For data-* attributes and ids: "Veterans Day" -> "veterans-day". */
 export const slug = (name: string) =>
 	name
@@ -132,6 +145,8 @@ export interface BuiltInRow {
 	record: CalendarObservance | undefined;
 	/** More settings records for it (made in the PocketBase dashboard); they count too. */
 	extra: CalendarObservance[];
+	/** The name the slide shows instead of the holiday's own; '' for its own. */
+	displayName: string;
 	/** As the slide shows it. */
 	school: School;
 	hidden: boolean;
@@ -182,6 +197,7 @@ export function builtInRows(
 			next,
 			record,
 			extra,
+			displayName: changes?.displayName ?? '',
 			school: schoolOf(changes?.school ?? '', holiday.school),
 			hidden: !!changes?.hidden,
 			picture: changes?.image ?? '',
@@ -305,14 +321,15 @@ export interface ComingDay {
 }
 
 /**
- * The days from today to `days` days ahead with something on the calendar (built-in holidays
- * and the class's own days together), as the slide shows them.
+ * The days from today to `days` days ahead with something on the calendar (built-in holidays,
+ * the class's own days and the birthdays of `people` together), as the slide shows them.
  */
 export function comingUp(
 	records: readonly CalendarObservance[],
 	today: Date,
 	iconOf: IconLookup,
-	days = COMING_UP_DAYS
+	days = COMING_UP_DAYS,
+	people: readonly BirthdayPerson[] = []
 ): ComingDay[] {
 	const start = startOfDay(today);
 	const end = addDays(start, days);
@@ -322,7 +339,7 @@ export function comingUp(
 		month < end;
 		month = new Date(month.getFullYear(), month.getMonth() + 1, 1)
 	) {
-		const map = observancesForMonth(records, month.getFullYear(), month.getMonth(), iconOf);
+		const map = observancesForMonth(records, month.getFullYear(), month.getMonth(), iconOf, people);
 		for (const [day, observances] of [...map].sort(([a], [b]) => a - b)) {
 			const date = new Date(month.getFullYear(), month.getMonth(), day);
 			if (date < start || date >= end) continue;

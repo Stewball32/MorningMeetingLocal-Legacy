@@ -1,9 +1,12 @@
 import Holidays from 'date-holidays';
 import { describe, expect, it } from 'vitest';
+import { observancesForMonth } from '#lib/pb/calendar.ts';
+import type { CalendarObservance } from '#lib/pb/types.ts';
 import {
 	dayLabel,
 	iconsSummary,
 	monthsFrom,
+	nextBirthdaySummary,
 	peopleSummary,
 	schoolBadge,
 	upcomingDays,
@@ -111,6 +114,104 @@ describe('upcomingDays', () => {
 		const [first] = upcomingDays(list, today, 1);
 		expect(first.names).toEqual(['Thanksgiving Day']);
 		expect([first.date.getMonth(), first.date.getDate(), first.date.getDay()]).toEqual([10, 26, 4]);
+	});
+
+	it("shows a built-in holiday's other name first, with its own name after it", () => {
+		const days = upcomingDays(
+			[
+				{ ...observed('Turkey Day', day(2026, 11, 26), 'none'), holiday: 'Thanksgiving Day' },
+				{ ...observed('Class Feast', day(2026, 11, 26)) },
+				{ ...observed('Veterans Day', day(2026, 11, 27)), holiday: 'Veterans Day' },
+				{
+					...observed('Vets Day (observed)', day(2026, 11, 30), 'none'),
+					holiday: 'Veterans Day',
+					observed: true
+				}
+			],
+			today
+		);
+		expect(days.map((d) => d.names)).toEqual([
+			['Turkey Day (Thanksgiving Day)', 'Class Feast'],
+			['Veterans Day'],
+			['Vets Day (Veterans Day, observed)']
+		]);
+	});
+
+	it('puts "observed" in the brackets for a renamed holiday\'s weekday off (as the slide names it)', () => {
+		// Independence Day 2026 is on a Saturday: observed on Friday, July 3
+		const fourth = {
+			id: 'rec000000000001',
+			collectionId: 'pbc_326962381',
+			collectionName: 'calendar_observances',
+			created: '2026-01-01 00:00:00.000Z',
+			updated: '',
+			name: 'Independence Day',
+			display_name: 'Fourth of July',
+			description: '',
+			is_active: true,
+			dates: [],
+			image: '',
+			icon: '',
+			hidden: false,
+			school: ''
+		} as CalendarObservance;
+		const july = [...observancesForMonth([fourth], 2026, 6).values()].flat();
+		expect(upcomingDays(july, new Date(2026, 6, 1), 2).map((d) => d.names)).toEqual([
+			['Fourth of July (Independence Day, observed)'],
+			['Fourth of July (Independence Day)']
+		]);
+		// under its own name, it reads as the slide shows it
+		const plain = [...observancesForMonth([], 2026, 6).values()].flat();
+		expect(upcomingDays(plain, new Date(2026, 6, 1), 2).map((d) => d.names)).toEqual([
+			['Independence Day (observed)'],
+			['Independence Day']
+		]);
+	});
+});
+
+describe('nextBirthdaySummary', () => {
+	const today = new Date(2026, 10, 22, 9, 30);
+	const person = (name: string, birthday: string, fields = {}) => ({
+		id: `per${name.padEnd(12, '0')}`,
+		collectionId: 'pbc_1795321340',
+		name,
+		title: '',
+		avatar: '',
+		active: true,
+		birthday,
+		...fields
+	});
+
+	it('names the next birthday and its day', () => {
+		expect(nextBirthdaySummary([person('Bingo', '12-03'), person('Bluey', '11-30')], today)).toBe(
+			'Next birthday: Bluey, Mon, Nov 30'
+		);
+		expect(nextBirthdaySummary([person('Bluey', '11-22')], today)).toBe(
+			'Next birthday: Bluey, today'
+		);
+		expect(nextBirthdaySummary([person('Smith', '11-23', { title: 'Mr.' })], today)).toBe(
+			'Next birthday: Mr. Smith, tomorrow'
+		);
+		// it has passed this year: next year's
+		expect(nextBirthdaySummary([person('Bluey', '11-21')], today)).toBe(
+			'Next birthday: Bluey, Sun, Nov 21'
+		);
+	});
+
+	it('lists everyone who shares it, and counts only active people', () => {
+		expect(
+			nextBirthdaySummary(
+				[
+					person('Muffin', '11-24', { active: false }),
+					person('Bluey', '11-30'),
+					person('Bingo', '11-30'),
+					person('Chilli', '11-30')
+				],
+				today
+			)
+		).toBe('Next birthdays: Bingo, Bluey and Chilli, Mon, Nov 30');
+		expect(nextBirthdaySummary([person('Muffin', '11-24', { active: false })], today)).toBe('');
+		expect(nextBirthdaySummary([], today)).toBe('');
 	});
 });
 

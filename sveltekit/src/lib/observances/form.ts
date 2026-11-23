@@ -4,6 +4,7 @@ import { sameValues, type FieldErrors } from '#lib/editor/form.ts';
 import {
 	findBuiltIn,
 	isSettingsRecord,
+	otherHolidayName,
 	type BuiltInHoliday,
 	type School
 } from '#lib/pb/calendar.ts';
@@ -23,6 +24,8 @@ export interface ObservanceFormValues {
 	kind: Kind;
 	/** The built-in holiday's name ('' until one is chosen). */
 	holiday: string;
+	/** A built-in holiday's name on the calendar ('' for its own name). */
+	displayName: string;
 	/** The name of the class's own day. */
 	name: string;
 	entries: DayEntry[];
@@ -46,7 +49,10 @@ export type FormErrors = FieldErrors<FormField>;
 export type ObservanceFields = Pick<
 	CalendarObservance,
 	'name' | 'school' | 'description' | 'is_active'
-> & { dates: unknown[]; hidden: boolean; icon: string };
+> & { dates: unknown[]; hidden: boolean; icon: string; display_name: string };
+
+/** The most a built-in holiday's name on the calendar can have (the field's max). */
+export const MAX_DISPLAY_NAME = 100;
 
 /** Starting values for a new record (e.g. "Customize" on a built-in holiday). */
 export interface FormPreset {
@@ -63,6 +69,7 @@ export function emptyForm(
 	return {
 		kind: preset.kind ?? (holiday ? 'builtin' : 'custom'),
 		holiday: holiday?.name ?? '',
+		displayName: '',
 		name: '',
 		entries: [],
 		school: holiday?.school ?? 'full',
@@ -88,9 +95,14 @@ export function formFromRecord(
 	today: Date
 ): ObservanceFormValues {
 	const holiday = builtInOf(record, holidays);
+	// || not ??: PocketBase gives '' when it was never set. A record the calendar ignores (no days,
+	// no holiday by its name) keeps the one it holds, in case it is made a holiday's changes; your
+	// own days have none.
+	const saved = isSettingsRecord(record) ? record.display_name || '' : '';
 	return {
 		kind: holiday ? 'builtin' : 'custom',
 		holiday: holiday?.name ?? '',
+		displayName: holiday ? otherHolidayName(saved, holiday.name) : saved.trim(),
 		name: record.name ?? '',
 		entries: entriesOf(record, today),
 		// A school day that was never set ('') means the holiday's own, or a regular day.
@@ -123,6 +135,9 @@ export function validateForm(values: ObservanceFormValues, context: ValidateCont
 		if (!holiday) errors.holiday = 'Please choose the holiday to change.';
 		else if (context.takenBy)
 			errors.holiday = `You've already changed ${holiday.name}. Edit those changes instead.`;
+		// In characters, as PocketBase counts them (an emoji is one).
+		if ([...values.displayName.trim()].length > MAX_DISPLAY_NAME)
+			errors.displayName = `Please keep the name to ${MAX_DISPLAY_NAME} characters or fewer.`;
 	} else {
 		if (!values.name.trim()) errors.name = 'Please enter a name.';
 		if (context.pendingDays) errors.entries = context.pendingDays;
@@ -137,17 +152,26 @@ export function validateForm(values: ObservanceFormValues, context: ValidateCont
 	return errors;
 }
 
+/**
+ * A built-in holiday's name on the calendar as saved: '' when it is left empty or is the
+ * holiday's own name (apostrophes and spaces around it don't count), so it shows as it comes.
+ * The calendar reads a saved one the same way (otherHolidayName).
+ */
+export const displayNameField = (displayName: string, holiday: string): string =>
+	otherHolidayName(displayName, holiday);
+
 /** The record fields for valid form values (run validateForm first). */
 export function fieldsFromForm(
 	values: ObservanceFormValues,
 	holidays: readonly BuiltInHoliday[]
 ): ObservanceFields {
 	const builtIn = values.kind === 'builtin';
+	const holiday = findBuiltIn(holidays, values.holiday)?.name ?? values.holiday;
 	return {
 		// The built-in holiday's name as the slide shows it (plain apostrophes), so it matches.
-		name: builtIn
-			? (findBuiltIn(holidays, values.holiday)?.name ?? values.holiday)
-			: values.name.trim(),
+		name: builtIn ? holiday : values.name.trim(),
+		// Only a built-in holiday has another name: your own day's name is `name`.
+		display_name: builtIn ? displayNameField(values.displayName, holiday) : '',
 		dates: builtIn ? [] : savedDates(values.entries),
 		school: values.school,
 		description: values.notes.trim(),
@@ -155,6 +179,32 @@ export function fieldsFromForm(
 		// Hiding is only for built-in holidays; turning off Show on the calendar hides the class's own.
 		hidden: builtIn ? values.hidden : false,
 		icon: values.picture === 'icon' ? values.icon : ''
+	};
+}
+
+/**
+ * The record as it is saved, in the fields the form writes: to compare with
+ * fieldsFromForm(values), so only what changed is sent (changedFields). These are the fields of
+ * the form's starting values, except the name on the calendar: that is the one the record really
+ * holds, read the way the calendar reads it for the holiday chosen now. The form doesn't always
+ * start with it (a record the calendar ignored, made a holiday's changes), and emptying the field
+ * must still clear it; one that is just the holiday's own name needs no change.
+ */
+export function savedFields(
+	record: CalendarObservance,
+	initial: ObservanceFormValues,
+	values: ObservanceFormValues,
+	holidays: readonly BuiltInHoliday[]
+): ObservanceFields {
+	const before = fieldsFromForm(initial, holidays);
+	const after = fieldsFromForm(values, holidays);
+	return {
+		...before,
+		// Only a built-in holiday's changes use it: for your own day it is left as it is.
+		display_name:
+			values.kind === 'builtin'
+				? otherHolidayName(record.display_name || '', after.name)
+				: after.display_name
 	};
 }
 
@@ -185,6 +235,7 @@ export function sameForm(a: ObservanceFormValues, b: ObservanceFormValues): bool
 export function formFieldOf(kind: Kind): Record<string, FormField> {
 	return {
 		name: kind === 'builtin' ? 'holiday' : 'name',
+		display_name: 'displayName',
 		dates: 'entries',
 		school: 'school',
 		description: 'notes',

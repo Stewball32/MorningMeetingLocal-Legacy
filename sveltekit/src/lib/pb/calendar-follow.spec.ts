@@ -33,11 +33,15 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('followObservances', () => {
-	it('follows observances and icons, and refetches once for a burst of changes', async () => {
+	it('follows observances, icons and people, and refetches once for a burst of changes', async () => {
 		const onChange = vi.fn();
 		const stop = followObservances(onChange);
 		await vi.advanceTimersByTimeAsync(0);
-		expect(watches.map((w) => w.collection).sort()).toEqual(['calendar_observances', 'icons']);
+		expect(watches.map((w) => w.collection).sort()).toEqual([
+			'calendar_observances',
+			'icons',
+			'people'
+		]);
 		// deleting an icon: an icon event and updates of the observances that used it
 		watchOf('icons').watch.onChange(event);
 		watchOf('calendar_observances').watch.onChange(event);
@@ -65,17 +69,28 @@ describe('followObservances', () => {
 	});
 
 	it('tries again while PocketBase is down, then refetches what was missed', async () => {
-		failing = new Set(['calendar_observances', 'icons']);
+		failing = new Set(['calendar_observances', 'icons', 'people']);
 		const onChange = vi.fn();
 		const stop = followObservances(onChange);
 		await vi.advanceTimersByTimeAsync(FOLLOW_RETRY_MS);
 		expect(watches).toHaveLength(0);
 		failing = new Set();
 		await vi.advanceTimersByTimeAsync(FOLLOW_RETRY_MS);
-		expect(watches).toHaveLength(2);
+		expect(watches).toHaveLength(3);
 		await vi.advanceTimersByTimeAsync(FOLLOW_DELAY_MS);
 		expect(onChange).toHaveBeenCalledTimes(1);
 		stop();
+	});
+
+	it('refetches when a birthday changes (a person edited or switched off)', async () => {
+		const onChange = vi.fn();
+		const stop = followObservances(onChange);
+		await vi.advanceTimersByTimeAsync(0);
+		watchOf('people').watch.onChange(event);
+		await vi.advanceTimersByTimeAsync(FOLLOW_DELAY_MS);
+		expect(onChange).toHaveBeenCalledTimes(1);
+		stop();
+		expect(watchOf('people').stop).toHaveBeenCalled();
 	});
 
 	it('stops everything: watches, retries and a pending refetch', async () => {

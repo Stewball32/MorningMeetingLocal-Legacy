@@ -17,6 +17,7 @@
 	import {
 		builtInDays,
 		findBuiltIn,
+		holidaySettings,
 		isSettingsRecord,
 		type BuiltInHoliday,
 		type School
@@ -41,9 +42,11 @@
 		formFromRecord,
 		imageChange,
 		sameForm,
+		savedFields,
 		validateForm,
 		type FormErrors,
 		type FormField,
+		MAX_DISPLAY_NAME,
 		type FormPreset,
 		type Kind,
 		type ObservanceFormValues,
@@ -149,6 +152,10 @@
 				.filter(Boolean)
 		)
 	);
+	/** What the changes other than this record do: the other name a holiday shows under, hiding it. */
+	const otherSettings = $derived(
+		holidaySettings(records.filter((other) => other.id !== original?.id))
+	);
 	const observedDay = $derived.by(() => {
 		if (!builtIn) return null;
 		const start = startOfDay(today);
@@ -194,7 +201,9 @@
 	// --- Preview -------------------------------------------------------------------------------
 
 	const shownName = $derived(
-		values.kind === 'builtin' ? builtIn?.name || '(holiday)' : values.name.trim() || '(name)'
+		values.kind === 'builtin'
+			? values.displayName.trim() || builtIn?.name || '(holiday)'
+			: values.name.trim() || '(name)'
 	);
 	const previewDay = $derived.by(() => {
 		if (values.kind === 'builtin') return (builtIn && nextDayOf(builtIn.name)) || today;
@@ -232,6 +241,7 @@
 	/** Where each message's field takes the keyboard (in the form's order). */
 	const errorFocus: [FormField, () => string[]][] = [
 		['holiday', () => [`[id="${id('holiday')}"]`]],
+		['displayName', () => [`[id="${id('display-name')}"]`]],
 		['name', () => [`[id="${id('name')}"]`]],
 		['entries', () => ['[data-days] [data-pending]', '[data-days] input[type="date"]']],
 		['school', () => ['[data-school] [data-state="checked"] input', '[data-school] input']],
@@ -278,8 +288,9 @@
 
 		const fields = fieldsFromForm(values, holidays);
 		const image = imageChange(values.picture, picture, !!original?.image);
-		const before = fieldsFromForm(initial, holidays);
-		const changes = original ? changedFields(before, fields) : fields;
+		// What the record holds now: only what changed is sent (see savedFields).
+		const before = original ? savedFields(original, initial, values, holidays) : null;
+		const changes = before ? changedFields(before, fields) : fields;
 		// Once saved, the form stays locked while the dialog closes: a second Enter in that moment
 		// must not save (or add the record) again.
 		saving = true;
@@ -298,7 +309,7 @@
 			// have just added one) before making a record one.
 			const becomesSettings =
 				values.kind === 'builtin' &&
-				(!original || before.name !== fields.name || before.dates.length > 0);
+				(!before || before.name !== fields.name || before.dates.length > 0);
 			if (becomesSettings) {
 				const fresh = await listSettingsRecords();
 				const other = settingsRecordsFor(fresh, fields.name).find((r) => r.id !== original?.id);
@@ -360,7 +371,7 @@
 		{
 			value: 'builtin',
 			label: 'Change a built-in holiday',
-			help: 'Its picture or school day, or hide it (e.g. Tax Day).'
+			help: 'Its name, picture or school day, or hide it (e.g. Tax Day).'
 		}
 	];
 	const pictureItems = $derived<{ value: PictureChoice; label: string }[]>([
@@ -436,9 +447,14 @@
 								: ''}"
 						>
 							<option value="" disabled>Choose a holiday…</option>
+							<!-- As everywhere in the editor, the name the calendar shows first ("Turkey Day ·
+							     Thanksgiving Day"), so typing it finds the holiday. A hidden holiday isn't shown
+							     under any name: just its own. -->
 							{#each holidayChoices as choice (choice.holiday.name)}
+								{@const settings = otherSettings.get(choice.holiday.name)}
+								{@const shownAs = settings && !settings.hidden ? settings.displayName : ''}
 								<option value={choice.holiday.name}>
-									{choice.holiday.name}{choice.next
+									{shownAs ? `${shownAs} · ` : ''}{choice.holiday.name}{choice.next
 										? ` (${formatDay(choice.next)})`
 										: ''}{changed.has(choice.holiday.name) ? ', already changed' : ''}
 								</option>
@@ -475,6 +491,37 @@
 						Edit the changes to {builtIn?.name}
 					</button>
 				{/if}
+			</div>
+
+			<div class="space-y-1">
+				<label class="label" for={id('display-name')}>
+					<span class="label-text">Name on the calendar</span>
+					<input
+						id={id('display-name')}
+						class={inputClass}
+						autocomplete="off"
+						maxlength={MAX_DISPLAY_NAME}
+						placeholder={builtIn?.name ?? ''}
+						value={values.displayName}
+						disabled={saving}
+						oninput={(event) => {
+							values.displayName = event.currentTarget.value;
+							clearError('displayName');
+						}}
+						aria-invalid={!!errors.displayName}
+						aria-describedby="{id('display-name-hint')}{errors.displayName
+							? ` ${id('displayName-error')}`
+							: ''}"
+					/>
+				</label>
+				<p id={id('display-name-hint')} class="text-sm opacity-80">
+					{#if builtIn}
+						Leave empty to show “{builtIn.name}”.
+					{:else}
+						Leave empty to show the holiday's own name.
+					{/if}
+				</p>
+				{@render fieldError('displayName')}
 			</div>
 		{:else}
 			<div class="space-y-1">
@@ -687,7 +734,7 @@
 						class="-ml-2"
 					/>
 					<p id={id('active-help')} class="text-sm opacity-80">
-						Off: the picture, school day and notes above aren't used; {builtIn?.name ??
+						Off: the name, picture, school day and notes above aren't used; {builtIn?.name ??
 							'the holiday'} shows as it comes (unless it is hidden).
 					</p>
 				</div>

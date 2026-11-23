@@ -3,6 +3,7 @@
 	import Trash from '@lucide/svelte/icons/trash-2';
 	import Video from '@lucide/svelte/icons/video';
 	import VideoOff from '@lucide/svelte/icons/video-off';
+	import { formatBirthday } from '#lib/birthdays.ts';
 	import type { Person } from '#lib/pb/types.ts';
 	import { personAvatarUrl } from '#lib/pb/people.ts';
 	import LabeledSwitch from '#lib/editor/LabeledSwitch.svelte';
@@ -21,6 +22,8 @@
 	let { person, busy = [], onToggle, onEdit, onDelete }: Props = $props();
 
 	const name = $derived(displayName(person));
+	/** "Nov 30", or '' without a birthday. */
+	const birthday = $derived(formatBirthday(person.birthday));
 	const tag = 'rounded-full px-2.5 py-0.5 text-sm';
 </script>
 
@@ -41,6 +44,12 @@
 			{:else}
 				<span class="{tag} preset-tonal inline-flex items-center gap-1 opacity-70">
 					<VideoOff class="size-4" aria-hidden="true" /> no video
+				</span>
+			{/if}
+			{#if birthday}
+				<span class="{tag} preset-tonal" data-birthday>
+					<span aria-hidden="true">🎂</span><span class="sr-only">Birthday:</span>
+					{birthday}
 				</span>
 			{/if}
 		</p>

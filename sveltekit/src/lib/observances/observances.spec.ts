@@ -3,6 +3,7 @@ import { builtInHolidays } from '#lib/pb/calendar.ts';
 import type { CalendarObservance, IconRecord } from '#lib/pb/types.ts';
 import { dayString } from './dates';
 import {
+	builtInNameOf,
 	builtInRows,
 	comingUp,
 	iconLookup,
@@ -102,6 +103,54 @@ describe('builtInRows', () => {
 		// an inactive record is the one to change, but it changes nothing
 		expect(veterans.record?.id).toBe(off.id);
 		expect(veterans.school).toBe('none');
+	});
+
+	it('gives the name the calendar shows instead, only while the changes are used', () => {
+		const turkey = record({ name: 'Thanksgiving Day', display_name: 'Turkey Day' });
+		const off = record({ name: 'Halloween', display_name: 'Costume Day', is_active: false });
+		const result = builtInRows(holidays, [turkey, off], TODAY, noIcons);
+		const find = (name: string) => result.find((r) => r.holiday.name === name)!;
+		expect(find('Thanksgiving Day')).toMatchObject({
+			displayName: 'Turkey Day',
+			key: 'thanksgiving-day'
+		});
+		expect(find('Halloween').displayName).toBe('');
+		expect(find('Veterans Day').displayName).toBe('');
+	});
+
+	it("gives none for one that is just the holiday's own name (typed in the dashboard)", () => {
+		const vets = record({ name: 'Veterans Day', display_name: 'Veterans Day' });
+		const valentine = record({ name: "Valentine's Day", display_name: 'Valentine’s Day' });
+		const result = builtInRows(holidays, [vets, valentine], TODAY, noIcons);
+		const find = (name: string) => result.find((r) => r.holiday.name === name)!;
+		expect(find('Veterans Day').displayName).toBe('');
+		expect(find("Valentine's Day").displayName).toBe('');
+		// nor next to it on Coming up
+		const feb = comingUp([valentine], new Date(2027, 1, 14), noIcons, 1);
+		expect(feb[0].observances.map((o) => builtInNameOf(o))).toEqual(['']);
+	});
+});
+
+describe('builtInNameOf', () => {
+	it("gives a renamed built-in holiday's own name, else ''", () => {
+		const turkey = record({ name: 'Thanksgiving Day', display_name: 'Turkey Day' });
+		const vets = record({ name: 'Veterans Day', display_name: 'Thank a Veteran Day' });
+		const nov = comingUp([turkey], TODAY, noIcons, 10).flatMap((day) => day.observances);
+		expect(nov.map((o) => [o.name, builtInNameOf(o)])).toEqual([
+			['Turkey Day', 'Thanksgiving Day'],
+			['Day after Thanksgiving Day', '']
+		]);
+		const observed = comingUp([vets], new Date(2028, 10, 9), noIcons, 3).flatMap(
+			(day) => day.observances
+		);
+		expect(observed.map((o) => [o.name, builtInNameOf(o)])).toEqual([
+			['Thank a Veteran Day (observed)', 'Veterans Day'],
+			['Thank a Veteran Day', 'Veterans Day']
+		]);
+		expect(
+			builtInNameOf({ name: 'Veterans Day (observed)', holiday: 'Veterans Day', observed: true })
+		).toBe('');
+		expect(builtInNameOf({ name: 'Fair' })).toBe('');
 	});
 });
 
@@ -222,6 +271,32 @@ describe('comingUp', () => {
 		const feast = record({ name: 'Feast', dates: ['2026-11-24'], icon: turkey.id });
 		const [day] = comingUp([feast], TODAY, iconLookup([turkey]), 3);
 		expect(day.observances[0].image).toContain('/icon00000000001/new.png');
+	});
+
+	it('adds the birthdays of active people, after the other observances of the day', () => {
+		const person = (name: string, birthday: string, active = true) => ({
+			id: `per${name.padEnd(12, '0')}`,
+			collectionId: 'pbc_1795321340',
+			name,
+			title: '',
+			avatar: '',
+			active,
+			birthday
+		});
+		const days = comingUp([], TODAY, noIcons, 6, [
+			person('Bluey', '11-26'),
+			person('Bingo', '11-23'),
+			person('Muffin', '11-24', false)
+		]);
+		expect(
+			days.map(
+				(day) => `${dayString(day.date)} ${day.school} ${day.observances.map((o) => o.name)}`
+			)
+		).toEqual([
+			"2026-11-23 full Bingo's Birthday",
+			"2026-11-26 none Thanksgiving Day,Bluey's Birthday",
+			'2026-11-27 full Day after Thanksgiving Day'
+		]);
 	});
 });
 
