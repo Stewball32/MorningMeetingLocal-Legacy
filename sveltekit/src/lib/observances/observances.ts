@@ -20,7 +20,9 @@ import {
 	addDays,
 	dayDate,
 	describeEntry,
+	entryCheck,
 	entryFromSaved,
+	entryNext,
 	formatDay,
 	sortEntries,
 	startOfDay,
@@ -196,11 +198,17 @@ export function builtInRows(
 export interface OwnRow {
 	record: CalendarObservance;
 	entries: DayEntry[];
-	/** Its next day from today (a yearly day's next one); null when all its days have passed. */
+	/**
+	 * Its next day from today (a yearly day's or a rule's next one); null when all its days have
+	 * passed (or its rules don't come again in the next RULE_YEARS years).
+	 */
 	next: Date | null;
 	/** Its last one-time day (for sorting past ones). */
 	last: Date | null;
-	/** Entries saved in a form the editor doesn't handle (from the PocketBase dashboard). */
+	/**
+	 * Entries the calendar can't read, so it doesn't show them (written in the PocketBase
+	 * dashboard: not text, or a rule date-holidays can't read).
+	 */
 	unreadable: number;
 }
 
@@ -222,12 +230,10 @@ export interface OwnGroups {
 export const entriesOf = (record: CalendarObservance, today: Date) =>
 	sortEntries(rawDates(record).map((value) => entryFromSaved(value, today)));
 
-/** Its next day from today, or null. */
-function nextDay(entries: readonly DayEntry[], today: Date): Date | null {
-	const start = startOfDay(today);
+/** Its next day from today (rules worked out as the slide does), or null. */
+export function nextDay(entries: readonly DayEntry[], today: Date): Date | null {
 	const dates = entries
-		.flatMap((entry) => (entry.kind === 'other' ? [] : [dayDate(entry.day)]))
-		.filter((date) => date >= start)
+		.flatMap((entry) => entryNext(entry, today) ?? [])
 		.sort((a, b) => a.getTime() - b.getTime());
 	return dates[0] ?? null;
 }
@@ -265,10 +271,11 @@ export function ownGroups(
 			entries,
 			next,
 			last: onceDays.length ? dayDate(onceDays[onceDays.length - 1]) : null,
-			unreadable: entries.filter((entry) => entry.kind === 'other').length
+			unreadable: entries.filter((entry) => entryCheck(entry, today)?.readable === false).length
 		};
-		// A day saved as some other rule may still come: keep it with the days to come. So is a day
-		// earlier this month: the month page still shows it (only older ones are offered for cleanup).
+		// One the calendar can't read stays with the days to come, so that it gets fixed. So does a
+		// day earlier this month: the month page still shows it (only older ones are offered for
+		// cleanup).
 		const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 		if (next || row.unreadable > 0 || (row.last && row.last >= thisMonth))
 			groups.upcoming.push(row);

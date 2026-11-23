@@ -338,7 +338,7 @@
 			: '';
 	const unreadableText = (row: OwnRow) =>
 		row.unreadable > 0
-			? `${plural(row.unreadable, 'day was', 'days were')} saved outside this editor in a form it doesn't read. The calendar may still show ${row.unreadable === 1 ? 'it' : 'them'}; check with Edit.`
+			? `${plural(row.unreadable, 'day was', 'days were')} saved outside this editor in a form the calendar can't read, so it doesn't show ${row.unreadable === 1 ? 'it' : 'them'}. Fix or remove ${row.unreadable === 1 ? 'it' : 'them'} with Edit.`
 			: '';
 </script>
 

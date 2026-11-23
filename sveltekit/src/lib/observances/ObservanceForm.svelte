@@ -50,7 +50,7 @@
 		type PictureChoice
 	} from './form.ts';
 	import IconChoice from './IconChoice.svelte';
-	import { OBSERVANCE_ERRORS, SCHOOL_LABEL, settingsRecordsFor } from './observances.ts';
+	import { nextDay, OBSERVANCE_ERRORS, SCHOOL_LABEL, settingsRecordsFor } from './observances.ts';
 
 	interface Props {
 		/** The record to edit, or null to add one. */
@@ -198,11 +198,9 @@
 	);
 	const previewDay = $derived.by(() => {
 		if (values.kind === 'builtin') return (builtIn && nextDayOf(builtIn.name)) || today;
-		const start = startOfDay(today);
-		const days = values.entries
-			.flatMap((entry) => (entry.kind === 'other' ? [] : [dayDate(entry.day)]))
-			.sort((a, b) => a.getTime() - b.getTime());
-		return days.find((day) => day >= start) ?? days[days.length - 1] ?? today;
+		// Its next day (rules too), else its last one-time day.
+		const once = values.entries.flatMap((entry) => (entry.kind === 'once' ? [entry.day] : []));
+		return nextDay(values.entries, today) ?? (once.length ? dayDate(once.sort().at(-1)!) : today);
 	});
 	const pictureWords = $derived(
 		values.picture === 'upload'
@@ -233,7 +231,14 @@
 	const errorFocus: [FormField, () => string[]][] = [
 		['holiday', () => [`[id="${id('holiday')}"]`]],
 		['name', () => [`[id="${id('name')}"]`]],
-		['entries', () => ['[data-days] [data-pending]', '[data-days] input[type="date"]']],
+		[
+			'entries',
+			() => [
+				'[data-days] [data-pending]',
+				'[data-days] input[type="date"]',
+				'[data-days] [data-days-first]'
+			]
+		],
 		['school', () => ['[data-school] [data-state="checked"] input', '[data-school] input']],
 		['icon', () => ['[data-icon-choice] input:checked', '[data-icon-choice] input']],
 		['image', () => ['[data-upload] button:not(:disabled)']]
@@ -515,6 +520,12 @@
 					onChange={(entries: DayEntry[]) => {
 						values.entries = entries;
 						clearError('entries');
+					}}
+					onPickName={(name) => {
+						// A quick pick names the day, unless it has a name already.
+						if (values.name.trim()) return;
+						values.name = name;
+						clearError('name');
 					}}
 					{today}
 					disabled={saving}

@@ -1,12 +1,23 @@
 // The days of a class's own observance, as the editor handles them. They are stored in the
 // record's `dates` (a JSON array) as date-holidays rules:
 // - 'YYYY-MM-DD': that day only;
-// - 'MM-DD': that day every year (not Feb 29: date-holidays would move it to Mar 1 in most years).
-// Anything else (another date-holidays rule typed in the PocketBase dashboard) is kept as it is.
+// - 'MM-DD': that day every year (not Feb 29: date-holidays would move it to Mar 1 in most years);
+// - the other rules the Days editor builds (a weekday of a month, counted from Easter, a date in
+//   another calendar, a yearly date moved off a weekend: see rules.ts), or one typed in Advanced.
+// Anything else (written in the PocketBase dashboard) is kept exactly as it is.
 //
 // Only local dates: the date picker gives 'YYYY-MM-DD' text and days are counted with
 // new Date(year, month - 1, day). new Date('YYYY-MM-DD') would be UTC midnight, which is the
 // evening before in America.
+import {
+	checkRule,
+	describeRule,
+	FEB_29_YEARLY,
+	parseRule,
+	ruleProblem,
+	tidyRule,
+	type RuleCheck
+} from './rules.ts';
 
 /** Years the editor accepts (a typo like 0202 or 20266 is refused). */
 export const MIN_YEAR = 2000;
@@ -86,8 +97,7 @@ export function dayProblem(text: string, yearly = false): string {
 			? `Please choose a day between ${MIN_YEAR} and ${MAX_YEAR}.`
 			: "That day doesn't exist. Please choose it again.";
 	}
-	if (yearly && text.slice(5) === '02-29')
-		return "Feb 29 can't repeat every year (most years don't have one). Add it as a one-time day.";
+	if (yearly && text.slice(5) === '02-29') return FEB_29_YEARLY;
 	return '';
 }
 
@@ -101,8 +111,14 @@ export type DayEntry =
 	 */
 	| { kind: 'yearly'; day: string }
 	/**
-	 * Saved in the PocketBase dashboard in a form the editor doesn't handle: `value` is saved back
-	 * exactly as it was (any JSON value); `text` shows it.
+	 * A date-holidays rule, saved as `rule`: one the editor builds (parseRule reads it back), or
+	 * one typed in Advanced.
+	 */
+	| { kind: 'rule'; rule: string }
+	/**
+	 * Saved in the PocketBase dashboard in a form the editor doesn't build: `value` is saved back
+	 * exactly as it was (any JSON value); `text` shows it. Text is still a date-holidays rule that
+	 * the calendar may show (see entryCheck).
 	 */
 	| { kind: 'other'; text: string; value: unknown };
 
@@ -127,6 +143,7 @@ export function entryFromSaved(value: unknown, today: Date): DayEntry {
 	if (typeof value === 'string' && isDayString(value)) return { kind: 'once', day: value };
 	if (typeof value === 'string' && isYearlyString(value))
 		return { kind: 'yearly', day: nextYearly(value, today) };
+	if (typeof value === 'string' && parseRule(value)) return { kind: 'rule', rule: value };
 	const text = typeof value === 'string' ? value : JSON.stringify(value);
 	return { kind: 'other', text: text ?? String(value), value };
 }
@@ -138,11 +155,47 @@ export function entryFromSaved(value: unknown, today: Date): DayEntry {
 export function savedValue(entry: DayEntry): string {
 	if (entry.kind === 'once') return entry.day;
 	if (entry.kind === 'yearly') return entry.day.slice(5);
+	if (entry.kind === 'rule') return entry.rule;
 	return entry.text;
 }
 
-/** The value a duplicate check compares: one-time and yearly days on the same date are not the same. */
-const keyOf = (entry: DayEntry) => `${entry.kind}:${savedValue(entry)}`;
+/**
+ * The value a duplicate check compares: one-time and yearly days on the same date are not the
+ * same; a rule is the same as the same text saved in the dashboard.
+ */
+export function keyOf(entry: DayEntry): string {
+	const rule = entryRule(entry);
+	return rule === null ? `${entry.kind}:${savedValue(entry)}` : `rule:${rule}`;
+}
+
+/** The date-holidays rule of a rule entry, or of an 'other' one saved as text; else null. */
+export function entryRule(entry: DayEntry): string | null {
+	if (entry.kind === 'rule') return entry.rule;
+	if (entry.kind === 'other' && typeof entry.value === 'string') return entry.value;
+	return null;
+}
+
+/**
+ * What date-holidays makes of a rule or 'other' entry from `today` (see checkRule); null for
+ * one-time and yearly days. An 'other' entry that isn't text can't be read (the slide skips it).
+ */
+export function entryCheck(entry: DayEntry, today: Date): RuleCheck | null {
+	if (entry.kind === 'once' || entry.kind === 'yearly') return null;
+	const rule = entryRule(entry);
+	return rule === null ? { readable: false, days: [], long: false } : checkRule(rule, today);
+}
+
+/** An entry's next day from `today` (included), or null (passed, or never again). */
+export function entryNext(entry: DayEntry, today: Date): Date | null {
+	if (entry.kind === 'once') {
+		const date = dayDate(entry.day);
+		return date >= startOfDay(today) ? date : null;
+	}
+	// A yearly entry shows its next date (yearlyEntry and entryFromSaved make it so).
+	if (entry.kind === 'yearly') return dayDate(entry.day);
+	const next = entryCheck(entry, today)?.days[0];
+	return next ? dayDate(next) : null;
+}
 
 /** Whether an entry already covers `entry` (the same day, or every year on that month and day). */
 export function covers(existing: DayEntry, entry: DayEntry): boolean {
@@ -156,10 +209,12 @@ export function covers(existing: DayEntry, entry: DayEntry): boolean {
 
 /**
  * Sorted for showing and saving: one-time and yearly days by the date shown (a yearly day by
- * its next date), then the entries the editor doesn't handle, in their saved order.
+ * its next date), then the rules in the order they were added (or saved), then the entries the
+ * editor doesn't build, in their saved order.
  */
 export function sortEntries(entries: readonly DayEntry[]): DayEntry[] {
-	const dated = entries.filter((entry) => entry.kind !== 'other');
+	const dated = entries.filter((entry) => entry.kind === 'once' || entry.kind === 'yearly');
+	const rules = entries.filter((entry) => entry.kind === 'rule');
 	const others = entries.filter((entry) => entry.kind === 'other');
 	dated.sort((a, b) => {
 		const dayA = (a as { day: string }).day;
@@ -167,21 +222,23 @@ export function sortEntries(entries: readonly DayEntry[]): DayEntry[] {
 		if (dayA !== dayB) return dayA < dayB ? -1 : 1;
 		return a.kind === b.kind ? 0 : a.kind === 'once' ? -1 : 1;
 	});
-	return [...dated, ...others];
+	return [...dated, ...rules, ...others];
 }
 
 /**
  * What `dates` saves for the entries: one-time days in date order, then the yearly ones in
- * month-day order, then the rest exactly as they were saved (a number stays a number).
- * Duplicates are left out.
+ * month-day order, then the rules in their order, then the rest exactly as they were saved (a
+ * number stays a number). Duplicates are left out. The same entries always give the same list,
+ * so comparing lists tells whether the days changed.
  */
 export function savedDates(entries: readonly DayEntry[]): unknown[] {
 	const once = entries.flatMap((entry) => (entry.kind === 'once' ? [entry.day] : [])).sort();
 	const yearly = entries
 		.flatMap((entry) => (entry.kind === 'yearly' ? [entry.day.slice(5)] : []))
 		.sort();
+	const rules = entries.flatMap((entry) => (entry.kind === 'rule' ? [entry.rule] : []));
 	const others = entries.flatMap((entry) => (entry.kind === 'other' ? [entry.value] : []));
-	return [...new Set<unknown>([...once, ...yearly, ...others])];
+	return [...new Set<unknown>([...once, ...yearly, ...rules, ...others])];
 }
 
 export interface AddResult {
@@ -231,8 +288,8 @@ export function setYearly(
 	today: Date
 ): { entries: DayEntry[] } | { error: string } {
 	const entry = entries[index];
-	if (!entry || entry.kind === 'other' || (entry.kind === 'yearly') === yearly)
-		return { entries: [...entries] };
+	if (!entry || entry.kind === 'other' || entry.kind === 'rule') return { entries: [...entries] };
+	if ((entry.kind === 'yearly') === yearly) return { entries: [...entries] };
 	if (yearly) {
 		const problem = dayProblem(entry.day, true);
 		if (problem) return { error: problem };
@@ -313,9 +370,43 @@ export function formatMonthDay(day: string): string {
 	);
 }
 
-/** How the form's list shows an entry: "Wed, Nov 25, 2026" or "Every year on Nov 19". */
+/**
+ * How the form's list shows an entry: "Wed, Nov 25, 2026", "Every year on Nov 19", "Every year
+ * on the 3rd Monday in January", or a rule as it is written.
+ */
 export function describeEntry(entry: DayEntry): string {
 	if (entry.kind === 'once') return formatDay(dayDate(entry.day));
 	if (entry.kind === 'yearly') return `Every year on ${formatMonthDay(entry.day)}`;
+	if (entry.kind === 'rule') {
+		const spec = parseRule(entry.rule);
+		return spec ? describeRule(spec) : entry.rule;
+	}
 	return entry.text;
+}
+
+/** A date as date-holidays reads one ('2026-11-25', '11-25', '2-5'): for rules typed in Advanced. */
+const PLAIN_DATE = /^(?:0*(\d{1,4})-)?0?(\d{1,2})-0?(\d{1,2})$/;
+
+/**
+ * The entry for a rule typed in Advanced (or built in the Days editor), or why it can't be
+ * added. A plain date becomes a one-time or yearly day, with the date picker's checks (Feb 29
+ * can't repeat every year). Any other rule must pass ruleProblem.
+ */
+export function ruleEntry(text: string, today: Date): { entry: DayEntry } | { error: string } {
+	const rule = tidyRule(text);
+	const plain = PLAIN_DATE.exec(rule);
+	if (plain) {
+		const [, year, month, day] = plain;
+		const monthDay = `${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+		if (year !== undefined) {
+			const once = `${year.padStart(4, '0')}-${monthDay}`;
+			const problem = dayProblem(once);
+			return problem ? { error: problem } : { entry: { kind: 'once', day: once } };
+		}
+		// 2000 is a leap year, so Feb 29 gets its own words.
+		const problem = dayProblem(`2000-${monthDay}`, true);
+		return problem ? { error: problem } : { entry: yearlyEntry(`2000-${monthDay}`, today) };
+	}
+	const problem = ruleProblem(rule, today);
+	return problem ? { error: problem } : { entry: { kind: 'rule', rule } };
 }

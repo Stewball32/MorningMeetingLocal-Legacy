@@ -8,13 +8,18 @@ import {
 	dayString,
 	daysBetween,
 	describeEntry,
+	entryCheck,
 	entryFromSaved,
+	entryNext,
+	entryRule,
 	expandRange,
 	formatMonthDay,
 	isDayString,
 	isYearlyString,
+	keyOf,
 	MAX_RANGE_DAYS,
 	nextYearly,
+	ruleEntry,
 	savedDates,
 	savedValue,
 	setYearly,
@@ -25,6 +30,7 @@ import {
 
 const once = (day: string): DayEntry => ({ kind: 'once', day });
 const yearly = (day: string): DayEntry => ({ kind: 'yearly', day });
+const rule = (text: string): DayEntry => ({ kind: 'rule', rule: text });
 const other = (text: string): DayEntry => ({ kind: 'other', text, value: text });
 const TODAY = new Date(2026, 10, 22, 15, 30); // Sun Nov 22, 2026, afternoon
 
@@ -103,20 +109,36 @@ describe('saved entries', () => {
 		expect(entryFromSaved(42, TODAY)).toEqual({ kind: 'other', text: '42', value: 42 });
 	});
 
+	it('reads the rules the Days editor builds as rules, saved exactly as they were written', () => {
+		for (const text of [
+			'easter 49',
+			'3rd Monday in January',
+			'3rd monday in January',
+			'Monday before 06-01',
+			'15 Nisan',
+			'chinese 01-0-01',
+			'07-04 if Saturday then previous Friday if Sunday then next Monday'
+		])
+			expect(entryFromSaved(text, TODAY), text).toEqual(rule(text));
+		// Not built by the editor: kept as written (they still work, see entryCheck).
+		for (const text of ['easter +1', '5th Friday in May', '03-02 in even years', '12-21 P10D'])
+			expect(entryFromSaved(text, TODAY).kind, text).toBe('other');
+	});
+
 	it('saves entries written in the dashboard back exactly as they were', () => {
 		const rule = { a: 1 };
-		const saved = [42, rule, 'easter 49', null, true, '2026-11-25'];
+		const saved = [42, rule, '03-02 in even years', null, true, '2026-11-25'];
 		const entries = saved.map((value) => entryFromSaved(value, TODAY));
 		expect(entries.map((entry) => entry.kind === 'other' && entry.text)).toEqual([
 			'42',
 			'{"a":1}',
-			'easter 49',
+			'03-02 in even years',
 			'null',
 			'true',
 			false
 		]);
 		const again = savedDates(entries);
-		expect(again).toEqual(['2026-11-25', 42, { a: 1 }, 'easter 49', null, true]);
+		expect(again).toEqual(['2026-11-25', 42, { a: 1 }, '03-02 in even years', null, true]);
 		expect(again[2]).toBe(rule);
 		// A number and the same number as text are two different entries.
 		expect(savedDates([entryFromSaved(42, TODAY), entryFromSaved('42', TODAY)])).toEqual([
@@ -125,31 +147,74 @@ describe('saved entries', () => {
 		]);
 	});
 
-	it('saves one-time days, then yearly ones, then the rest, without duplicates', () => {
+	it('saves one-time days, then yearly ones, then rules as added, then the rest, without duplicates', () => {
 		const entries = [
 			yearly('2027-01-05'),
+			rule('orthodox'),
 			once('2026-12-01'),
-			other('easter 49'),
+			other('easter 49 in even years'),
 			once('2026-11-25'),
+			rule('easter -2'),
 			yearly('2026-11-30'),
-			once('2026-11-25')
+			once('2026-11-25'),
+			rule('orthodox')
 		];
 		expect(savedDates(entries)).toEqual([
 			'2026-11-25',
 			'2026-12-01',
 			'01-05',
 			'11-30',
-			'easter 49'
+			'orthodox',
+			'easter -2',
+			'easter 49 in even years'
 		]);
 		expect(savedValue(yearly('2027-01-05'))).toBe('01-05');
+		expect(savedValue(rule('easter -2'))).toBe('easter -2');
 		expect(sortEntries(entries).map(savedValue)).toEqual([
 			'2026-11-25',
 			'2026-11-25',
 			'11-30',
 			'2026-12-01',
 			'01-05',
-			'easter 49'
+			'orthodox',
+			'easter -2',
+			'orthodox',
+			'easter 49 in even years'
 		]);
+		// The same entries in another order save the same list (so nothing looks changed).
+		expect(savedDates([...entries].reverse().filter((e) => e.kind !== 'rule'))).toEqual(
+			savedDates(entries.filter((e) => e.kind !== 'rule'))
+		);
+	});
+
+	it("knows each entry's next day, worked out like the slide", () => {
+		expect(entryNext(once('2026-11-25'), TODAY)).toEqual(new Date(2026, 10, 25));
+		expect(entryNext(once('2026-11-21'), TODAY)).toBeNull();
+		expect(entryNext(once('2026-11-22'), TODAY)).toEqual(new Date(2026, 10, 22));
+		expect(entryNext(yearly('2027-11-19'), TODAY)).toEqual(new Date(2027, 10, 19));
+		expect(entryNext(rule('3rd Monday in January'), TODAY)).toEqual(new Date(2027, 0, 18));
+		expect(entryNext(other('03-02 in even years'), TODAY)).toEqual(new Date(2028, 2, 2));
+		expect(entryNext(other('nonsense'), TODAY)).toBeNull();
+		expect(entryNext({ kind: 'other', text: '42', value: 42 }, TODAY)).toBeNull();
+		expect(entryCheck(once('2026-11-25'), TODAY)).toBeNull();
+		expect(entryCheck({ kind: 'other', text: '42', value: 42 }, TODAY)).toEqual({
+			readable: false,
+			days: [],
+			long: false
+		});
+		expect(entryCheck(other('12-21 P10D'), TODAY)).toMatchObject({ readable: true, long: true });
+		expect(entryRule(other('easter 49 in even years'))).toBe('easter 49 in even years');
+		expect(entryRule({ kind: 'other', text: 'null', value: null })).toBeNull();
+	});
+
+	it('counts a rule and the same text saved in the dashboard as the same day', () => {
+		expect(keyOf(rule('easter -2'))).toBe(keyOf(other('easter -2')));
+		expect(keyOf({ kind: 'other', text: '42', value: 42 })).not.toBe(keyOf(other('42')));
+		expect(keyOf(once('2026-11-19'))).not.toBe(keyOf(yearly('2026-11-19')));
+		const result = addEntries([other('easter -2')], [rule('easter -2'), rule('easter -3')]);
+		expect(result.added).toBe(1);
+		expect(result.alreadyThere).toEqual([rule('easter -2')]);
+		expect(savedDates(result.entries)).toEqual(['easter -3', 'easter -2']);
 	});
 
 	it('next yearly day rolls over at the end of the year', () => {
@@ -203,6 +268,58 @@ describe('adding days without duplicates', () => {
 		// Unticked again, it keeps the date it showed.
 		const off = 'entries' in on ? setYearly(on.entries, 1, false, TODAY) : on;
 		expect('entries' in off && off.entries).toEqual([once('2026-12-01'), once('2027-03-04')]);
+	});
+
+	it('leaves rules alone when "every year" is switched', () => {
+		const list = [rule('easter -2'), other('03-02 in even years')];
+		expect(setYearly(list, 0, false, TODAY)).toEqual({ entries: list });
+		expect(setYearly(list, 1, true, TODAY)).toEqual({ entries: list });
+	});
+});
+
+describe('rules typed or built in the Days editor', () => {
+	const entryOf = (text: string) => {
+		const result = ruleEntry(text, TODAY);
+		return 'entry' in result ? result.entry : result.error;
+	};
+
+	it('adds a rule with single spaces', () => {
+		expect(entryOf('  3rd Monday   in January ')).toEqual(rule('3rd Monday in January'));
+		expect(entryOf('03-02 in even years')).toEqual(rule('03-02 in even years'));
+		expect(entryOf('Friday after 4th Thursday in November')).toEqual(
+			rule('Friday after 4th Thursday in November')
+		);
+	});
+
+	it('makes a plain date a one-time or yearly day, with the date picker checks', () => {
+		expect(entryOf('2026-11-25')).toEqual(once('2026-11-25'));
+		expect(entryOf('11-25')).toEqual(yearly('2026-11-25'));
+		expect(entryOf('3-4')).toEqual(yearly('2027-03-04'));
+		expect(entryOf('2028-2-29')).toEqual(once('2028-02-29'));
+		expect(entryOf('02-29')).toMatch(/Feb 29 can't repeat every year/);
+		expect(entryOf('2026-02-30')).toMatch(/doesn't exist/);
+		expect(entryOf('02-30')).toMatch(/doesn't exist/);
+		expect(entryOf('1999-05-01')).toMatch(/between 2000 and 2099/);
+	});
+
+	it('refuses what the calendar would get wrong or never show', () => {
+		expect(entryOf('')).toBe('Please type a rule.');
+		expect(entryOf('12-21 P10D')).toMatch(/^For several days in a row, use a range instead/);
+		expect(entryOf('last Monday in May')).toMatch(/can't read this rule/);
+		expect(entryOf('since 2027')).toMatch(/can't read this rule/);
+		expect(entryOf('02-29 if Sunday then next Monday')).toMatch(/Feb 29 can't repeat/);
+		expect(entryOf('Monday before 02-30')).toMatch(/02-30 isn't a real date/);
+		expect(entryOf('11-20 prior to 2020')).toMatch(/doesn't happen in the next 10 years/);
+	});
+
+	it('describes rules in words where the editor built them', () => {
+		expect(describeEntry(rule('3rd Monday in January'))).toBe(
+			'Every year on the 3rd Monday in January'
+		);
+		expect(describeEntry(rule('easter -2'))).toBe('Every year 2 days before Easter Sunday');
+		expect(describeEntry(rule('1 Shawwal'))).toBe('Every year on 1 Shawwal (Islamic calendar)');
+		expect(describeEntry(rule('03-02 in even years'))).toBe('03-02 in even years');
+		expect(describeEntry(other('03-02 in even years'))).toBe('03-02 in even years');
 	});
 });
 
