@@ -1,5 +1,7 @@
 import Holidays from 'date-holidays';
 import { describe, expect, it } from 'vitest';
+import { observancesForMonth } from '#lib/pb/calendar.ts';
+import type { CalendarObservance } from '#lib/pb/types.ts';
 import {
 	dayLabel,
 	iconsSummary,
@@ -131,7 +133,38 @@ describe('upcomingDays', () => {
 		expect(days.map((d) => d.names)).toEqual([
 			['Turkey Day (Thanksgiving Day)', 'Class Feast'],
 			['Veterans Day'],
-			['Vets Day (observed) (Veterans Day)']
+			['Vets Day (Veterans Day, observed)']
+		]);
+	});
+
+	it('puts "observed" in the brackets for a renamed holiday\'s weekday off (as the slide names it)', () => {
+		// Independence Day 2026 is on a Saturday: observed on Friday, July 3
+		const fourth = {
+			id: 'rec000000000001',
+			collectionId: 'pbc_326962381',
+			collectionName: 'calendar_observances',
+			created: '2026-01-01 00:00:00.000Z',
+			updated: '',
+			name: 'Independence Day',
+			display_name: 'Fourth of July',
+			description: '',
+			is_active: true,
+			dates: [],
+			image: '',
+			icon: '',
+			hidden: false,
+			school: ''
+		} as CalendarObservance;
+		const july = [...observancesForMonth([fourth], 2026, 6).values()].flat();
+		expect(upcomingDays(july, new Date(2026, 6, 1), 2).map((d) => d.names)).toEqual([
+			['Fourth of July (Independence Day, observed)'],
+			['Fourth of July (Independence Day)']
+		]);
+		// under its own name, it reads as the slide shows it
+		const plain = [...observancesForMonth([], 2026, 6).values()].flat();
+		expect(upcomingDays(plain, new Date(2026, 6, 1), 2).map((d) => d.names)).toEqual([
+			['Independence Day (observed)'],
+			['Independence Day']
 		]);
 	});
 });

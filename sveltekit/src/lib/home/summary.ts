@@ -2,6 +2,7 @@
 import { daysUntilText, upcomingBirthdays, type BirthdayPerson } from '#lib/birthdays.ts';
 import { plural } from '#lib/editor/list.ts';
 import { builtInNameOf } from '#lib/observances/observances.ts';
+import { OBSERVED_SUFFIX } from '#lib/pb/calendar.ts';
 import type { IconRecord, Person } from '#lib/pb/types.ts';
 import { displayName, groupOf } from '#lib/people/people.ts';
 
@@ -40,7 +41,7 @@ export interface UpcomingDay {
 	date: Date;
 	/**
 	 * Every observance that day, in the slide's order; a built-in holiday shown under another
-	 * name with its own name after it: "Turkey Day (Thanksgiving Day)".
+	 * name with its own name after it: "Turkey Day (Thanksgiving Day)" (see homeName).
 	 */
 	names: string[];
 	/** The slide's badge: 'none' (No School!) wins over 'short' (Short Day!); else 'full'. */
@@ -48,6 +49,19 @@ export interface UpcomingDay {
 }
 
 const dayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+
+/**
+ * An observance's name on the tile: a built-in holiday shown under another name gets its own name
+ * after it, "Turkey Day (Thanksgiving Day)"; on its weekday off the "observed" goes in there too,
+ * "Fourth of July (Independence Day, observed)", rather than a second pair of brackets.
+ */
+function homeName(observance: ObservedDay): string {
+	const builtInName = builtInNameOf(observance);
+	if (!builtInName) return observance.name;
+	const observed = !!observance.observed && observance.name.endsWith(OBSERVED_SUFFIX);
+	const name = observed ? observance.name.slice(0, -OBSERVED_SUFFIX.length) : observance.name;
+	return `${name} (${builtInName}${observed ? ', observed' : ''})`;
+}
 
 /**
  * The next `limit` days (today included) with observances, from what the calendar slide shows
@@ -73,8 +87,7 @@ export function upcomingDays(
 			};
 			days.set(key, day);
 		}
-		const builtInName = builtInNameOf(observance);
-		const name = builtInName ? `${observance.name} (${builtInName})` : observance.name;
+		const name = homeName(observance);
 		if (!day.names.includes(name)) day.names.push(name);
 		if (observance.school === 'none') day.school = 'none';
 		else if (observance.school === 'short' && day.school !== 'none') day.school = 'short';
