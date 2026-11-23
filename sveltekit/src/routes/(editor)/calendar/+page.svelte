@@ -309,15 +309,10 @@
 		} else openAdd({ kind: 'builtin', holiday: row.holiday.name });
 	}
 
-	function onSaved(record: CalendarObservance, outcome: SaveOutcome) {
+	function onSaved(record: CalendarObservance, outcome: Exclude<SaveOutcome, 'unchanged'>) {
 		formOpen = false;
 		const holiday = builtInOf(record, holidays);
 		const name = holiday?.name ?? nameOf(record);
-		if (outcome === 'unchanged') {
-			// `record` is the copy the form started with: keep the list's (maybe newer) record.
-			notices.show({ text: `No changes to save for ${name}.`, tone: 'success' });
-			return;
-		}
 		observances.upsert(record);
 		focus.ids = [holiday ? builtInId(slug(holiday.name)) : record.id];
 		notices.show({
@@ -328,6 +323,12 @@
 					: `Saved ${name}.`,
 			tone: 'success'
 		});
+	}
+
+	/** Nothing was sent: the list keeps its own (maybe newer) record, if there is one. */
+	function onUnchanged(name: string) {
+		formOpen = false;
+		notices.show({ text: `No changes to save for ${name}.`, tone: 'success' });
 	}
 
 	let deleteOpen = $state(false);
@@ -638,6 +639,7 @@
 	{holidays}
 	{today}
 	{onSaved}
+	{onUnchanged}
 	onClose={() => (formOpen = false)}
 	onEditOther={editOther}
 	finalFocusEl={focus.target}

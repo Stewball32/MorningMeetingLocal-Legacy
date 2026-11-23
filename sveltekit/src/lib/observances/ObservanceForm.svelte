@@ -41,6 +41,7 @@
 		formFieldOf,
 		formFromRecord,
 		imageChange,
+		leavesAsItComes,
 		sameForm,
 		savedFields,
 		validateForm,
@@ -65,7 +66,13 @@
 		iconsStatus: 'loading' | 'ready' | 'error';
 		holidays: readonly BuiltInHoliday[];
 		today: Date;
-		onSaved: (record: CalendarObservance, outcome: SaveOutcome) => void;
+		/** Saved: the record as PocketBase now has it. */
+		onSaved: (record: CalendarObservance, outcome: Exclude<SaveOutcome, 'unchanged'>) => void;
+		/**
+		 * Nothing to save, so nothing was sent: an edit that changed nothing, or new changes that
+		 * leave a holiday as it comes. `name` is the holiday's or the day's.
+		 */
+		onUnchanged: (name: string) => void;
 		onCancel: () => void;
 		/** Open the existing changes to a built-in holiday instead (the editor makes one per holiday). */
 		onEditOther: (record: CalendarObservance) => void;
@@ -80,6 +87,7 @@
 		holidays,
 		today,
 		onSaved,
+		onUnchanged,
 		onCancel,
 		onEditOther
 	}: Props = $props();
@@ -304,9 +312,14 @@
 		// must not save (or add the record) again.
 		saving = true;
 		message = '';
-		if (original && Object.keys(changes).length === 0 && image === undefined) {
-			// Nothing to send: no request, no live update for every open calendar.
-			onSaved(original, 'unchanged');
+		// Nothing to send: no request, no live update for every open calendar. Nor a new record
+		// that leaves the holiday as it comes (e.g. only its own name typed in): it would change
+		// nothing, yet show Reset.
+		const nothing = original
+			? Object.keys(changes).length === 0
+			: leavesAsItComes(values, holidays);
+		if (nothing && image === undefined) {
+			onUnchanged(fields.name);
 			return;
 		}
 		sending = true;

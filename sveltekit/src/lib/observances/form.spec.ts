@@ -9,6 +9,7 @@ import {
 	formFieldOf,
 	formFromRecord,
 	imageChange,
+	leavesAsItComes,
 	MAX_DISPLAY_NAME,
 	sameForm,
 	savedFields,
@@ -188,6 +189,53 @@ describe('fieldsFromForm', () => {
 		expect(changedFields(before, fieldsFromForm({ ...values, school: 'short' }, holidays))).toEqual(
 			{ school: 'short' }
 		);
+	});
+});
+
+describe('leavesAsItComes: new changes to a holiday that change nothing are not saved', () => {
+	const valentine = () => emptyForm({ kind: 'builtin', holiday: "Valentine's Day" }, holidays);
+
+	it('is true for Customize left as it is, or with only its own name typed in', () => {
+		expect(leavesAsItComes(valentine(), holidays)).toBe(true);
+		for (const typed of ["Valentine's Day", 'Valentine’s Day', " Valentine's Day ", '   '])
+			expect(leavesAsItComes({ ...valentine(), displayName: typed }, holidays), typed).toBe(true);
+		// a holiday with no school: that is its own school day
+		const thanksgiving = emptyForm({ holiday: 'Thanksgiving Day' }, holidays);
+		expect(thanksgiving.school).toBe('none');
+		expect(leavesAsItComes({ ...thanksgiving, displayName: 'Thanksgiving Day' }, holidays)).toBe(
+			true
+		);
+		expect(leavesAsItComes({ ...thanksgiving, school: 'full' }, holidays)).toBe(false);
+	});
+
+	it('is true from "Add a day" too: a holiday chosen, nothing else changed', () => {
+		const added = { ...emptyForm({}, holidays), kind: 'builtin' as const };
+		expect(leavesAsItComes({ ...added, holiday: "Valentine's Day" }, holidays)).toBe(true);
+		// days typed for your own day before switching don't count: a holiday has none
+		added.entries = [{ kind: 'once', day: '2026-11-25' }];
+		expect(leavesAsItComes({ ...added, holiday: "Valentine's Day" }, holidays)).toBe(true);
+	});
+
+	it('is false as soon as something changes', () => {
+		const changes: Partial<ObservanceFormValues>[] = [
+			{ displayName: 'Hearts Day' },
+			{ school: 'none' },
+			{ notes: 'Cards in the morning' },
+			{ picture: 'icon', icon: 'icon00000000001' },
+			{ hidden: true },
+			{ active: false }
+		];
+		for (const change of changes)
+			expect(leavesAsItComes({ ...valentine(), ...change }, holidays), JSON.stringify(change)).toBe(
+				false
+			);
+	});
+
+	it('is false for your own day (it has a name and days to save)', () => {
+		const own = { ...emptyForm({}, holidays), name: 'Fun Run' };
+		own.entries = [{ kind: 'once', day: '2026-11-25' }];
+		expect(leavesAsItComes(own, holidays)).toBe(false);
+		expect(leavesAsItComes(emptyForm({}, holidays), holidays)).toBe(false);
 	});
 });
 

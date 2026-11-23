@@ -18,7 +18,9 @@
 		iconsStatus: 'loading' | 'ready' | 'error';
 		holidays: readonly BuiltInHoliday[];
 		today: Date;
-		onSaved: (record: CalendarObservance, outcome: SaveOutcome) => void;
+		onSaved: (record: CalendarObservance, outcome: Exclude<SaveOutcome, 'unchanged'>) => void;
+		/** Nothing to save (see ObservanceForm). */
+		onUnchanged: (name: string) => void;
 		onClose: () => void;
 		onEditOther: (record: CalendarObservance) => void;
 		finalFocusEl?: () => HTMLElement | null;
@@ -35,6 +37,7 @@
 		holidays,
 		today,
 		onSaved,
+		onUnchanged,
 		onClose,
 		onEditOther,
 		finalFocusEl
@@ -64,6 +67,7 @@
 		{holidays}
 		{today}
 		{onSaved}
+		{onUnchanged}
 		onCancel={onClose}
 		{onEditOther}
 	/>

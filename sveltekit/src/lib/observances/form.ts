@@ -1,6 +1,6 @@
 // The Add / Edit observance form: its values, validation and the record fields it saves (the
 // shared form helpers are in #lib/editor/form.ts).
-import { sameValues, type FieldErrors } from '#lib/editor/form.ts';
+import { changedFields, sameValues, type FieldErrors } from '#lib/editor/form.ts';
 import {
 	findBuiltIn,
 	isSettingsRecord,
@@ -180,6 +180,26 @@ export function fieldsFromForm(
 		hidden: builtIn ? values.hidden : false,
 		icon: values.picture === 'icon' ? values.icon : ''
 	};
+}
+
+/**
+ * Whether new changes to a built-in holiday leave it as it comes: its own name (left empty, or
+ * typed in), its own school day, the default picture, no notes, used and not hidden. A record of
+ * them would change nothing on the calendar, yet give the holiday a Reset button, so the form
+ * saves nothing ("No changes to save"), as for an edit that changed nothing. Your own day always
+ * has something to save (a name and days).
+ */
+export function leavesAsItComes(
+	values: ObservanceFormValues,
+	holidays: readonly BuiltInHoliday[]
+): boolean {
+	if (values.kind !== 'builtin') return false;
+	const asItComes = emptyForm({ kind: 'builtin', holiday: values.holiday }, holidays);
+	const changes = changedFields(
+		fieldsFromForm(asItComes, holidays),
+		fieldsFromForm(values, holidays)
+	);
+	return Object.keys(changes).length === 0;
 }
 
 /**
