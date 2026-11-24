@@ -94,24 +94,20 @@
 							src={url}
 							alt=""
 							class="bg-surface-100-900 size-16 rounded-sm object-contain"
+							loading="lazy"
 							draggable={false}
 						/>
 					{:else}
 						<span
-							class="bg-surface-100-900 flex size-16 items-center justify-center rounded-sm text-3xl"
+							class="bg-surface-100-900 flex size-16 items-center justify-center rounded-sm"
 							aria-hidden="true"
 						>
-							{icon.emoji || '❔'}
+							<ImageOff class="size-8 opacity-50" />
 						</span>
 					{/if}
-					<span class="line-clamp-2 text-sm leading-tight break-words">
-						{icon.emoji}
-						{icon.name}
-					</span>
+					<span class="line-clamp-2 text-sm leading-tight break-words">{icon.name}</span>
 					{#if !url}
-						<span class="inline-flex items-center gap-1 text-xs opacity-80">
-							<ImageOff class="size-3" aria-hidden="true" /> no picture
-						</span>
+						<span class="text-xs opacity-80">No picture</span>
 					{/if}
 				</label>
 			{/each}
