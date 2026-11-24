@@ -598,8 +598,12 @@
 										>
 											{#snippet element(attributes: AnyTagAttributes)}
 												<span {...attributes} data-scope={null} data-testid="combobox">
-													<!-- the name gives way (…) so its picture stays in a narrow list -->
-													{@render comboboxParts(guestOptions, '', 'min-w-0 truncate')}
+													<!-- a long name wraps at its spaces (a word too long for the list is cut with …), so its picture stays inside -->
+													{@render comboboxParts(
+														guestOptions,
+														'',
+														'min-w-0 overflow-hidden text-ellipsis whitespace-normal text-left leading-tight'
+													)}
 												</span>
 											{/snippet}
 										</Combobox>
