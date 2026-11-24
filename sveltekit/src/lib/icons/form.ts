@@ -3,6 +3,7 @@
 import { validationCodes } from '#lib/editor/errors.ts';
 import { sameValues, type FieldErrors } from '#lib/editor/form.ts';
 import type { IconRecord } from '#lib/pb/types.ts';
+import { needsPicture } from './icons.ts';
 import { USES, type UseField } from './uses.ts';
 
 /** What the form holds while the teacher types: the name exactly as typed, and one switch per use. */
@@ -30,7 +31,7 @@ export function formFromIcon(icon: IconRecord): IconFormValues {
 
 /** The picture message for a new icon without one. */
 export const PICTURE_REQUIRED = "Please choose a picture: it's what guests and the calendar show.";
-/** The picture message while Guests is on and the icon has (or will have) no picture. */
+/** The picture message when Guests is turned on, or the picture removed while it is on. */
 export const PICTURE_NEEDED = 'Guests need a picture: choose one, or turn off Guests.';
 /** The picture messages validateForm gives (the others come from choosing a picture). */
 export const PICTURE_RULES: readonly string[] = [PICTURE_REQUIRED, PICTURE_NEEDED];
@@ -56,9 +57,12 @@ export function iconWithName(
 export const takenMessage = (name: string) =>
 	`There's already an icon called “${name.trim()}”. Please choose another name.`;
 
+/** What validateForm needs of the icon being edited: as it was saved when the form opened. */
+export type EditedIcon = Pick<IconRecord, 'id' | 'for_guests' | 'image'>;
+
 export interface ValidateOptions {
-	/** The icon being edited; leave it out for a new one (which needs a picture). */
-	editing?: Pick<IconRecord, 'id'>;
+	/** The icon being edited, as saved; leave it out for a new one (which needs a picture). */
+	editing?: EditedIcon;
 	/** Whether the icon has a picture once saved (a new one chosen, or the saved one kept). */
 	hasPicture: boolean;
 	/** Every icon (the page's live list), to check that the name is still free. */
@@ -66,9 +70,21 @@ export interface ValidateOptions {
 }
 
 /**
- * Checks the form. A new icon needs a picture (it is what tells icons apart on the slides); an
- * icon saved without one long ago can still be renamed and saved as it is, unless Guests is on.
+ * Whether the form asks for a picture before saving: always for a new icon (the picture is what
+ * tells icons apart on the slides); for an icon being edited, when Guests is on unless the icon
+ * was already saved for guests without a picture. So turning Guests on, or removing the picture
+ * while it is on, asks for one, but an icon saved without one long ago can still be renamed and
+ * saved as it is (guests who pick it show the default picture meanwhile).
  */
+export function picturePolicy(
+	values: Pick<IconFormValues, 'for_guests'>,
+	editing?: EditedIcon
+): 'required' | 'needed for guests' | 'optional' {
+	if (!editing) return 'required';
+	return values.for_guests && !needsPicture(editing) ? 'needed for guests' : 'optional';
+}
+
+/** Checks the form (see picturePolicy for when it asks for a picture). */
 export function validateForm(
 	values: IconFormValues,
 	{ editing, hasPicture, icons = [] }: ValidateOptions
@@ -80,8 +96,9 @@ export function validateForm(
 		if (other) errors.name = takenMessage(other.name);
 	}
 	if (!hasPicture) {
-		if (!editing) errors.image = PICTURE_REQUIRED;
-		else if (values.for_guests) errors.image = PICTURE_NEEDED;
+		const policy = picturePolicy(values, editing);
+		if (policy === 'required') errors.image = PICTURE_REQUIRED;
+		else if (policy === 'needed for guests') errors.image = PICTURE_NEEDED;
 	}
 	return errors;
 }

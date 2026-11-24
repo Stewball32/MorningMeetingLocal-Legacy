@@ -12,6 +12,7 @@ import {
 	PICTURE_NEEDED,
 	PICTURE_REQUIRED,
 	PICTURE_RULES,
+	picturePolicy,
 	sameForm,
 	takenMessage,
 	validateForm
@@ -155,16 +156,58 @@ describe('validateForm', () => {
 		).toEqual({});
 	});
 
-	it('still needs a picture while Guests is on (guest buttons show it)', () => {
+	it('lets an icon saved for guests without a picture be renamed and saved as it is', () => {
+		// e.g. one the icons migration renamed and warned about ("Dog 2", no picture)
+		const old = { ...rocket, id: 'dog', image: '', for_guests: true } as IconRecord;
+		const guests = { name: 'Puppy', for_guests: true, for_calendar: false };
+		expect(validateForm(guests, { editing: old, hasPicture: false, icons: [old] })).toEqual({});
+		expect(
+			validateForm({ ...guests, for_guests: false }, { editing: old, hasPicture: false })
+		).toEqual({});
+	});
+
+	it('asks for a picture when Guests is turned on for an icon without one', () => {
+		const old = { ...rocket, image: '', for_guests: false, for_calendar: true } as IconRecord;
+		const guests = { ...valid, for_guests: true };
+		expect(validateForm(guests, { editing: old, hasPicture: false })).toEqual({
+			image: PICTURE_NEEDED
+		});
+		expect(validateForm(guests, { editing: old, hasPicture: true })).toEqual({});
+	});
+
+	it('asks for a picture when it is removed while Guests is on (guest buttons show it)', () => {
 		const guests = { ...valid, for_guests: true };
 		expect(validateForm(guests, { editing: rocket, hasPicture: false })).toEqual({
 			image: PICTURE_NEEDED
 		});
 		expect(validateForm(guests, { editing: rocket, hasPicture: true })).toEqual({});
+		// Guests off as well: nothing shows it to guests, so it may go.
+		expect(validateForm(valid, { editing: rocket, hasPicture: false })).toEqual({});
 	});
 
 	it('lists the picture messages it gives', () => {
 		expect(PICTURE_RULES).toEqual([PICTURE_REQUIRED, PICTURE_NEEDED]);
+	});
+});
+
+describe('picturePolicy', () => {
+	const old = { id: 'old', image: '' };
+	it('needs a picture for a new icon, whatever its switches', () => {
+		expect(picturePolicy({ for_guests: false })).toBe('required');
+		expect(picturePolicy({ for_guests: true })).toBe('required');
+	});
+
+	it('needs one for guests when Guests is on, unless the icon was saved that way without one', () => {
+		expect(picturePolicy({ for_guests: true }, rocket)).toBe('needed for guests');
+		expect(picturePolicy({ for_guests: true }, { ...old, for_guests: false })).toBe(
+			'needed for guests'
+		);
+		expect(picturePolicy({ for_guests: true }, { ...old, for_guests: true })).toBe('optional');
+	});
+
+	it('leaves it optional with Guests off', () => {
+		expect(picturePolicy({ for_guests: false }, rocket)).toBe('optional');
+		expect(picturePolicy({ for_guests: false }, { ...old, for_guests: true })).toBe('optional');
 	});
 });
 

@@ -34,7 +34,10 @@ export function groupIcons(icons: readonly IconRecord[]): IconGroups {
 	return groups;
 }
 
-/** Whether the icon is on for guests without a picture: guest buttons would show a broken image. */
+/**
+ * Whether the icon is on for guests without a picture: guests who pick it show the default
+ * picture, so its row says it needs one (and turning Guests on asks for one).
+ */
 export function needsPicture(icon: Pick<IconRecord, 'for_guests' | 'image'>): boolean {
 	return !!icon.for_guests && !icon.image;
 }

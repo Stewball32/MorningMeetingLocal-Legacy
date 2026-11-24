@@ -112,7 +112,8 @@
 
 	function setSwitch(icon: IconRecord, field: UseField, value: boolean, undoable = true) {
 		const current = icons.find(icon.id) ?? icon;
-		// Guest buttons show the picture: an icon without one would show a broken image.
+		// Guest buttons show the picture: turning Guests on for an icon without one asks for one
+		// (guests who pick it would otherwise show the default picture).
 		if (field === 'for_guests' && value && !current.image) {
 			undoSwitchClick(current.id, field, false);
 			openEdit(current, { for_guests: true }, true);

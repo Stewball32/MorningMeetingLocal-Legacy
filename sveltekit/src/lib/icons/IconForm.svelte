@@ -25,6 +25,7 @@
 		isNameTaken,
 		PICTURE_NEEDED,
 		PICTURE_RULES,
+		picturePolicy,
 		sameForm,
 		takenMessage,
 		validateForm,
@@ -88,6 +89,8 @@
 	const hasPicture = $derived(
 		picture instanceof File || (picture === undefined && !!original?.image)
 	);
+	/** Whether saving asks for a picture (the label says so). */
+	const policy = $derived(picturePolicy(values, original ?? undefined));
 
 	// --- Save --------------------------------------------------------------------------------
 
@@ -198,9 +201,9 @@
 						if (text) errors.image = text;
 						else clearError('image');
 					}}
-					label={!original
+					label={policy === 'required'
 						? 'Picture (needed)'
-						: values.for_guests
+						: policy === 'needed for guests'
 							? 'Picture (needed for guests)'
 							: 'Picture'}
 					emptyHint={original
