@@ -1,11 +1,13 @@
 <!--
 	@component
 	Choosing an icon (from the Icons page) as an observance's picture: the icons with "Calendar"
-	on, and "Show all icons" for the rest. Radio buttons, so the arrow keys move between them.
+	on, and "Show all icons" for the rest. Radio buttons, so the arrow keys move between them. Each
+	shows its picture and name; one without a picture (or whose picture doesn't load) a plain tile.
 -->
 <script lang="ts">
 	import ImageOff from '@lucide/svelte/icons/image-off';
 	import { untrack } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { iconPictureUrl } from '#lib/pb/observances.ts';
 	import type { IconRecord } from '#lib/pb/types.ts';
 
@@ -42,6 +44,8 @@
 	);
 	const chosen = $derived(icons.find((icon) => icon.id === value));
 	const missing = $derived(!!value && status === 'ready' && !chosen);
+	/** Pictures that didn't load (file missing, PocketBase down): their icons show the plain tile. */
+	const failed = new SvelteSet<string>();
 
 	const name = $props.id();
 </script>
@@ -89,13 +93,14 @@
 						{disabled}
 						onchange={() => onChange(icon.id)}
 					/>
-					{#if url}
+					{#if url && !failed.has(url)}
 						<img
 							src={url}
 							alt=""
 							class="bg-surface-100-900 size-16 rounded-sm object-contain"
 							loading="lazy"
 							draggable={false}
+							onerror={() => failed.add(url)}
 						/>
 					{:else}
 						<span
