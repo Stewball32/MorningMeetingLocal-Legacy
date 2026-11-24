@@ -120,8 +120,11 @@ migrate(
 		indexes.push(`CREATE UNIQUE INDEX \`${OLD_INDEX}\` ON \`icons\` (\n  \`name\`,\n  \`emoji\`\n)`);
 		unmarshal({ indexes }, icons);
 		app.save(icons);
+		// Printed before the older migrations' down steps run: if one of them refuses, PocketBase
+		// undoes this one too and prints no "Reverted" line (DEPLOY.md C2).
 		console.log(
-			'icons migration: rolled back; the emoji field is back but empty, and renamed icons keep their new names'
+			'icons migration: undoing: the emoji field comes back empty and renamed icons keep their ' +
+				'new names, once the whole rollback succeeds'
 		);
 	}
 );
