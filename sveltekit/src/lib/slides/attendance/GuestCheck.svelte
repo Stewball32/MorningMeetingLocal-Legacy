@@ -375,7 +375,10 @@
 																: 'hover:bg-surface-950/5'}"
 														>
 															<div class="flex w-full items-center justify-between space-x-2">
-																<span class={itemLabelClass}>{option.label}</span>
+																<!-- a name cut short (…) shows in full on hover -->
+																<span class={itemLabelClass} title={option.label}>
+																	{option.label}
+																</span>
 																<NamePicture src={option.picture} />
 															</div>
 														</button>
@@ -595,7 +598,8 @@
 										>
 											{#snippet element(attributes: AnyTagAttributes)}
 												<span {...attributes} data-scope={null} data-testid="combobox">
-													{@render comboboxParts(guestOptions, '', '')}
+													<!-- the name gives way (…) so its picture stays in a narrow list -->
+													{@render comboboxParts(guestOptions, '', 'min-w-0 truncate')}
 												</span>
 											{/snippet}
 										</Combobox>
