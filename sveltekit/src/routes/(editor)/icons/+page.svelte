@@ -253,7 +253,7 @@
 <div class="mx-auto max-w-5xl space-y-4 px-4 pt-10 pb-28">
 	<EditorHeader
 		title="Icons"
-		description="Pictures with a name and an emoji: guests pick one when they check in, and calendar observances can show one."
+		description="Pictures with a name: guests pick one when they check in, and calendar days can show one."
 		live={icons.status === 'ready' ? icons.live : null}
 	>
 		{#snippet actions()}
@@ -287,8 +287,8 @@
 		<section class="card bg-surface-50-950 space-y-4 p-8 text-center shadow-lg">
 			<h2 class="h3">No icons yet</h2>
 			<p>
-				An icon is a picture with a name and an emoji. Guests who visit the class pick one when they
-				check in, and calendar observances can show one on the calendar.
+				An icon is a picture with a name. Guests who visit the class pick one when they check in,
+				and calendar days can show one.
 			</p>
 			<div class="flex flex-wrap justify-center gap-3">
 				{#each USES as use, index (use.key)}
@@ -337,6 +337,7 @@
 	open={formOpen}
 	session={formSession}
 	icon={editing}
+	icons={icons.items}
 	preset={formPreset}
 	{pictureNeeded}
 	{onSaved}

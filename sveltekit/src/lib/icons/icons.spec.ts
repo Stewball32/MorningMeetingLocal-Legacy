@@ -4,7 +4,6 @@ import type { IconRecord } from '#lib/pb/types.ts';
 import {
 	afterDelete,
 	groupIcons,
-	iconLabel,
 	isDeleteClash,
 	joinWords,
 	needsPicture,
@@ -23,7 +22,6 @@ function icon(fields: Partial<IconRecord> = {}): IconRecord {
 		collectionId: 'pbc_423132189',
 		collectionName: 'icons',
 		name: `Icon ${next}`,
-		emoji: '🚀',
 		image: 'rocket.png',
 		for_guests: false,
 		for_calendar: false,
@@ -72,7 +70,7 @@ describe('groupIcons', () => {
 		const a = icon({ name: 'apple', for_guests: true });
 		const z = icon({ name: 'Zebra', for_guests: true });
 		const twin1 = icon({ name: 'Sun', for_guests: true });
-		const twin2 = icon({ name: 'Sun', for_guests: true, emoji: '🌞' });
+		const twin2 = icon({ name: 'Sun', for_guests: true });
 		expect(groupIcons([a, twin2, z, twin1]).guests).toEqual([twin1, twin2, z, a]);
 	});
 
@@ -82,11 +80,6 @@ describe('groupIcons', () => {
 });
 
 describe('words', () => {
-	it('names an icon with its emoji', () => {
-		expect(iconLabel({ name: 'Rocket', emoji: '🚀' })).toBe('Rocket 🚀');
-		expect(iconLabel({ name: 'Rocket', emoji: '' })).toBe('Rocket');
-	});
-
 	it('joins words', () => {
 		expect(joinWords([])).toBe('');
 		expect(joinWords(['a'])).toBe('a');

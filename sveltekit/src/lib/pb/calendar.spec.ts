@@ -53,7 +53,6 @@ function icon(fields: Partial<IconRecord>): IconRecord {
 		collectionId: 'pbc_423132189',
 		collectionName: 'icons',
 		name: 'Turkey',
-		emoji: '🦃',
 		image: 'turkey_abc.png',
 		for_guests: false,
 		for_calendar: true,

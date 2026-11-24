@@ -3,63 +3,92 @@
 import { validationCodes } from '#lib/editor/errors.ts';
 import { sameValues, type FieldErrors } from '#lib/editor/form.ts';
 import type { IconRecord } from '#lib/pb/types.ts';
-import { emojiProblem } from './emoji.ts';
 import { USES, type UseField } from './uses.ts';
 
-/** What the form holds while the teacher types: text exactly as typed, and one switch per use. */
-export type IconFormValues = { name: string; emoji: string } & Record<UseField, boolean>;
+/** What the form holds while the teacher types: the name exactly as typed, and one switch per use. */
+export type IconFormValues = { name: string } & Record<UseField, boolean>;
 
 export type FormField = keyof IconFormValues | 'image';
 export type FormErrors = FieldErrors<FormField>;
 
 /** The record fields the form writes (the picture is handled separately). */
-export type IconFields = Pick<IconRecord, 'name' | 'emoji' | UseField>;
+export type IconFields = Pick<IconRecord, 'name' | UseField>;
 
 const allSwitches = (on: boolean) =>
 	Object.fromEntries(USES.map((use) => [use.field, on])) as Record<UseField, boolean>;
 
 /** A new icon: every switch off unless the preset turns one on (e.g. "Add guest icon"). */
 export function emptyForm(preset: Partial<IconFormValues> = {}): IconFormValues {
-	return { name: '', emoji: '', ...allSwitches(false), ...preset };
+	return { name: '', ...allSwitches(false), ...preset };
 }
 
 export function formFromIcon(icon: IconRecord): IconFormValues {
-	const values = emptyForm({ name: icon.name ?? '', emoji: icon.emoji ?? '' });
+	const values = emptyForm({ name: icon.name ?? '' });
 	for (const use of USES) values[use.field] = !!icon[use.field];
 	return values;
 }
 
+/** The picture message for a new icon without one. */
+export const PICTURE_REQUIRED = "Please choose a picture: it's what guests and the calendar show.";
 /** The picture message while Guests is on and the icon has (or will have) no picture. */
 export const PICTURE_NEEDED = 'Guests need a picture: choose one, or turn off Guests.';
+/** The picture messages validateForm gives (the others come from choosing a picture). */
+export const PICTURE_RULES: readonly string[] = [PICTURE_REQUIRED, PICTURE_NEEDED];
 
-export interface ValidateOptions {
-	/**
-	 * What the form started with when editing an icon: the emoji is then only checked once it is
-	 * changed, so an odd one saved long ago (say two emoji) doesn't block saving the rest; it is
-	 * kept as it is.
-	 */
-	start?: IconFormValues;
-	/** Whether the icon has a picture once saved (a new one chosen, or the saved one kept). */
-	hasPicture: boolean;
+/** How names are compared: not counting upper and lower case or spaces around them. */
+const nameKey = (name: string) => name.trim().toLowerCase();
+
+/**
+ * The other icon that already has this name, not counting upper and lower case or spaces around
+ * it ("dog " is taken by "Dog"), or undefined. `exceptId`: the icon being edited.
+ */
+export function iconWithName(
+	name: string,
+	icons: readonly Pick<IconRecord, 'id' | 'name'>[],
+	exceptId?: string
+): Pick<IconRecord, 'id' | 'name'> | undefined {
+	const key = nameKey(name);
+	if (!key) return undefined;
+	return icons.find((icon) => icon.id !== exceptId && nameKey(icon.name ?? '') === key);
 }
 
-/** Checks the form. */
-export function validateForm(values: IconFormValues, { start, hasPicture }: ValidateOptions) {
+/** The Name field's message when another icon has the name. */
+export const takenMessage = (name: string) =>
+	`There's already an icon called “${name.trim()}”. Please choose another name.`;
+
+export interface ValidateOptions {
+	/** The icon being edited; leave it out for a new one (which needs a picture). */
+	editing?: Pick<IconRecord, 'id'>;
+	/** Whether the icon has a picture once saved (a new one chosen, or the saved one kept). */
+	hasPicture: boolean;
+	/** Every icon (the page's live list), to check that the name is still free. */
+	icons?: readonly Pick<IconRecord, 'id' | 'name'>[];
+}
+
+/**
+ * Checks the form. A new icon needs a picture (it is what tells icons apart on the slides); an
+ * icon saved without one long ago can still be renamed and saved as it is, unless Guests is on.
+ */
+export function validateForm(
+	values: IconFormValues,
+	{ editing, hasPicture, icons = [] }: ValidateOptions
+) {
 	const errors: FormErrors = {};
 	if (!values.name.trim()) errors.name = 'Please enter a name.';
-	const emojiChanged = !start || values.emoji.trim() !== start.emoji.trim();
-	if (!values.emoji.trim()) errors.emoji = 'Please choose an emoji.';
-	else if (emojiChanged) {
-		const problem = emojiProblem(values.emoji);
-		if (problem) errors.emoji = problem;
+	else {
+		const other = iconWithName(values.name, icons, editing?.id);
+		if (other) errors.name = takenMessage(other.name);
 	}
-	if (values.for_guests && !hasPicture) errors.image = PICTURE_NEEDED;
+	if (!hasPicture) {
+		if (!editing) errors.image = PICTURE_REQUIRED;
+		else if (values.for_guests) errors.image = PICTURE_NEEDED;
+	}
 	return errors;
 }
 
 /** The record fields for valid form values (run validateForm first). */
 export function fieldsFromForm(values: IconFormValues): IconFields {
-	const fields = { name: values.name.trim(), emoji: values.emoji.trim() } as IconFields;
+	const fields = { name: values.name.trim() } as IconFields;
 	for (const use of USES) fields[use.field] = values[use.field];
 	return fields;
 }
@@ -72,20 +101,14 @@ export function sameForm(a: IconFormValues, b: IconFormValues): boolean {
 /** PocketBase field names -> form fields, for showing its validation errors next to the input. */
 export const FORM_FIELD_OF: Record<string, FormField> = {
 	name: 'name',
-	emoji: 'emoji',
 	image: 'image',
 	...Object.fromEntries(USES.map((use) => [use.field, use.field]))
 };
 
 /**
- * Whether PocketBase refused a save because another icon already has this name and emoji (the
- * unique index on (name, emoji) reports both fields).
+ * Whether PocketBase refused a save because another icon already has this name (its unique
+ * index on the name, not counting upper and lower case): say another window added it meanwhile.
  */
-export function isNameEmojiTaken(error: unknown): boolean {
-	const codes = validationCodes(error);
-	return codes.name === 'validation_not_unique' || codes.emoji === 'validation_not_unique';
+export function isNameTaken(error: unknown): boolean {
+	return validationCodes(error).name === 'validation_not_unique';
 }
-
-/** The message for isNameEmojiTaken. */
-export const takenMessage = (name: string) =>
-	`There's already an icon called ${name} with that emoji.`;

@@ -1,9 +1,9 @@
 <!--
 	@component
-	The Add / Edit icon form (inside IconFormDialog): name, emoji (with a palette), a switch per use,
-	and the picture with previews of how the slides show it. Works like the People form: it edits its
-	own copy, sends only what changed (nothing at all when nothing did), can't be saved twice, and
-	asks before Escape throws changes away.
+	The Add / Edit icon form (inside IconFormDialog): the name (each icon has its own), a switch per
+	use, and the picture with previews of how the slides show it (a new icon needs one). Works like
+	the People form: it edits its own copy, sends only what changed (nothing at all when nothing
+	did), can't be saved twice, and asks before Escape throws changes away.
 -->
 <script lang="ts">
 	import { Dialog } from '@skeletonlabs/skeleton-svelte';
@@ -16,15 +16,15 @@
 	import { createIcon, iconPictureUrl, updateIcon } from '#lib/pb/icons.ts';
 	import type { FileChange } from '#lib/pb/requests.ts';
 	import type { IconRecord } from '#lib/pb/types.ts';
-	import { emojiProblem } from './emoji.ts';
-	import EmojiPalette from './EmojiPalette.svelte';
 	import {
 		emptyForm,
 		FORM_FIELD_OF,
 		fieldsFromForm,
 		formFromIcon,
-		isNameEmojiTaken,
+		iconWithName,
+		isNameTaken,
 		PICTURE_NEEDED,
+		PICTURE_RULES,
 		sameForm,
 		takenMessage,
 		validateForm,
@@ -33,12 +33,14 @@
 		type IconFormValues
 	} from './form.ts';
 	import IconPreview from './IconPreview.svelte';
-	import { ICON_ERRORS, iconLabel } from './icons.ts';
+	import { ICON_ERRORS } from './icons.ts';
 	import { USES } from './uses.ts';
 
 	interface Props {
 		/** The icon to edit, or null to add a new one. */
 		icon: IconRecord | null;
+		/** Every icon (the page's live list): a name another icon has is refused before saving. */
+		icons: readonly IconRecord[];
 		/** Values to start with: for a new icon (e.g. Guests on), or changes to an icon's. */
 		preset?: Partial<IconFormValues>;
 		/** Opened because Guests was turned on for an icon without a picture: say it needs one. */
@@ -47,7 +49,7 @@
 		onCancel: () => void;
 	}
 
-	let { icon, preset = {}, pictureNeeded = false, onSaved, onCancel }: Props = $props();
+	let { icon, icons, preset = {}, pictureNeeded = false, onSaved, onCancel }: Props = $props();
 
 	// The form works on its own copy, taken when the dialog opens: a live update to this icon from
 	// another window never overwrites what is being typed here.
@@ -65,21 +67,15 @@
 	let saving = $state(false);
 	/** The save request is on its way (the button says so; not while the dialog closes). */
 	let sending = $state(false);
-	/** PocketBase said another icon has this name and emoji: changing either clears both. */
-	let taken = $state(false);
 
 	const clearError = (field: FormField) => {
 		if (errors[field]) errors[field] = undefined;
 		if (message && !hasErrors(errors)) message = '';
 	};
 
-	function setText(field: 'name' | 'emoji', text: string) {
-		values[field] = text;
-		clearError(field);
-		if (taken) {
-			taken = false;
-			clearError(field === 'name' ? 'emoji' : 'name');
-		}
+	function setName(text: string) {
+		values.name = text;
+		clearError('name');
 	}
 
 	// --- Picture -----------------------------------------------------------------------------
@@ -93,17 +89,9 @@
 		picture instanceof File || (picture === undefined && !!original?.image)
 	);
 
-	// --- Emoji -------------------------------------------------------------------------------
-
-	const emojiChanged = $derived(!original || values.emoji.trim() !== initial.emoji.trim());
-	/** An emoji saved long ago that isn't a single one: it is kept as it is unless it is changed. */
-	const oddSavedEmoji = $derived(
-		!!original && !emojiChanged && !!initial.emoji.trim() && !!emojiProblem(initial.emoji)
-	);
-
 	// --- Save --------------------------------------------------------------------------------
 
-	const title = original ? `Edit ${iconLabel(original)}` : 'Add an icon';
+	const title = original ? `Edit ${original.name}` : 'Add an icon';
 	const idPrefix = $props.id();
 	const id = (field: string) => `${idPrefix}-${field}`;
 
@@ -118,14 +106,11 @@
 	async function save(event: SubmitEvent) {
 		event.preventDefault();
 		if (saving || preparingPicture) return;
-		const problems = validateForm(values, {
-			start: original ? initial : undefined,
-			hasPicture
-		});
+		const problems = validateForm(values, { editing: original ?? undefined, hasPicture, icons });
 		// A picture that couldn't be used keeps its message (the saved one stays as it is).
-		const pictureError = errors.image === PICTURE_NEEDED ? undefined : errors.image;
+		const pictureError =
+			errors.image && PICTURE_RULES.includes(errors.image) ? undefined : errors.image;
 		errors = { ...problems, image: problems.image ?? pictureError };
-		taken = false;
 		if (hasErrors(problems)) {
 			message = 'Please fix the highlighted fields.';
 			focusFirstError();
@@ -155,14 +140,11 @@
 		} catch (error) {
 			sending = false;
 			saving = false;
-			if (isNameEmojiTaken(error)) {
-				taken = true;
-				errors = {
-					...errors,
-					name: 'Already used with this emoji.',
-					emoji: 'Already used with this name.'
-				};
-				message = `${takenMessage(fields.name)} Change the name or pick another emoji.`;
+			if (isNameTaken(error)) {
+				// Another window took the name meanwhile (the live list may already have that icon).
+				const other = iconWithName(fields.name, icons, original?.id);
+				errors = { ...errors, name: takenMessage(other?.name ?? fields.name) };
+				message = `Couldn't ${doing}. Please fix the highlighted fields.`;
 				focusFirstError();
 				return;
 			}
@@ -216,8 +198,14 @@
 						if (text) errors.image = text;
 						else clearError('image');
 					}}
-					label={values.for_guests ? 'Picture (needed for guests)' : 'Picture'}
-					emptyHint="No picture: the previews show what the slides use instead. Or drop a picture here."
+					label={!original
+						? 'Picture (needed)'
+						: values.for_guests
+							? 'Picture (needed for guests)'
+							: 'Picture'}
+					emptyHint={original
+						? 'No picture: the previews show what the slides use instead. Or drop a picture here.'
+						: 'Choose a picture, or drop one here: guests and the calendar show it.'}
 					removedHint="The picture is removed when you save; the slides then use what the previews show."
 					note="Square pictures look best."
 					maxSide={SMALL_PICTURE_SIDE}
@@ -240,7 +228,7 @@
 							autocomplete="off"
 							aria-required="true"
 							value={values.name}
-							oninput={(event) => setText('name', event.currentTarget.value)}
+							oninput={(event) => setName(event.currentTarget.value)}
 							aria-invalid={!!errors.name}
 							aria-describedby="{id('name-hint')}{errors.name ? ` ${id('name-error')}` : ''}"
 						/>
@@ -248,45 +236,10 @@
 					<!-- The name is only a label: a guest or a day keeps its own name. -->
 					<p id={id('name-hint')} class="text-sm opacity-80">
 						A label for finding this icon: the guest check-in list and the Calendar's icon picker
-						show it. It isn't used as a guest's or a day's name.
+						show it next to the picture, so each icon needs its own. It isn't used as a guest's or a
+						day's name.
 					</p>
 					{@render fieldError('name')}
-				</div>
-
-				<div class="space-y-2">
-					<div class="flex items-start gap-3">
-						<label class="label w-24 shrink-0" for={id('emoji')}>
-							<span class="label-text">Emoji <span class="text-error-600-400">*</span></span>
-							<input
-								id={id('emoji')}
-								class="input h-14 px-2 py-1 text-center text-3xl"
-								autocomplete="off"
-								spellcheck="false"
-								aria-required="true"
-								value={values.emoji}
-								oninput={(event) => setText('emoji', event.currentTarget.value)}
-								aria-invalid={!!errors.emoji}
-								aria-describedby="{id('emoji-hint')}{errors.emoji ? ` ${id('emoji-error')}` : ''}"
-							/>
-						</label>
-						<p id={id('emoji-hint')} class="min-w-0 flex-1 pt-6 text-sm opacity-80">
-							{#if oddSavedEmoji}
-								The saved emoji <span class="break-all">{initial.emoji.trim()}</span> is more than one
-								character; it is kept as it is unless you change it.
-							{:else}
-								One emoji, shown next to the name when guests check in. Type or paste one, pick one
-								below, or open your computer's emoji picker: <kbd class="kbd">Win</kbd> +
-								<kbd class="kbd">.</kbd> on Windows, <kbd class="kbd">Ctrl</kbd> +
-								<kbd class="kbd">Cmd</kbd> + <kbd class="kbd">Space</kbd> on a Mac.
-							{/if}
-						</p>
-					</div>
-					{@render fieldError('emoji')}
-					<EmojiPalette
-						value={values.emoji}
-						disabled={saving}
-						onPick={(emoji) => setText('emoji', emoji)}
-					/>
 				</div>
 
 				<fieldset class="grid gap-x-4 gap-y-2 sm:grid-cols-2">
@@ -300,7 +253,8 @@
 								describedBy={id(`${use.key}-help`)}
 								onCheckedChange={(checked) => {
 									values[use.field] = checked;
-									if (use.field === 'for_guests' && !checked) clearError('image');
+									if (use.field === 'for_guests' && !checked && errors.image === PICTURE_NEEDED)
+										clearError('image');
 								}}
 								class="-ml-2"
 							/>

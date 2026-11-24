@@ -44,12 +44,11 @@ export interface PersonDaily extends DailyRecord {
 }
 
 /**
- * A row of `icons`: a picture with a name and an emoji, unique per (name, emoji). The `for_*`
- * switches say where it is offered.
+ * A row of `icons`: a picture with a name. Names are unique, not counting upper and lower case
+ * (the icons_without_emoji migration). The `for_*` switches say where it is offered.
  */
 export interface IconRecord extends RecordModel {
-	name: string;
-	emoji: string; // one emoji; shown in the Add Guest lists
+	name: string; // shown next to the picture in the Add Guest lists and the Calendar's icon picker
 	image: string; // file name in this record's storage; '' when it has no picture
 	for_guests: boolean; // offered to one-off guests (Add Guest)
 	for_calendar: boolean; // offered to calendar observances

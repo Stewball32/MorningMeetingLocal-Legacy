@@ -153,13 +153,13 @@ describe('validationCodes', () => {
 				message: 'Failed to create record.',
 				data: {
 					name: { code: 'validation_not_unique', message: 'Value must be unique.' },
-					emoji: { code: 'validation_not_unique', message: 'Value must be unique.' }
+					image: { code: 'validation_invalid_mime_type', message: 'Invalid file type.' }
 				}
 			}
 		});
 		expect(validationCodes(error)).toEqual({
 			name: 'validation_not_unique',
-			emoji: 'validation_not_unique'
+			image: 'validation_invalid_mime_type'
 		});
 	});
 

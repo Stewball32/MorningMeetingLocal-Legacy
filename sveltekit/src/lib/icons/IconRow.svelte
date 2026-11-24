@@ -1,6 +1,6 @@
 <!--
 	@component
-	One icon in the list: its picture, emoji and name, a switch for each use (see USES), Edit and
+	One icon in the list: its picture and name, a switch for each use (see USES), Edit and
 	Delete. Its inputs are named after the use's field (e.g. "for_guests"), which keepSwitchFocus
 	uses to find the same switch again when the row moves to another group.
 -->
@@ -31,24 +31,21 @@
 </script>
 
 <li class="flex flex-wrap items-center gap-x-4 gap-y-2 py-3" data-icon={icon.id}>
-	<div class="flex items-center gap-3">
-		<IconPicture
-			src={iconPictureUrl(icon, '100x100')}
-			class="size-16 {offForAll ? 'opacity-60 grayscale' : ''}"
-		/>
-		<span class="w-12 text-center text-4xl leading-none">{icon.emoji}</span>
-	</div>
+	<IconPicture
+		src={iconPictureUrl(icon, '100x100')}
+		class="size-16 {offForAll ? 'opacity-60 grayscale' : ''}"
+	/>
 	<div class="min-w-40 flex-1">
 		<p class="truncate text-xl font-semibold" title={icon.name}>{icon.name}</p>
 		{#if !icon.image}
 			<p class="mt-1 flex flex-wrap items-center gap-1.5">
 				{#if needsPicture(icon)}
 					<span class="{tag} preset-tonal-warning inline-flex items-center gap-1">
-						<ImageOff class="size-4" aria-hidden="true" /> no picture: guests need one
+						<ImageOff class="size-4" aria-hidden="true" /> No picture: guests need one
 					</span>
 				{:else}
 					<span class="{tag} preset-tonal inline-flex items-center gap-1 opacity-80">
-						<ImageOff class="size-4" aria-hidden="true" /> no picture
+						<ImageOff class="size-4" aria-hidden="true" /> No picture
 					</span>
 				{/if}
 			</p>

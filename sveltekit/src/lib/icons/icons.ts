@@ -34,11 +34,6 @@ export function groupIcons(icons: readonly IconRecord[]): IconGroups {
 	return groups;
 }
 
-/** "Rocket 🚀": how the icon is named in messages and dialog titles. */
-export function iconLabel(icon: Pick<IconRecord, 'name' | 'emoji'>): string {
-	return `${icon.name} ${icon.emoji ?? ''}`.trim();
-}
-
 /** Whether the icon is on for guests without a picture: guest buttons would show a broken image. */
 export function needsPicture(icon: Pick<IconRecord, 'for_guests' | 'image'>): boolean {
 	return !!icon.for_guests && !icon.image;

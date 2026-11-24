@@ -15,7 +15,6 @@
 		afterDelete,
 		DELETE_CLASH,
 		ICON_ERRORS,
-		iconLabel,
 		isDeleteClash,
 		joinWords,
 		totalUses,
@@ -73,7 +72,7 @@
 
 <DeleteConfirm
 	bind:this={confirm}
-	title="Delete {iconLabel(icon)}?"
+	title="Delete {name}?"
 	{count}
 	{remove}
 	doing="delete {name}"

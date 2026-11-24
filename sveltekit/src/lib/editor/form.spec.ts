@@ -18,7 +18,7 @@ describe('sameValues', () => {
 
 describe('changedFields', () => {
 	it('keeps only what changed', () => {
-		const before = { name: 'Sun', emoji: '☀️', for_guests: true, for_calendar: false };
+		const before = { name: 'Sun', for_guests: true, for_calendar: false };
 		expect(changedFields(before, { ...before, name: 'Sunny', for_calendar: true })).toEqual({
 			name: 'Sunny',
 			for_calendar: true
@@ -62,6 +62,6 @@ describe('hasErrors', () => {
 	it('spots any message', () => {
 		expect(hasErrors({})).toBe(false);
 		expect(hasErrors({ name: undefined })).toBe(false);
-		expect(hasErrors({ name: undefined, emoji: 'Pick one emoji.' })).toBe(true);
+		expect(hasErrors({ name: undefined, image: 'Please choose a picture.' })).toBe(true);
 	});
 });

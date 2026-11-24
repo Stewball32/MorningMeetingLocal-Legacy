@@ -11,6 +11,8 @@
 		session: number;
 		/** The icon to edit, or null to add a new one. */
 		icon: IconRecord | null;
+		/** Every icon (the page's live list), for the check that names are not taken. */
+		icons: readonly IconRecord[];
 		preset?: Partial<IconFormValues>;
 		/** Opened because Guests was turned on for an icon without a picture. */
 		pictureNeeded?: boolean;
@@ -23,6 +25,7 @@
 		open,
 		session,
 		icon,
+		icons,
 		preset = {},
 		pictureNeeded = false,
 		onSaved,
@@ -48,5 +51,5 @@
 	{finalFocusEl}
 	class="max-w-3xl"
 >
-	<IconForm bind:this={form} {icon} {preset} {pictureNeeded} {onSaved} onCancel={onClose} />
+	<IconForm bind:this={form} {icon} {icons} {preset} {pictureNeeded} {onSaved} onCancel={onClose} />
 </EditorDialog>

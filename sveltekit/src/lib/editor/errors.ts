@@ -54,7 +54,7 @@ export interface DescribeOptions<Field extends string = string> {
 
 /**
  * The `code` of each of PocketBase's validation errors, by PocketBase field name (e.g.
- * `{ name: 'validation_not_unique', emoji: 'validation_not_unique' }`), so a page can give its
+ * `{ name: 'validation_not_unique' }` for an icon name another icon has), so a page can give its
  * own message for a case it knows (check this before describeError). Empty for other errors.
  */
 export function validationCodes(error: unknown): Record<string, string> {
