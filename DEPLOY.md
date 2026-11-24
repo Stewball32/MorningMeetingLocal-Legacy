@@ -67,7 +67,7 @@ BK=~/mm-backups; mkdir -p "$BK"
      - lines containing `people migration: warning:` (e.g. a missing picture: re-upload it later in /people);
      - lines containing `class_dailies migration:` (days that had two records, now merged);
      - lines containing `icons migration: renamed` (icons that had the same name: e.g. the second "Dog" is now "Dog 2"; rename it later in /icons if you like);
-     - lines containing `icons migration: warning:` and `has no picture` (guests who pick that icon show the default picture: give it one later in /icons).
+     - lines containing `icons migration: warning:` and `has no picture` (wherever that icon is used, guest check-in or calendar, the slides show a default picture: give it one later in /icons).
    - `No new migrations to apply.` means the copy wasn't next to `pb_migrations`: the dry run did nothing.
    - `Error: Failed to apply migration ...`: stop here and send the message to whoever maintains the app.
    - Afterwards: `rm -rf ~/mm-dryrun`.

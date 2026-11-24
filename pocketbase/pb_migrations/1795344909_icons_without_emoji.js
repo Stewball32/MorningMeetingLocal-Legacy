@@ -5,17 +5,19 @@
 // 1. Icon names become unique on their own (not counting upper and lower case), instead of
 //    together with the emoji. Icons with the same name (they used to differ by emoji) keep the
 //    oldest one's name; the others get a number: "Dog", "Dog 2", "Dog 3". Each rename is printed.
+//    A name of spaces only gets "Icon" before the number ("Icon 2"), and a very long one is
+//    shortened to leave room for the number within PocketBase's 5000 characters.
 // 2. icons.emoji is removed, with what was typed into it.
-// 3. Icons without a picture are printed as a warning: guests who pick one show the default
-//    picture until it gets one on the Icons page.
+// 3. Icons without a picture are printed as a warning: wherever one is used, the slides show a
+//    default picture until it gets one on the Icons page.
 //
 // Guest check-ins and calendar observances point to icons by id, so they are not changed.
 //
-// Rolling back: see DEPLOY.md section C2 (`pocketbase migrate down` reverts the newest migrations
-// first, so this one is the 1st). It puts the emoji field back empty: the emoji themselves are
-// gone, and renamed icons keep their new names. PocketBase exits with status 0 even when a
-// migration fails, so check that it printed "Reverted 1795344909_icons_without_emoji.js" (or
-// "Applied ..." when migrating up).
+// Rolling back: see DEPLOY.md section C2 for the order (`pocketbase migrate down` reverts the
+// newest migrations first, so the ones after this one go before it). It puts the emoji field back
+// empty: the emoji themselves are gone, and renamed icons keep their new names. PocketBase exits
+// with status 0 even when a migration fails, so check that it printed
+// "Reverted 1795344909_icons_without_emoji.js" (or "Applied ..." when migrating up).
 
 migrate(
 	(app) => {
@@ -37,6 +39,14 @@ migrate(
 			)
 			.all(rows);
 		const key = (name) => String(name).trim().toLowerCase();
+		// The name field has no limit of its own (max 0), so PocketBase allows 5000 characters
+		// (counted as code points) and would refuse every later save of a longer name.
+		const MAX_NAME = 5000;
+		const numbered = (name, number) => {
+			const suffix = ` ${number}`;
+			const base = Array.from(name.trim() || 'Icon').slice(0, MAX_NAME - suffix.length);
+			return `${base.join('').trimEnd()}${suffix}`;
+		};
 		const taken = new Set(rows.map((row) => key(row.name)));
 		const seen = new Set();
 		for (const row of rows) {
@@ -46,8 +56,8 @@ migrate(
 				continue;
 			}
 			let number = 2;
-			while (taken.has(key(`${name.trim()} ${number}`))) number++;
-			const renamed = `${name.trim()} ${number}`;
+			while (taken.has(key(numbered(name, number)))) number++;
+			const renamed = numbered(name, number);
 			taken.add(key(renamed));
 			seen.add(key(renamed));
 			row.name = renamed;
@@ -64,8 +74,8 @@ migrate(
 		for (const row of rows) {
 			if (!row.image)
 				console.log(
-					`icons migration: warning: "${row.name}" (${row.id}) has no picture: guests who pick ` +
-						'it show the default picture until it gets one on the Icons page'
+					`icons migration: warning: "${row.name}" (${row.id}) has no picture: wherever it is ` +
+						'used, the slides show a default picture until it gets one on the Icons page'
 				);
 		}
 
