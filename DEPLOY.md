@@ -2,14 +2,18 @@
 
 This version adds the People, Icons and Calendar Observances pages, the Home page, the zoom-proof
 presenter and the presenter fixes. The calendar also shows birthdays, built-in holidays can show
-under another name, and the class's own days can move (e.g. the 4th Thursday in November). It
-changes the database with four migrations:
+under another name, and the class's own days can move (e.g. the 4th Thursday in November). Icons
+no longer have an emoji: an icon is a picture with a name of its own. It changes the database with
+five migrations:
 1. `1795321340_created_people.js`: students and teachers move into one `people` collection.
 2. `1795344906_icons_and_observances.js`: observances can use an icon or be hidden, icon pictures
    must be images, and icons can be deleted even when guests used them.
 3. `1795344907_class_dailies_unique_date.js`: one class record per day (it merges duplicates first).
 4. `1795344908_birthdays_and_holiday_names.js`: people can have a birthday, and a built-in holiday a
    name on the calendar. Both are new, empty fields.
+5. `1795344909_icons_without_emoji.js`: icons lose their emoji, and each icon name is its own (not
+   counting upper and lower case). Icons that had the same name keep it on the oldest one; the
+   others get a number ("Dog", "Dog 2"). Guest check-ins and observances keep their icons.
 
 The update was rehearsed end to end on a copy of a realistic database (two school years of attendance).
 Follow the steps in order. **Read the output of every PocketBase command:** PocketBase exits with
@@ -57,11 +61,13 @@ BK=~/mm-backups; mkdir -p "$BK"
    ```
    - **Good:**
      - a line containing `people migration: N students + M teachers -> N+M people; X + Y dailies -> X+Y people_dailies`;
-     - four `Applied ...` lines, one per migration file listed at the top;
+     - five `Applied ...` lines, one per migration file listed at the top;
      - the 🚀 / 📂 / 🛑 lines are normal.
    - **Worth noting, but they stop nothing:**
      - lines containing `people migration: warning:` (e.g. a missing picture: re-upload it later in /people);
-     - lines containing `class_dailies migration:` (days that had two records, now merged).
+     - lines containing `class_dailies migration:` (days that had two records, now merged);
+     - lines containing `icons migration: renamed` (icons that had the same name: e.g. the second "Dog" is now "Dog 2"; rename it later in /icons if you like);
+     - lines containing `icons migration: warning:` and `has no picture` (guests who pick that icon show the default picture: give it one later in /icons).
    - `No new migrations to apply.` means the copy wasn't next to `pb_migrations`: the dry run did nothing.
    - `Error: Failed to apply migration ...`: stop here and send the message to whoever maintains the app.
    - Afterwards: `rm -rf ~/mm-dryrun`.
@@ -94,11 +100,12 @@ BK=~/mm-backups; mkdir -p "$BK"
 4. **Migrate by hand and read the output:**
    ```bash
    cd "$REPO/pocketbase" && ./pocketbase migrate up 2>&1 | tee "$BK/migrate-up.log"
-   [ "$(grep -c 'Applied ' "$BK/migrate-up.log")" = 4 ] && [ "$(grep -cE 'Applied (1795321340_created_people|1795344906_icons_and_observances|1795344907_class_dailies_unique_date|1795344908_birthdays_and_holiday_names)\.js' "$BK/migrate-up.log")" = 4 ] && echo MIGRATED
+   [ "$(grep -c 'Applied ' "$BK/migrate-up.log")" = 5 ] && [ "$(grep -cE 'Applied (1795321340_created_people|1795344906_icons_and_observances|1795344907_class_dailies_unique_date|1795344908_birthdays_and_holiday_names|1795344909_icons_without_emoji)\.js' "$BK/migrate-up.log")" = 5 ] && echo MIGRATED
    ```
    You should see the `people migration: ... -> ... people` line with the real numbers (not `0 students`)
-   and `MIGRATED`. If you see `Error: Failed to apply migration ...` instead, nothing was changed
-   (PocketBase applies all four or none, even if the `people migration:` line was printed): go to C1.
+   and `MIGRATED`. The `icons migration:` lines, if any, are the ones the dry run showed (A5). If you
+   see `Error: Failed to apply migration ...` instead, nothing was changed (PocketBase applies all
+   five or none, even if the `people migration:` or `icons migration:` lines were printed): go to C1.
 5. **Build the frontend:**
    ```bash
    cd "$REPO/sveltekit" && npm ci && npm run build
@@ -113,11 +120,12 @@ BK=~/mm-backups; mkdir -p "$BK"
    curl -s "$PB_URL/api/collections/people/records?perPage=1&fields=id" | grep -o '"totalItems":[0-9]*'   # students + teachers
    curl -s -o /dev/null -w '%{http_code}\n' "$PB_URL/api/collections/students/records?perPage=1"         # 404
    curl -s -o /dev/null -w '%{http_code}\n' -G "$PB_URL/api/collections/people/records" --data-urlencode "filter=birthday != ''"   # 200 (400: no birthday field, migration 4 is missing)
+   curl -s -o /dev/null -w '%{http_code}\n' -G "$PB_URL/api/collections/icons/records" --data-urlencode "filter=emoji != ''"       # 400 (200: icons still have an emoji, migration 5 is missing)
    ```
    - Reload every open Morning Meeting tab (Ctrl+Shift+R).
    - The Home page shows a Presenter button and tiles for People, Icons and Calendar Observances, each with a short summary.
    - The attendance pages list everyone, and /people shows Teachers and Students with the right counts.
-   - /icons lists the guest icons. /calendar lists the coming days and the built-in holidays.
+   - /icons lists the guest icons, each with its name and picture and no emoji (renamed ones as "Dog 2" and so on). /calendar lists the coming days and the built-in holidays.
    - /calendar has a Birthdays section that says "No birthdays yet" ("Can't load the birthdays" means migration 4 is missing: go to C1).
      Birthdays are set on /people. One set there shows in that section and on the calendar slide, and like the mark below, it counts as using the new version.
    - Mark one student here and reload: it stays. That counts as using the new version: from then on, going back means C1 (or C2 with `MM_PEOPLE_FORCE_DOWN=1`, which throws that mark away).
@@ -141,13 +149,14 @@ BK=~/mm-backups; mkdir -p "$BK"
    - Stop both servers first (B1).
    - Then run:
      ```bash
-     cd "$REPO/pocketbase" && ./pocketbase migrate down 4
+     cd "$REPO/pocketbase" && ./pocketbase migrate down 5
      ```
-   - It first lists the migrations it will undo and asks `(y/N)`. Answer `y` only if the list is exactly `1795344908_birthdays_and_holiday_names.js`, `1795344907_class_dailies_unique_date.js`, `1795344906_icons_and_observances.js` and `1795321340_created_people.js`.
+   - It first lists the migrations it will undo and asks `(y/N)`. Answer `y` only if the list is exactly `1795344909_icons_without_emoji.js`, `1795344908_birthdays_and_holiday_names.js`, `1795344907_class_dailies_unique_date.js`, `1795344906_icons_and_observances.js` and `1795321340_created_people.js`.
      - If it lists any other file, answer `n` and use C1. (Either the old code is checked out, or the dashboard wrote a migration.)
-   - **Good:** four `Reverted ...` lines. Then continue with C1 step 4 (steps 1-3 are not needed).
+   - **Good:** five `Reverted ...` lines. Then continue with C1 step 4 (steps 1-3 are not needed).
    - **A line containing `not rolling back`:** people (a birthday too), attendance, or check-ins of regular guests were changed since the update. Nothing was reverted: PocketBase undoes the whole command when one step refuses, so there are no `Reverted` lines and the database is exactly as it was. Use C1.
-     - `MM_PEOPLE_FORCE_DOWN=1 ./pocketbase migrate down 4` throws those people and attendance changes away, birthdays included. As another user, use `sudo -u <user> env MM_PEOPLE_FORCE_DOWN=1 ./pocketbase migrate down 4`. Only use it when you are sure.
+     - `MM_PEOPLE_FORCE_DOWN=1 ./pocketbase migrate down 5` throws those people and attendance changes away, birthdays included. As another user, use `sudo -u <user> env MM_PEOPLE_FORCE_DOWN=1 ./pocketbase migrate down 5`. Only use it when you are sure.
+   - **The emoji don't come back.** `migrate down` puts the icons' emoji field back, but empty: the old version's guest lists then show the names with no emoji, or with ❔. Icons the update renamed ("Dog 2") keep their new names. To get the emoji back, use C1.
    - **`migrate down` does not notice what was done on /icons or /calendar.** A deleted icon stays deleted, and past guests who used it show no picture. Hidden holidays, the names given to built-in holidays ("Name on the calendar"), and icons chosen for observances, are dropped. If anyone used /icons or /calendar, use C1 instead.
    - **Birthdays are dropped by `migrate down` too.** Setting one changes its person, so without `MM_PEOPLE_FORCE_DOWN=1` it stops at `not rolling back` (above).
 
