@@ -14,7 +14,9 @@ import {
 	guestPerson,
 	guestPictureUrl,
 	isPerson,
+	lastIconOf,
 	regularGuestProblem,
+	SMALL_PICTURE,
 	studentsOf,
 	teachersOf,
 	visibleGuestDailies
@@ -42,16 +44,21 @@ const guest = (id: string, name: string, extra: Partial<GuestDaily> = {}): Guest
 	...extra
 });
 
-const icon = (id: string, emoji: string): IconRecord => ({
-	id,
-	collectionId: 'pbc_icons',
-	collectionName: 'icons',
-	name: `Icon ${id}`,
-	emoji,
-	image: `${id}.png`,
-	for_guests: true,
-	for_calendar: false
-});
+const icon = (id: string, extra: Partial<IconRecord> = {}) =>
+	({
+		id,
+		collectionId: 'pbc_icons',
+		collectionName: 'icons',
+		name: `Icon ${id}`,
+		image: `${id}.png`,
+		for_guests: true,
+		for_calendar: false,
+		...extra
+	}) as IconRecord;
+
+/** The small copy's URL of a picture stored on a record. */
+const small = (collectionId: string, id: string, file: string) =>
+	`http://pocketbase.invalid/api/files/${collectionId}/${id}/${file}?thumb=100x100`;
 
 const ids = (people: { id: string }[]) => people.map((p) => p.id);
 
@@ -142,18 +149,71 @@ describe('guest check-ins', () => {
 	});
 
 	it("shows the person's own picture, else the icon, else the default avatar", () => {
-		const star = icon('star', '⭐');
+		const star = icon('star');
 		expect(guestPictureUrl(grandma, star)).toMatch(/\/api\/files\/pbc_1795321340\/gma\/gma\.png$/);
 		expect(guestPictureUrl(amy, star)).toMatch(/\/api\/files\/pbc_icons\/star\/star\.png$/);
 		expect(guestPictureUrl(undefined, star)).toMatch(/\/api\/files\/pbc_icons\/star\/star\.png$/);
 		expect(guestPictureUrl(amy, null)).toBe(DEFAULT_AVATAR);
 		expect(guestPictureUrl(undefined, undefined)).toBe(DEFAULT_AVATAR);
 	});
+
+	it('shows the default avatar for an icon without a picture', () => {
+		const old = icon('old', { image: '' });
+		expect(guestPictureUrl(undefined, old)).toBe(DEFAULT_AVATAR);
+		expect(guestPictureUrl(amy, old, SMALL_PICTURE)).toBe(DEFAULT_AVATAR);
+		expect(guestPictureUrl(grandma, old, SMALL_PICTURE)).toBe(
+			small('pbc_1795321340', 'gma', 'gma.png')
+		);
+	});
+
+	it('asks PocketBase for a small copy when told to', () => {
+		const star = icon('star');
+		expect(guestPictureUrl(undefined, star, SMALL_PICTURE)).toBe(
+			small('pbc_icons', 'star', 'star.png')
+		);
+		expect(guestPictureUrl(grandma, star, SMALL_PICTURE)).toBe(
+			small('pbc_1795321340', 'gma', 'gma.png')
+		);
+		expect(guestPictureUrl(undefined, null, SMALL_PICTURE)).toBe(DEFAULT_AVATAR);
+	});
+});
+
+describe('lastIconOf', () => {
+	const icons = new Map(['cat', 'dog', 'owl'].map((id) => [id, icon(id)]));
+
+	it("finds the icon of a person's latest check-in that has one", () => {
+		const previous = [
+			guest('p1', 'Gus', { person: 'gst', avatar: 'cat', date: '2026-10-01' }),
+			guest('p2', 'Gus', { person: 'gst', avatar: 'dog', date: '2026-11-02' }),
+			guest('p3', 'Gus', { person: 'gst', avatar: 'owl', date: '2026-10-15' }),
+			guest('p4', 'Visitor', { avatar: 'owl', date: '2026-11-19' })
+		];
+		expect(lastIconOf('gst', previous, icons)?.id).toBe('dog');
+		expect(lastIconOf('gma', previous, icons)).toBeUndefined();
+	});
+
+	it('takes the one saved last on the same day', () => {
+		const previous = [
+			guest('p1', 'Gus', { person: 'gst', avatar: 'cat', created: '2026-11-02 09:00:00.000Z' }),
+			guest('p2', 'Gus', { person: 'gst', avatar: 'dog', created: '2026-11-02 08:00:00.000Z' })
+		];
+		expect(lastIconOf('gst', previous, icons)?.id).toBe('cat');
+	});
+
+	it('skips check-ins without an icon, or whose icon is gone', () => {
+		const previous = [
+			guest('p1', 'Gus', { person: 'gst', avatar: 'cat', date: '2026-10-01' }),
+			guest('p2', 'Gus', { person: 'gst', avatar: '', date: '2026-11-02' }),
+			guest('p3', 'Gus', { person: 'gst', avatar: 'deleted', date: '2026-11-03' })
+		];
+		expect(lastIconOf('gst', previous, icons)?.id).toBe('cat');
+		expect(lastIconOf('gst', previous.slice(1), icons)).toBeUndefined();
+	});
 });
 
 describe('guestNameOptions', () => {
 	const peopleById = new Map(everyone.map((p) => [p.id, p]));
-	const icons = new Map([['cat', icon('cat', '🐱')]]);
+	const icons = new Map([['cat', icon('cat')]]);
 
 	it('lists regular guests first, then earlier one-off guests once each', () => {
 		const previous = [
@@ -162,14 +222,59 @@ describe('guestNameOptions', () => {
 			guest('p3', 'Mystery', { avatar: 'nope' })
 		];
 		const options = guestNameOptions(guestPeopleOf(everyone), previous, peopleById, icons);
-		expect(options.map(({ label, value, emoji }) => [label, value, emoji])).toEqual([
-			['Grandma', 'person:gma', '👤'],
-			['Gus', 'person:gst', '👤'],
-			['Visitor', 'p1', '🐱'],
-			['Mystery', 'p3', '❔']
+		expect(options.map(({ label, value }) => [label, value])).toEqual([
+			['Grandma', 'person:gma'],
+			['Gus', 'person:gst'],
+			['Visitor', 'p1'],
+			['Mystery', 'p3']
 		]);
 		expect(options[0].person).toBe(grandma);
 		expect(options[2].person).toBeUndefined();
+	});
+
+	it("shows a regular guest's own picture, else their latest check-in's icon, else the default", () => {
+		const dog = icon('dog');
+		const withDog = new Map([...icons, ['dog', dog]]);
+		const previous = [
+			guest('p1', 'Grandma', { person: 'gma', avatar: 'cat', date: '2026-11-02' }),
+			guest('p2', 'Gus', { person: 'gst', avatar: 'cat', date: '2026-10-01' }),
+			guest('p3', 'Gus', { person: 'gst', avatar: 'dog', date: '2026-11-02' })
+		];
+		const pictures = (list: GuestDaily[], map = withDog) =>
+			guestNameOptions(guestPeopleOf(everyone), list, peopleById, map).map((o) => [
+				o.label,
+				o.picture
+			]);
+		expect(pictures(previous)).toEqual([
+			['Grandma', small('pbc_1795321340', 'gma', 'gma.png')],
+			['Gus', small('pbc_icons', 'dog', 'dog.png')]
+		]);
+		// the icon was deleted on the Icons page: the one before it
+		expect(pictures(previous, icons)).toEqual([
+			['Grandma', small('pbc_1795321340', 'gma', 'gma.png')],
+			['Gus', small('pbc_icons', 'cat', 'cat.png')]
+		]);
+		// never checked in, or its icon has no picture: the default avatar
+		expect(pictures([])[1]).toEqual(['Gus', DEFAULT_AVATAR]);
+		const noPicture = new Map([['dog', icon('dog', { image: '' })]]);
+		expect(pictures([previous[2]], noPicture)[1]).toEqual(['Gus', DEFAULT_AVATAR]);
+	});
+
+	it("shows a one-off guest's icon from the check-in it reuses, else the default", () => {
+		const previous = [
+			guest('p1', 'Visitor', { avatar: 'cat' }),
+			guest('p2', 'Visitor', { avatar: 'dog' }),
+			guest('p3', 'Mystery', { avatar: 'nope' }),
+			guest('p4', 'Nobody'),
+			guest('p5', 'Gone', { person: 'deleted', avatar: 'cat' })
+		];
+		const options = guestNameOptions([], previous, peopleById, icons);
+		expect(options.map((o) => [o.value, o.picture])).toEqual([
+			['p1', small('pbc_icons', 'cat', 'cat.png')],
+			['p3', DEFAULT_AVATAR],
+			['p4', DEFAULT_AVATAR],
+			['p5', small('pbc_icons', 'cat', 'cat.png')]
+		]);
 	});
 
 	it('does not list a one-off guest with the name of a regular guest', () => {
@@ -327,7 +432,7 @@ describe('guestCheckInError', () => {
 
 describe('guestIconOptions', () => {
 	const named = (id: string, name: string, forGuests: boolean) =>
-		({ ...icon(id, '🙂'), name, for_guests: forGuests }) as IconRecord;
+		({ ...icon(id), name, for_guests: forGuests }) as IconRecord;
 
 	it('offers only the icons for guests, by name, from the live map', () => {
 		const icons = new Map(
@@ -339,7 +444,21 @@ describe('guestIconOptions', () => {
 			].map((i) => [i.id, i])
 		);
 		expect(guestIconOptions(icons).map((option) => option.label)).toEqual(['Ant', 'Zebra', 'bee']);
-		expect(guestIconOptions(icons)[0]).toEqual({ label: 'Ant', value: 'a', emoji: '🙂' });
+		expect(guestIconOptions(icons)[0]).toEqual({
+			label: 'Ant',
+			value: 'a',
+			picture: small('pbc_icons', 'a', 'a.png')
+		});
+	});
+
+	it("shows each icon's small picture, or the default avatar when it has none", () => {
+		const icons = new Map(
+			[named('a', 'Ant', true), { ...named('o', 'Old', true), image: '' }].map((i) => [i.id, i])
+		);
+		expect(guestIconOptions(icons).map((option) => option.picture)).toEqual([
+			small('pbc_icons', 'a', 'a.png'),
+			DEFAULT_AVATAR
+		]);
 	});
 
 	it('follows icons switched off for guests or deleted', () => {

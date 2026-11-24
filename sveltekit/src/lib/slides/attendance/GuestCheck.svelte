@@ -9,6 +9,7 @@
 		guestPerson,
 		guestPictureUrl,
 		regularGuestProblem,
+		SMALL_PICTURE,
 		type GuestNameOption
 	} from '#lib/slides/people.ts';
 	import { reportSaveError } from '#lib/present/saveStatus.svelte.ts';
@@ -37,6 +38,7 @@
 	} from '#lib/pb/index.ts';
 	import GuestButton from '#lib/buttons/GuestButton.svelte';
 	import SampleButton from '#lib/buttons/+button.svelte';
+	import NamePicture from './NamePicture.svelte';
 	// the Delete Guest popover is scaled with the slide; the Add Guest dialog stays on <body>
 	import StagePortal from '#lib/slides/StagePortal.svelte';
 
@@ -58,7 +60,7 @@
 	interface ComboboxData {
 		label: string;
 		value: string;
-		emoji: string;
+		picture: string; // shown next to the label in the list (the input shows only the label)
 	}
 
 	// Skeleton 5 types each part's `element` attributes for its default tag (div, ul, li);
@@ -195,9 +197,13 @@
 		console.log('Avatars', avatar.value);
 	};
 
-	// a regular guest checked in without an icon shows the same emoji as in the name list
-	const guestEmoji = (guest: GuestDaily) =>
-		guestAvatarMap.get(guest.avatar)?.emoji || (guest.person ? '👤' : '❔');
+	// the Delete Guest list shows each guest's picture small: the same one as their button
+	const guestSmallPicture = (guest: GuestDaily) =>
+		guestPictureUrl(
+			guestPerson(guest, peopleById),
+			guestAvatarMap.get(guest.avatar),
+			SMALL_PICTURE
+		);
 
 	const avatarURL = (avatarId: string) => {
 		// like on the guest page, a regular guest's own picture comes before the icon
@@ -368,9 +374,9 @@
 																? 'preset-filled-primary-500'
 																: 'hover:bg-surface-950/5'}"
 														>
-															<div class="flex w-full justify-between space-x-2">
+															<div class="flex w-full items-center justify-between space-x-2">
 																<span class={itemLabelClass}>{option.label}</span>
-																<span>{option.emoji}</span>
+																<NamePicture src={option.picture} />
 															</div>
 														</button>
 													{/snippet}
@@ -440,9 +446,11 @@
 																class="btn preset-tonal-error-500 w-full rounded-full text-left"
 																onclick={() => removeGuest(guest)}
 															>
-																<div class="text-size-1 flex w-full justify-between space-x-2">
+																<div
+																	class="text-size-1 flex w-full items-center justify-between space-x-2"
+																>
 																	<span class="truncate">{guestName(guest)}</span>
-																	<span>{guestEmoji(guest)}</span>
+																	<NamePicture src={guestSmallPicture(guest)} />
 																</div>
 															</button>
 														{/each}

@@ -4,7 +4,8 @@
 // - is_guest = true people are only offered in the Add Guest list, never on the student or
 //   teacher attendance pages.
 
-import { getPbImageUrl } from '#lib/pb/index.ts';
+import { iconPictureUrl } from '#lib/pb/icons.ts';
+import { recordFileUrl } from '#lib/pb/requests.ts';
 import type { GuestDaily, IconRecord, Person } from '#lib/pb/types.ts';
 import { displayName } from '#lib/people/people.ts';
 
@@ -55,16 +56,44 @@ export const checkedInPeople = (guestDailies: GuestDaily[]) =>
 	new Set(guestDailies.flatMap((guest) => (guest.person ? [guest.person] : [])));
 
 /**
+ * For the small pictures next to the names in the Add Guest and Delete Guest lists: PocketBase's
+ * 100x100 copy. It makes one of a JPEG, PNG or GIF, and sends a WebP or SVG as it is.
+ */
+export const SMALL_PICTURE = '100x100';
+
+/**
  * The picture a guest check-in shows: the person's own picture when it belongs to a person who
- * has one, else the icon picked at check-in, else the default avatar.
+ * has one, else the icon picked at check-in (if it has a picture), else the default avatar.
+ * `thumb`: SMALL_PICTURE for a small copy.
  */
 export const guestPictureUrl = (
 	person: Person | undefined,
-	icon: IconRecord | null | undefined
+	icon: IconRecord | null | undefined,
+	thumb?: typeof SMALL_PICTURE
 ) => {
-	if (person?.avatar) return getPbImageUrl(person.collectionId, person.id, person.avatar);
-	if (icon) return getPbImageUrl(icon.collectionId, icon.id, icon.image);
+	if (person?.avatar) return recordFileUrl(person, person.avatar, thumb);
+	if (icon?.image) return iconPictureUrl(icon, thumb);
 	return DEFAULT_AVATAR;
+};
+
+const isLater = (a: GuestDaily, b: GuestDaily) =>
+	a.date !== b.date ? a.date > b.date : (a.created ?? '') > (b.created ?? '');
+
+/**
+ * The icon a regular guest picked at their latest earlier check-in that has one (by date, then
+ * by when it was saved), from the presenter's map of every icon; undefined if there is none.
+ */
+export const lastIconOf = (
+	personId: string,
+	previousGuests: readonly GuestDaily[],
+	icons: ReadonlyMap<string, IconRecord>
+): IconRecord | undefined => {
+	let latest: GuestDaily | undefined;
+	for (const guestDaily of previousGuests) {
+		if (guestDaily.person !== personId || !icons.has(guestDaily.avatar)) continue;
+		if (!latest || isLater(guestDaily, latest)) latest = guestDaily;
+	}
+	return latest && icons.get(latest.avatar);
 };
 
 // PocketBase sorts `name` with SQLite's default (binary) collation; comparing UTF-16 code units
@@ -87,7 +116,8 @@ export const applyPersonEvent = (people: Person[], action: string, record: Perso
 export interface GuestNameOption {
 	label: string;
 	value: string;
-	emoji: string;
+	/** The small picture next to the name (see guestNameOptions); never empty. */
+	picture: string;
 	person?: Person; // set when the option is a regular guest from `people`
 }
 
@@ -99,6 +129,10 @@ export const PERSON_OPTION_PREFIX = 'person:';
  * checked in today are left out (they can check in once a day). Earlier check-ins of a regular
  * guest are left out too (the person is listed instead), and so are those of people who are no
  * longer active.
+ *
+ * Each name has a small picture: a regular guest's own picture, else the icon of their latest
+ * check-in, else the default avatar; a one-off guest's, the icon of the check-in the option
+ * reuses, else the default avatar.
  */
 export const guestNameOptions = (
 	guestPeople: Person[],
@@ -110,7 +144,11 @@ export const guestNameOptions = (
 	const regularGuests = guestPeople.map((person) => ({
 		label: displayName(person),
 		value: PERSON_OPTION_PREFIX + person.id,
-		emoji: '👤',
+		picture: guestPictureUrl(
+			person,
+			lastIconOf(person.id, previousGuests, guestAvatarMap),
+			SMALL_PICTURE
+		),
 		person
 	}));
 	// a checked-in regular guest's name isn't offered again as a one-off guest either
@@ -127,7 +165,7 @@ export const guestNameOptions = (
 		options.push({
 			label: guestDaily.name,
 			value: guestDaily.id,
-			emoji: guestAvatarMap.get(guestDaily.avatar)?.emoji || '❔'
+			picture: guestPictureUrl(undefined, guestAvatarMap.get(guestDaily.avatar), SMALL_PICTURE)
 		});
 	}
 	return options;
@@ -136,7 +174,8 @@ export const guestNameOptions = (
 export interface GuestIconOption {
 	label: string;
 	value: string;
-	emoji: string;
+	/** The icon's small picture, or the default avatar when it has none; never empty. */
+	picture: string;
 }
 
 /** Icons switched on for guests (the `for_guests` field). */
@@ -144,14 +183,18 @@ export const isGuestIcon = (icon: IconRecord) =>
 	(icon as IconRecord & { for_guests?: boolean }).for_guests === true;
 
 /**
- * The icons offered in the Add Guest dialog: those for guests, by name (in PocketBase's order,
- * like the people), from the presenter's live map of every icon.
+ * The icons offered in the Add Guest dialog, each with its small picture: those for guests, by
+ * name (in PocketBase's order, like the people), from the presenter's live map of every icon.
  */
 export const guestIconOptions = (icons: ReadonlyMap<string, IconRecord>): GuestIconOption[] =>
 	[...icons.values()]
 		.filter(isGuestIcon)
 		.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : 1))
-		.map((icon) => ({ label: icon.name, value: icon.id, emoji: icon.emoji }));
+		.map((icon) => ({
+			label: icon.name,
+			value: icon.id,
+			picture: guestPictureUrl(undefined, icon, SMALL_PICTURE)
+		}));
 
 /**
  * Why a regular guest picked in the Add Guest dialog can't be checked in (anymore), or undefined
