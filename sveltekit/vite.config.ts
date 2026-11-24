@@ -6,19 +6,21 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vitest/config';
 
 // SvelteKit 3 refuses to start without the variables declared in src/env.ts. Unit tests never
-// talk to PocketBase, so give them a placeholder when no .env is present. It must be an address
-// that never answers: a test run also rewrites the dev server's generated env module
-// (.svelte-kit/generated/dev/env), so a `vite dev` running in the same folder hands this address
-// to the browser until it restarts. With a real address (it was http://localhost:8090) the open
-// pages would quietly read and write that PocketBase instead of the dev server's own.
-if (process.env.VITEST) process.env.PUBLIC_POCKETBASE_URL ??= 'http://pocketbase.invalid';
+// talk to PocketBase, so give them a placeholder when no .env is present: an address that never
+// answers, in case anything ever does try.
+const testing = !!process.env.VITEST;
+if (testing) process.env.PUBLIC_POCKETBASE_URL ??= 'http://pocketbase.invalid';
 
 export default defineConfig({
 	plugins: [
 		tailwindcss(),
 		sveltekit({
 			preprocess: vitePreprocess(),
-			adapter: adapter()
+			adapter: adapter(),
+			// Tests get their own generated files. Sharing .svelte-kit, a test run rewrote the env
+			// module a running `vite dev` serves, so its open pages switched to the tests' PocketBase
+			// address (once the owner's real one) until the dev server restarted.
+			...(testing && { outDir: '.svelte-kit-vitest' })
 		})
 	],
 	preview: { host: '0.0.0.0', allowedHosts: ['meet.lan'] },
