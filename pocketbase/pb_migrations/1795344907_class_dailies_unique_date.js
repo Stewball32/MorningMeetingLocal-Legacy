@@ -17,9 +17,12 @@
 // - every merge is printed.
 //
 // Down only drops the index; merged records stay merged (the pb_data backup taken before deploying
-// is the way back). Run `pocketbase migrate down 1` while this file is the newest one in
-// pb_migrations. PocketBase exits with status 0 even when a migration fails: check that it printed
-// "Applied 1795344907_class_dailies_unique_date.js" (or "Reverted ...").
+// is the way back).
+//
+// Rolling back: see DEPLOY.md section C2 for the order (`pocketbase migrate down` reverts the
+// newest migrations first, so the ones after this one go before it). PocketBase exits with status
+// 0 even when a migration fails, so check that it printed
+// "Reverted 1795344907_class_dailies_unique_date.js" (or "Applied ..." when migrating up).
 
 const INDEX = 'idx_class_dailies_date';
 
