@@ -10,12 +10,12 @@
 //
 // Both fields are new and optional: nothing stored today can make it fail.
 //
-// Rolling back: see DEPLOY.md section C2 (`pocketbase migrate down` reverts the newest migrations
-// first, so this one is the 1st). It drops both fields with what was typed into them. A birthday
-// changes its person's record, so the people migration's down step then refuses (as for any other
-// change to people) unless MM_PEOPLE_FORCE_DOWN=1. PocketBase exits with status 0 even when a
-// migration fails, so check that it printed "Reverted 1795344908_birthdays_and_holiday_names.js"
-// (or "Applied ..." when migrating up).
+// Rolling back: see DEPLOY.md section C2 for the order (`pocketbase migrate down` reverts the
+// newest migrations first, so the ones after this one go before it). It drops both fields with
+// what was typed into them. A birthday changes its person's record, so the people migration's
+// down step then refuses (as for any other change to people) unless MM_PEOPLE_FORCE_DOWN=1.
+// PocketBase exits with status 0 even when a migration fails, so check that it printed
+// "Reverted 1795344908_birthdays_and_holiday_names.js" (or "Applied ..." when migrating up).
 
 migrate(
 	(app) => {

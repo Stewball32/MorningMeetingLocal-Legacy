@@ -17,11 +17,11 @@
 //
 // Everything is added or relaxed: nothing stored today can make it fail.
 //
-// Rolling back: see DEPLOY.md section C2 (`pocketbase migrate down` reverts the newest migrations
-// first, so with 1795344907_class_dailies_unique_date.js applied this one is the 2nd). It refuses
-// (and changes nothing) once icon deletes have left same-day, same-name one-off guests without an
-// icon, which the old index doesn't allow; restore the pb_data copy taken before the update
-// instead. PocketBase exits with status 0 even when a migration fails, so check that it printed
+// Rolling back: see DEPLOY.md section C2 for the order (`pocketbase migrate down` reverts the
+// newest migrations first, so the ones after this one go before it). It refuses (and changes
+// nothing) once icon deletes have left same-day, same-name one-off guests without an icon, which
+// the old index doesn't allow; restore the pb_data copy taken before the update instead.
+// PocketBase exits with status 0 even when a migration fails, so check that it printed
 // "Reverted 1795344906_icons_and_observances.js" (or "Applied ..." when migrating up).
 
 migrate(

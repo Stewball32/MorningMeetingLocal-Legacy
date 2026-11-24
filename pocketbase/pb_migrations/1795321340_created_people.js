@@ -12,8 +12,8 @@
 // links have changed (set MM_PEOPLE_FORCE_DOWN=1 to throw those changes away and run it anyway).
 // Run `pocketbase migrate down` while this file is still in pb_migrations (with the people code
 // still checked out): without it PocketBase reverts whichever migration comes before it instead.
-// Newer migrations are reverted first: with the two after it applied, that is `migrate down 3`
-// (see DEPLOY.md section C2).
+// Newer migrations are reverted first, so it takes a `migrate down` that counts back to this one:
+// see DEPLOY.md section C2 for the order and the exact command.
 // PocketBase exits with status 0 even when a migration fails, so check that it printed
 // "Reverted 1795321340_created_people.js" (or "Applied ..." when migrating up).
 
